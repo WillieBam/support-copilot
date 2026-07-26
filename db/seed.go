@@ -32,6 +32,8 @@ func InitDatabase(db *gorm.DB) {
 		&models.Team{},
 		&models.TeamMember{},
 		&models.TeamIncident{},
+		&models.Conversation{},
+		&models.Message{},
 	)
 	if err != nil {
 		log.Fatalf("AutoMigrate failed: %v", err)

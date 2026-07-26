@@ -1,11 +1,19 @@
 package models
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Conversation struct {
-	ID             uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-	TeamID         uuid.UUID `gorm:"type:uuid;not null"`
-	TeamIncidentID uuid.UUID `gorm:"type:uuid;not null"`
-	UserID         uuid.UUID `gorm:"type:uuid;not null"`
-	Title          string    `gorm:"type:varchar(255)"`
+	ID             uuid.UUID  `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	TeamID         uuid.UUID  `gorm:"type:uuid;not null" json:"team_id"`
+	TeamIncidentID *uuid.UUID `gorm:"type:uuid" json:"team_incident_id,omitempty"`
+	UserID         uuid.UUID  `gorm:"type:uuid;not null" json:"user_id"`
+	User           *User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Title          string     `gorm:"type:varchar(255)" json:"title"`
+	CreatedAt      time.Time  `gorm:"type:timestamp(0);default:CURRENT_TIMESTAMP" json:"created_at"`
+	Messages       []Message  `gorm:"foreignKey:ConversationID;constraint:OnDelete:CASCADE" json:"messages,omitempty"`
 }
+

@@ -1,20 +1,24 @@
-import { useFirebaseTotpAuth } from './service/auth/useFirebaseTotpAuth'
-import { Thread } from './components/assistant-ui/thread'
-import { AssistantRuntimeProvider } from '@assistant-ui/react'
-import { useBackendRuntime } from './service/chat/backendRuntime'
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { LoginPage } from './pages/loginPage'
-import { RegisterPage } from './pages/registerPage'
-import { SetupTotp } from './pages/setupTotp'
-import { TotpPage } from './pages/totpPage'
-import { useAppRouter } from './hooks/useAppRouter'
-import { useWorkspaceState } from './hooks/useWorkspaceState'
-import { Brain, FileText, LogOut, PanelLeftClose, PanelLeftOpen, Sun, Moon } from 'lucide-react'
-import { useTheme } from './hooks/useTheme'
-import { TeamProvider } from './context/TeamContext'
-import { TeamSelector } from './components/team/TeamSelector'
+import { useFirebaseTotpAuth } from './service/auth/useFirebaseTotpAuth';
+import { Thread } from './components/assistant-ui/thread';
+import { AssistantRuntimeProvider } from '@assistant-ui/react';
+import { useBackendRuntime } from './service/chat/backendRuntime';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { LoginPage } from './pages/loginPage';
+import { RegisterPage } from './pages/registerPage';
+import { SetupTotp } from './pages/setupTotp';
+import { TotpPage } from './pages/totpPage';
+import { useAppRouter } from './hooks/useAppRouter';
+import { useWorkspaceState } from './hooks/useWorkspaceState';
+import { useConversationState } from './hooks/useConversationState';
+import { Brain, FileText, LogOut, PanelLeftClose, PanelLeftOpen, Sun, Moon } from 'lucide-react';
+import { useTheme } from './hooks/useTheme';
+import { TeamProvider, useTeam } from './context/TeamContext';
+import { TeamSelector } from './components/team/TeamSelector';
+import { ChatHistoryPanel } from './components/chat/ChatHistoryPanel';
+import { AllHistoryModal } from './components/chat/AllHistoryModal';
+import { ReadOnlyThread } from './components/chat/ReadOnlyThread';
 
-type AuthState = ReturnType<typeof useFirebaseTotpAuth>
+type AuthState = ReturnType<typeof useFirebaseTotpAuth>;
 
 function LoadingScreen() {
   return (
@@ -27,11 +31,11 @@ function LoadingScreen() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function GlobalHeader({ auth }: { auth: AuthState }) {
-  const { theme, toggleTheme } = useTheme()
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <header className="flex w-full h-[73px] items-center justify-between px-6 bg-card border-b border-border shrink-0 transition-colors duration-350 z-20">
@@ -64,12 +68,23 @@ function GlobalHeader({ auth }: { auth: AuthState }) {
         )}
       </div>
     </header>
-  )
+  );
 }
 
-function ChatWorkspace({ auth, runtime }: { auth: AuthState; runtime: ReturnType<typeof useBackendRuntime>['runtime'] }) {
-  const { isSidebarOpen, toggleSidebar } = useWorkspaceState()
-  
+function ChatWorkspace({ auth }: { auth: AuthState }) {
+  const { isSidebarOpen, toggleSidebar } = useWorkspaceState();
+  const { activeTeamId } = useTeam();
+
+  const convState = useConversationState(activeTeamId);
+
+  const { runtime } = useBackendRuntime({
+    teamId: activeTeamId,
+    conversationId: convState.activeConvId,
+    onConversationCreated: convState.onConversationCreated,
+    onTitleGenerated: convState.onTitleGenerated,
+    onFinish: convState.onFinish,
+  });
+
   const email = auth.userEmail;
   const initial = email ? email.charAt(0).toUpperCase() : 'U';
   const displayName = email ? email.split('@')[0] : '';
@@ -91,8 +106,17 @@ function ChatWorkspace({ auth, runtime }: { auth: AuthState; runtime: ReturnType
             <span className="text-muted-foreground text-xs truncate">{email}</span>
           </div>
         </div>
-        <div className="flex-1 p-6 text-muted-foreground text-sm italic min-w-[300px]">
-          WIP: Chat lists WIP.
+
+        {/* Top 5 Chat History Panel */}
+        <div className="flex-1 overflow-hidden min-w-[300px]">
+          <ChatHistoryPanel
+            conversations={convState.recentConvs}
+            selectedConvId={convState.selectedConvId}
+            isLoading={convState.isLoadingRecent}
+            onSelectConversation={convState.openConversation}
+            onViewAll={convState.openModal}
+            onNewChat={convState.startNewChat}
+          />
         </div>
       </aside>
 
@@ -110,24 +134,40 @@ function ChatWorkspace({ auth, runtime }: { auth: AuthState; runtime: ReturnType
           <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-orange-500/5 rounded-[20px] blur-[120px] pointer-events-none" />
 
           <div className="flex-1 flex bg-transparent flex-col pt-14 relative z-10 w-full overflow-hidden">
-            <AssistantRuntimeProvider runtime={runtime}>
-              <Thread />
-            </AssistantRuntimeProvider>
+            {convState.isReadOnly ? (
+              <ReadOnlyThread
+                messages={convState.selectedMessages}
+                isLoading={convState.isLoadingMessages}
+                onBack={convState.closeReadOnly}
+              />
+            ) : (
+              <AssistantRuntimeProvider runtime={runtime}>
+                <Thread />
+              </AssistantRuntimeProvider>
+            )}
           </div>
         </div>
       </main>
+
+      {/* All History Modal */}
+      <AllHistoryModal
+        isOpen={convState.isModalOpen}
+        conversations={convState.allConvs}
+        isLoading={convState.isLoadingAll}
+        onClose={convState.closeModal}
+        onSelectConversation={convState.openConversation}
+      />
     </div>
-  )
+  );
 }
 
 function App() {
-  const auth = useFirebaseTotpAuth()
-  const { runtime } = useBackendRuntime()
-  
-  // App routing logic has been decoupled into this hook
-  useAppRouter(auth)
+  const auth = useFirebaseTotpAuth();
 
-  if (!auth.isAuthReady) return <LoadingScreen />
+  // App routing logic has been decoupled into this hook
+  useAppRouter(auth);
+
+  if (!auth.isAuthReady) return <LoadingScreen />;
 
   return (
     <TeamProvider isSignedIn={auth.isSignedIn}>
@@ -135,21 +175,21 @@ function App() {
         <GlobalHeader auth={auth} />
         <Routes>
           <Route path="/" element={<Navigate to={auth.isSignedIn ? '/chat' : '/login'} replace />} />
-          
+
           {/* Auth routes centered over black background */}
           <Route path="/login" element={<div className="flex-1 flex items-center justify-center"><LoginPage auth={auth} /></div>} />
           <Route path="/register" element={<div className="flex-1 flex items-center justify-center"><RegisterPage auth={auth} /></div>} />
           <Route path="/setup-totp" element={<div className="flex-1 flex items-center justify-center"><SetupTotp auth={auth} /></div>} />
           <Route path="/totp" element={<div className="flex-1 flex items-center justify-center"><TotpPage auth={auth} /></div>} />
-          
+
           {/* Chat Workspace */}
-          <Route path="/chat" element={<ChatWorkspace auth={auth} runtime={runtime} />} />
-          
+          <Route path="/chat" element={<ChatWorkspace auth={auth} />} />
+
           <Route path="*" element={<Navigate to={auth.isSignedIn ? '/chat' : '/login'} replace />} />
         </Routes>
       </div>
     </TeamProvider>
-  )
+  );
 }
 
-export default App
+export default App;

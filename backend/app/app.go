@@ -41,23 +41,24 @@ func NewApp() *App {
 	userRepo := postgresRepo.NewUserRepository(gormDB)
 	alertRepo := postgresRepo.NewAlertRepository(gormDB)
 	teamRepo := postgresRepo.NewTeamRepository(gormDB)
+	convRepo := postgresRepo.NewConversationRepository(gormDB)
 	llmClient := llm.NewOllamaClient(cfg)
 	mcpOneClient := mcp.NewMcpOneClient(cfg)
 
-	appRepository := NewAppRepository(llmClient, userRepo, alertRepo, teamRepo)
+	appRepository := NewAppRepository(llmClient, userRepo, alertRepo, teamRepo, convRepo)
 
 	firebaseRepository, err := firebaseRepo.NewFirebaseRepository(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize Firebase Repository: %v", err)
 	}
 
-	// Initialize the Authentication Service
+	// initialize authentication service
 	authService := service.New(service.AuthServiceParam{
 		UserRepo:     appRepository.User,
 		FirebaseRepo: firebaseRepository,
 	})
 
-	appService := service.NewAppService(appRepository.Alert, appRepository.LLM, mcpOneClient)
+	appService := service.NewAppService(appRepository.Alert, appRepository.LLM, mcpOneClient, convRepo)
 	teamService := service.NewTeamService(appRepository.Team)
 
 	return &App{

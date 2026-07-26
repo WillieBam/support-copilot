@@ -1,15 +1,19 @@
 package endpoint
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
+	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
@@ -36,11 +40,6 @@ func NewHandler(a interfaces.IAppService, authService interfaces.IAuthService, o
 		}
 	}
 	return h
-}
-
-type queryRequest struct {
-	Input   string                 `json:"input"`
-	History []types.HistoryMessage `json:"history"`
 }
 
 // TokenExchangeHandler converts a validated Firebase token into a JWT session token
@@ -118,13 +117,38 @@ func (h *Handler) Query(c *echo.Context) error {
 	}
 
 	log.Printf("[LOG] Successfully authenticated user UID: %s processing query stream.", appUID)
-	var req queryRequest
+	var req requests.ChatQueryRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
 	if req.Input == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "input is required"})
+	}
+
+	var convID uuid.UUID
+	var isFirstMessage bool
+	ctx := c.Request().Context()
+
+	// get database user record safely if userRepo is configured
+	if h.userRepo != nil {
+		dbUser, err := h.userRepo.GetUserByFirebaseUID(ctx, appUID)
+		if err == nil && dbUser != nil {
+			if req.ConversationID != nil && *req.ConversationID != uuid.Nil {
+				convID = *req.ConversationID
+			} else if req.TeamID != nil && *req.TeamID != uuid.Nil {
+				conv, err := h.apps.CreateConversation(ctx, *req.TeamID, dbUser.ID)
+				if err == nil && conv != nil {
+					convID = conv.ID
+					isFirstMessage = true
+				}
+			}
+		}
+	}
+
+	// save user message if conversation exists
+	if convID != uuid.Nil {
+		_, _ = h.apps.SaveMessage(ctx, convID, "user", req.Input, "")
 	}
 
 	resp := c.Response()
@@ -139,25 +163,69 @@ func (h *Handler) Query(c *echo.Context) error {
 	}
 	flusher.Flush()
 
+	// notify client of assigned conversation id
+	if convID != uuid.Nil && isFirstMessage {
+		metaEvent := types.StreamEvent{
+			Type:    "meta",
+			Content: convID.String(),
+		}
+		eventJSON, _ := json.Marshal(metaEvent)
+		fmt.Fprintf(resp, "data: %s\n\n", eventJSON)
+		flusher.Flush()
+	}
+
 	streamChan := make(chan types.StreamEvent)
 	errorChan := make(chan error, 1)
 
 	go func() {
-		// Pass the channel into the service so it can push events!
+		// pass the channel into the service so it can push events
 		err := h.apps.QueryStreamWithTools(c.Request().Context(), req.Input, req.History, streamChan)
 		if err != nil {
 			errorChan <- err
 		}
-		// Always close the channel when the service is done
+		// always close the channel when the service is done
 		close(streamChan)
 	}()
+
+	var fullAssistantText strings.Builder
+	var fullReasoningText strings.Builder
 
 	for {
 		select {
 		case event, ok := <-streamChan:
 			if !ok {
+				// stream finished cleanly, persist assistant message and generate title
+				if convID != uuid.Nil {
+					asstText := fullAssistantText.String()
+					reasText := fullReasoningText.String()
+					if asstText != "" || reasText != "" {
+						_, _ = h.apps.SaveMessage(context.Background(), convID, "assistant", asstText, reasText)
+					}
+					if isFirstMessage {
+						title, err := h.apps.GenerateAndSaveTitle(context.Background(), convID, req.Input, asstText)
+						if err == nil && title != "" {
+							titleEvent := types.StreamEvent{
+								Type:    "title",
+								Content: title,
+							}
+							eventJSON, _ := json.Marshal(titleEvent)
+							fmt.Fprintf(resp, "data: %s\n\n", eventJSON)
+							flusher.Flush()
+						}
+					}
+				}
 				return nil
 			}
+
+			if event.Type == "text" {
+				fullAssistantText.WriteString(event.Content)
+			} else if event.Type == "reasoning" {
+				fullReasoningText.WriteString(event.Content)
+			} else if event.Type == "drain" {
+				fullAssistantText.Reset()
+				fullReasoningText.Reset()
+			}
+
 			eventJSON, _ := json.Marshal(event)
 			fmt.Fprintf(resp, "data: %s\n\n", eventJSON)
 			flusher.Flush()
@@ -261,3 +329,72 @@ func (h *Handler) SearchUsers(c *echo.Context) error {
 
 	return c.JSON(http.StatusOK, results)
 }
+
+// createconversation handles POST /api/conversations
+func (h *Handler) CreateConversation(c *echo.Context) error {
+	uidVal := c.Get("user_uid")
+	appUID, ok := uidVal.(string)
+	if !ok || appUID == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized session"})
+	}
+
+	var req requests.CreateConversationRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	dbUser, err := h.userRepo.GetUserByFirebaseUID(c.Request().Context(), appUID)
+	if err != nil || dbUser == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "user not found"})
+	}
+
+	conv, err := h.apps.CreateConversation(c.Request().Context(), req.TeamID, dbUser.ID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, conv)
+}
+
+// listteamconversations handles GET /api/teams/:team_id/conversations
+func (h *Handler) ListTeamConversations(c *echo.Context) error {
+	teamIDStr := c.Param("team_id")
+	teamID, err := uuid.Parse(teamIDStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid team id"})
+	}
+
+	limit := 0
+	if l := c.QueryParam("limit"); l != "" {
+		if parsedLimit, err := strconv.Atoi(l); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
+	convs, err := h.apps.ListTeamConversations(c.Request().Context(), teamID, limit)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	if convs == nil {
+		convs = []models.Conversation{}
+	}
+	return c.JSON(http.StatusOK, convs)
+}
+
+// getconversationmessages handles GET /api/conversations/:id/messages
+func (h *Handler) GetConversationMessages(c *echo.Context) error {
+	convIDStr := c.Param("id")
+	convID, err := uuid.Parse(convIDStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid conversation id"})
+	}
+
+	msgs, err := h.apps.ListMessagesByConversation(c.Request().Context(), convID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	if msgs == nil {
+		msgs = []models.Message{}
+	}
+	return c.JSON(http.StatusOK, msgs)
+}
+

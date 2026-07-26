@@ -59,7 +59,18 @@ function buildHistory(messages: readonly ThreadMessage[]): Array<{ role: string;
   return history;
 }
 
-export function useBackendRuntime() {
+export interface UseBackendRuntimeOptions {
+  teamId?: string | null;
+  conversationId?: string | null;
+  onConversationCreated?: (id: string) => void;
+  onTitleGenerated?: (convId: string, title: string) => void;
+  onFinish?: () => void;
+}
+
+export function useBackendRuntime(options?: UseBackendRuntimeOptions) {
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   const chatModelRef = useRef<ChatModelAdapter>({
     async *run({
       messages,
@@ -74,6 +85,8 @@ export function useBackendRuntime() {
         body: JSON.stringify({
           input: buildPrompt(messages),
           history: buildHistory(messages),
+          team_id: optionsRef.current?.teamId || undefined,
+          conversation_id: optionsRef.current?.conversationId || undefined,
         }),
         signal: abortSignal,
         credentials: "include",
@@ -108,6 +121,7 @@ export function useBackendRuntime() {
 
         let currentReasoning = "";
         let fullText = "";
+        let currentConvId = optionsRef.current?.conversationId || undefined;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -124,7 +138,14 @@ export function useBackendRuntime() {
 
             try {
               const parsed = JSON.parse(jsonString);
-              if (parsed.type === "text") {
+              if (parsed.type === "meta") {
+                currentConvId = parsed.content;
+                optionsRef.current?.onConversationCreated?.(parsed.content);
+              } else if (parsed.type === "title") {
+                if (currentConvId) {
+                  optionsRef.current?.onTitleGenerated?.(currentConvId, parsed.content);
+                }
+              } else if (parsed.type === "text") {
                 fullText += parsed.content;
               } else if (parsed.type === "reasoning") {
                 currentReasoning += parsed.content + "\n";
@@ -139,11 +160,11 @@ export function useBackendRuntime() {
               const contentParts: any[] = [];
               if (currentReasoning.trim()) {
                 contentParts.push({
-                  type:"reasoning",
-                  text:currentReasoning.trim(),
+                  type: "reasoning",
+                  text: currentReasoning.trim(),
                 });
               }
-              if(fullText.trim() || contentParts.length === 0){
+              if (fullText.trim() || contentParts.length === 0) {
                 contentParts.push({
                   type: "text",
                   text: fullText,
@@ -158,25 +179,26 @@ export function useBackendRuntime() {
           }
         }
         const finalContentParts: any[] = [];
-        if(currentReasoning.trim()){
-          finalContentParts.push({type:"reasoning", text:currentReasoning.trim()});
+        if (currentReasoning.trim()) {
+          finalContentParts.push({ type: "reasoning", text: currentReasoning.trim() });
         }
-        
-        if (fullText.trim() || finalContentParts.length === 0){
-          finalContentParts.push({type: "text", text: fullText});
+
+        if (fullText.trim() || finalContentParts.length === 0) {
+          finalContentParts.push({ type: "text", text: fullText });
         }
 
         yield {
           content: finalContentParts,
           status: { type: "complete", reason: "stop" } as const,
-          // metadata: { custom: { reasoningText: currentReasoning } },
         };
+
+        optionsRef.current?.onFinish?.();
         return;
-        
+
       } catch (error: any) {
         if (error.name === "AbortError") {
           console.log("Stream aborted by user");
-          return;        
+          return;
         }
         throw new Error(error.message || "Backend request failed");
       }
@@ -184,3 +206,4 @@ export function useBackendRuntime() {
   });
   return { runtime: useLocalRuntime(chatModelRef.current) };
 }
+

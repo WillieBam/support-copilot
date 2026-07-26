@@ -115,6 +115,51 @@ func (_m *IAppService) RetrieveAlert(ctx context.Context, id uuid.UUID) (*models
 	return r0, r1
 }
 
+func (_m *IAppService) CreateConversation(ctx context.Context, teamID, userID uuid.UUID) (*models.Conversation, error) {
+	ret := _m.Called(ctx, teamID, userID)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).(*models.Conversation), ret.Error(1)
+}
+
+func (_m *IAppService) GetConversationByID(ctx context.Context, id uuid.UUID) (*models.Conversation, error) {
+	ret := _m.Called(ctx, id)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).(*models.Conversation), ret.Error(1)
+}
+
+func (_m *IAppService) ListTeamConversations(ctx context.Context, teamID uuid.UUID, limit int) ([]models.Conversation, error) {
+	ret := _m.Called(ctx, teamID, limit)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).([]models.Conversation), ret.Error(1)
+}
+
+func (_m *IAppService) SaveMessage(ctx context.Context, convID uuid.UUID, sender, content, reasoning string) (*models.Message, error) {
+	ret := _m.Called(ctx, convID, sender, content, reasoning)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).(*models.Message), ret.Error(1)
+}
+
+func (_m *IAppService) ListMessagesByConversation(ctx context.Context, convID uuid.UUID) ([]models.Message, error) {
+	ret := _m.Called(ctx, convID)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).([]models.Message), ret.Error(1)
+}
+
+func (_m *IAppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID, userPrompt, assistantReply string) (string, error) {
+	ret := _m.Called(ctx, convID, userPrompt, assistantReply)
+	return ret.String(0), ret.Error(1)
+}
+
 // NewIAppService creates a new instance of IAppService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewIAppService(t interface {

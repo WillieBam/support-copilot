@@ -29,6 +29,7 @@ type AppService struct {
 	toolRegistry       interfaces.IToolRegistry
 	commandInterceptor interfaces.ICommandInterceptor
 	intentClassifier   interfaces.IIntentClassifier
+	convRepo           interfaces.IConversationRepository
 }
 
 func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interfaces.IOllamaClient, mcpClient interfaces.IMCPClient, opts ...interface{}) interfaces.IAppService {
@@ -37,6 +38,7 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 	var registry interfaces.IToolRegistry
 	var cmdInterceptor interfaces.ICommandInterceptor
 	var intentCls interfaces.IIntentClassifier
+	var convRepo interfaces.IConversationRepository
 
 	for _, arg := range opts {
 		if tr, ok := arg.(interfaces.IToolRegistry); ok && tr != nil {
@@ -47,6 +49,9 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 		}
 		if ic, ok := arg.(interfaces.IIntentClassifier); ok && ic != nil {
 			intentCls = ic
+		}
+		if cr, ok := arg.(interfaces.IConversationRepository); ok && cr != nil {
+			convRepo = cr
 		}
 	}
 
@@ -72,6 +77,7 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 		toolRegistry:       registry,
 		commandInterceptor: cmdInterceptor,
 		intentClassifier:   intentCls,
+		convRepo:           convRepo,
 	}
 }
 
@@ -285,3 +291,110 @@ func (s *AppService) RetrieveAlert(ctx context.Context, id uuid.UUID) (*models.A
 	}
 	return alert, nil
 }
+
+// createconversation initializes a new conversation entry for team and user
+func (s *AppService) CreateConversation(ctx context.Context, teamID, userID uuid.UUID) (*models.Conversation, error) {
+	if s.convRepo == nil {
+		return nil, errors.New("conversation repository not configured")
+	}
+	conv := &models.Conversation{
+		ID:        uuid.New(),
+		TeamID:    teamID,
+		UserID:    userID,
+		Title:     "New Conversation",
+		CreatedAt: time.Now(),
+	}
+	if err := s.convRepo.CreateConversation(ctx, conv); err != nil {
+		return nil, err
+	}
+	return conv, nil
+}
+
+// getconversationbyid retrieves a conversation by id
+func (s *AppService) GetConversationByID(ctx context.Context, id uuid.UUID) (*models.Conversation, error) {
+	if s.convRepo == nil {
+		return nil, errors.New("conversation repository not configured")
+	}
+	return s.convRepo.GetConversationByID(ctx, id)
+}
+
+// listteamconversations retrieves team conversations up to limit
+func (s *AppService) ListTeamConversations(ctx context.Context, teamID uuid.UUID, limit int) ([]models.Conversation, error) {
+	if s.convRepo == nil {
+		return nil, errors.New("conversation repository not configured")
+	}
+	return s.convRepo.ListTeamConversations(ctx, teamID, limit)
+}
+
+// savemessage persists a chat message in the repository
+func (s *AppService) SaveMessage(ctx context.Context, convID uuid.UUID, sender, content, reasoning string) (*models.Message, error) {
+	if s.convRepo == nil {
+		return nil, errors.New("conversation repository not configured")
+	}
+	msg := &models.Message{
+		ID:             uuid.New(),
+		ConversationID: convID,
+		Sender:         sender,
+		Content:        content,
+		ReasoningSteps: reasoning,
+		CreatedAt:      time.Now(),
+	}
+	if err := s.convRepo.CreateMessage(ctx, msg); err != nil {
+		return nil, err
+	}
+	return msg, nil
+}
+
+// listmessagesbyconversation fetches all messages for a conversation
+func (s *AppService) ListMessagesByConversation(ctx context.Context, convID uuid.UUID) ([]models.Message, error) {
+	if s.convRepo == nil {
+		return nil, errors.New("conversation repository not configured")
+	}
+	return s.convRepo.ListMessagesByConversation(ctx, convID)
+}
+
+// generateandsavetitle generates a session title from user prompt and assistant response
+func (s *AppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID, userPrompt, assistantReply string) (string, error) {
+	if s.convRepo == nil {
+		return "", errors.New("conversation repository not configured")
+	}
+
+	titlePrompt := fmt.Sprintf(
+		"Based on this user query and assistant response, summarize the conversation topic into a short title (5 words or less). Return ONLY the title text, no quotes or additional words.\n\nUser: %s\n\nAssistant: %s",
+		userPrompt, assistantReply,
+	)
+
+	titleChan := make(chan types.StreamEvent, 64)
+	go func() {
+		// drain stream events during background title generation
+		for range titleChan {
+		}
+	}()
+
+	msg, err := s.ollamaClient.QueryStreamWithTools(ctx, requests.OllamaChatRequest{
+		Messages: []requests.OllamaMessage{
+			{Role: "system", Content: "You generate concise conversation titles. Output only the title text."},
+			{Role: "user", Content: titlePrompt},
+		},
+	}, titleChan)
+	close(titleChan)
+
+	if err != nil {
+		slog.Error("[APP SERVICE] Failed to generate conversation title", "err", err, "conv_id", convID)
+		return "", err
+	}
+
+	title := strings.TrimSpace(msg.Content)
+	title = strings.Trim(title, `"'`)
+	if title == "" {
+		title = "Chat Conversation"
+	}
+	if len(title) > 255 {
+		title = title[:255]
+	}
+
+	slog.Info("[APP SERVICE] Generated title for conversation", "conv_id", convID, "title", title)
+	err = s.convRepo.UpdateConversationTitle(ctx, convID, title)
+	return title, err
+}
+

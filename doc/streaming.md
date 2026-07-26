@@ -172,3 +172,4 @@ for {
 1. **SSE Protocol format**: Data is formatted as `data: <JSON>\n\n`.
 2. **Immediate Flush**: `flusher.Flush()` makes sure that the buffer is written immediately to the client socket.
 3. **Resiliency**: If a user cancels or closes their browser tab, `c.Request().Context().Done()` halts execution instantly.
+4. **First-turn Meta and Title Events**: Sends `meta` event on conversation start and emits `title` event upon LLM title generation at stream completion. See [chat_title_updates.md](./chat_title_updates.md) for details.

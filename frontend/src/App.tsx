@@ -10,13 +10,15 @@ import { TotpPage } from './pages/totpPage';
 import { useAppRouter } from './hooks/useAppRouter';
 import { useWorkspaceState } from './hooks/useWorkspaceState';
 import { useConversationState } from './hooks/useConversationState';
-import { Brain, FileText, LogOut, PanelLeftClose, PanelLeftOpen, Sun, Moon } from 'lucide-react';
+import { useState } from 'react';
+import { Brain, FileText, LogOut, PanelLeftClose, PanelLeftOpen, Sun, Moon, MessageSquare, AlertTriangle } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
 import { TeamProvider, useTeam } from './context/TeamContext';
 import { TeamSelector } from './components/team/TeamSelector';
 import { ChatHistoryPanel } from './components/chat/ChatHistoryPanel';
 import { AllHistoryModal } from './components/chat/AllHistoryModal';
 import { ReadOnlyThread } from './components/chat/ReadOnlyThread';
+import { IncidentPanel } from './components/incident/IncidentPanel';
 
 type AuthState = ReturnType<typeof useFirebaseTotpAuth>;
 
@@ -74,6 +76,7 @@ function GlobalHeader({ auth }: { auth: AuthState }) {
 function ChatWorkspace({ auth }: { auth: AuthState }) {
   const { isSidebarOpen, toggleSidebar } = useWorkspaceState();
   const { activeTeamId } = useTeam();
+  const [sidebarTab, setSidebarTab] = useState<'chats' | 'incidents'>('chats');
 
   const convState = useConversationState(activeTeamId);
 
@@ -94,29 +97,57 @@ function ChatWorkspace({ auth }: { auth: AuthState }) {
       {/* Left Panel Drawer */}
       <aside
         className={`flex flex-col border-r border-border bg-card/40 backdrop-blur-md transition-all duration-300 ease-in-out ${
-          isSidebarOpen ? 'w-[300px]' : 'w-0 border-r-0 overflow-hidden opacity-0'
+          isSidebarOpen ? 'w-[320px]' : 'w-0 border-r-0 overflow-hidden opacity-0'
         }`}
       >
-        <div className="p-6 border-b border-border flex items-center gap-4 shrink-0 min-w-[300px]">
-          <div className="w-10 h-10 rounded-full bg-muted border border-border flex items-center justify-center text-foreground font-bold text-lg shadow-inner">
+        <div className="p-4 border-b border-border flex items-center gap-3 shrink-0 min-w-[320px]">
+          <div className="w-9 h-9 rounded-full bg-muted border border-border flex items-center justify-center text-foreground font-bold text-sm shadow-inner shrink-0">
             {initial}
           </div>
           <div className="flex flex-col overflow-hidden">
-            <span className="text-foreground font-medium truncate">{displayName}</span>
-            <span className="text-muted-foreground text-xs truncate">{email}</span>
+            <span className="text-foreground font-medium text-sm truncate">{displayName}</span>
+            <span className="text-muted-foreground text-[11px] truncate">{email}</span>
           </div>
         </div>
 
-        {/* Top 5 Chat History Panel */}
-        <div className="flex-1 overflow-hidden min-w-[300px]">
-          <ChatHistoryPanel
-            conversations={convState.recentConvs}
-            selectedConvId={convState.selectedConvId}
-            isLoading={convState.isLoadingRecent}
-            onSelectConversation={convState.openConversation}
-            onViewAll={convState.openModal}
-            onNewChat={convState.startNewChat}
-          />
+        {/* Sidebar Tab Switcher */}
+        <div className="flex items-center border-b border-border p-1 bg-muted/20 shrink-0 min-w-[320px]">
+          <button
+            onClick={() => setSidebarTab('chats')}
+            className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              sidebarTab === 'chats'
+                ? 'bg-card text-foreground shadow-sm border border-border'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" /> Chats
+          </button>
+          <button
+            onClick={() => setSidebarTab('incidents')}
+            className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              sidebarTab === 'incidents'
+                ? 'bg-card text-foreground shadow-sm border border-border'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-emerald-500" /> Incidents
+          </button>
+        </div>
+
+        {/* Panel Content View */}
+        <div className="flex-1 overflow-hidden min-w-[320px]">
+          {sidebarTab === 'chats' ? (
+            <ChatHistoryPanel
+              conversations={convState.recentConvs}
+              selectedConvId={convState.selectedConvId}
+              isLoading={convState.isLoadingRecent}
+              onSelectConversation={convState.openConversation}
+              onViewAll={convState.openModal}
+              onNewChat={convState.startNewChat}
+            />
+          ) : (
+            <IncidentPanel teamId={activeTeamId} />
+          )}
         </div>
       </aside>
 

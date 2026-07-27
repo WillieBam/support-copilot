@@ -75,6 +75,19 @@ func (_m *ITeamRepository) ListTeamIncidents(ctx context.Context, teamID uuid.UU
 	return nil, ret.Error(1)
 }
 
+func (_m *ITeamRepository) GetTeamIncidentByID(ctx context.Context, incidentID uuid.UUID) (*models.TeamIncident, error) {
+	ret := _m.Called(ctx, incidentID)
+	if ret.Get(0) != nil {
+		return ret.Get(0).(*models.TeamIncident), ret.Error(1)
+	}
+	return nil, ret.Error(1)
+}
+
+func (_m *ITeamRepository) UpdateTeamIncidentStatus(ctx context.Context, history *models.IncidentStatusHistory, updatedInc *models.TeamIncident) error {
+	ret := _m.Called(ctx, history, updatedInc)
+	return ret.Error(0)
+}
+
 func NewITeamRepository(t interface {
 	mock.TestingT
 	Cleanup(func())

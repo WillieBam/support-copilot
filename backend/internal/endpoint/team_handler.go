@@ -329,4 +329,86 @@ func (h *Handler) GetTeamMembers(c *echo.Context) error {
 	return c.JSON(http.StatusOK, members)
 }
 
+// GetTeamIncident handles GET /api/incidents/:id
+func (h *Handler) GetTeamIncident(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	incID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		slog.Warn("[team] GetTeamIncident: invalid incident id param", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid incident ID"})
+	}
+
+	if h.teamService == nil {
+		slog.Error("[team] GetTeamIncident: team service is nil")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
+	}
+
+	slog.Info("[team] GetTeamIncident: fetching incident", "incident_id", incID, "requester_id", user.ID)
+	inc, err := h.teamService.GetIncident(c.Request().Context(), user.ID, incID)
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+			slog.Warn("[team] GetTeamIncident: unauthorized", "incident_id", incID, "requester_id", user.ID, "error", err)
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Warn("[team] GetTeamIncident: incident not found", "incident_id", incID)
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "incident not found"})
+		}
+		slog.Error("[team] GetTeamIncident: failed", "incident_id", incID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, inc)
+}
+
+// UpdateTeamIncidentStatus handles PUT /api/incidents/:id
+func (h *Handler) UpdateTeamIncidentStatus(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	incID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		slog.Warn("[team] UpdateTeamIncidentStatus: invalid incident id param", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid incident ID"})
+	}
+
+	var req requests.UpdateIncidentStatusRequest
+	if err := c.Bind(&req); err != nil {
+		slog.Warn("[team] UpdateTeamIncidentStatus: invalid payload", "incident_id", incID, "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
+	}
+
+	if h.teamService == nil {
+		slog.Error("[team] UpdateTeamIncidentStatus: team service is nil")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
+	}
+
+	slog.Info("[team] UpdateTeamIncidentStatus: updating status", "incident_id", incID, "status", req.Status, "requester_id", user.ID)
+	inc, err := h.teamService.UpdateIncidentStatus(c.Request().Context(), user.ID, incID, req.Status, req.Title, req.Details)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidIncidentStatus) {
+			slog.Warn("[team] UpdateTeamIncidentStatus: invalid status", "incident_id", incID, "status", req.Status, "error", err)
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
+		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+			slog.Warn("[team] UpdateTeamIncidentStatus: unauthorized", "incident_id", incID, "requester_id", user.ID, "error", err)
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Warn("[team] UpdateTeamIncidentStatus: incident not found", "incident_id", incID)
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "incident not found"})
+		}
+		slog.Error("[team] UpdateTeamIncidentStatus: failed", "incident_id", incID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, inc)
+}
+
 

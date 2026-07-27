@@ -18,7 +18,28 @@ var (
 	ErrUnauthorizedTeamOp    = errors.New("unauthorized team operation: owner permission required")
 	ErrSuperAdminRequired    = errors.New("unauthorized operation: super_admin scope required to delete a team")
 	ErrUserNotInTeam         = errors.New("user is not a member of this team")
+	ErrInvalidIncidentStatus = errors.New("invalid incident status: must be OPEN, IN_PROGRESS, RESOLVED, or CLOSED")
+	ErrIncidentNotFound      = errors.New("incident not found")
 )
+
+func normalizeIncidentStatus(status string) (string, error) {
+	upper := strings.ToUpper(strings.TrimSpace(status))
+	if upper == "" {
+		return "OPEN", nil
+	}
+	switch upper {
+	case "OPEN":
+		return "OPEN", nil
+	case "IN_PROGRESS", "IN PRORESS", "INPROGRESS":
+		return "IN_PROGRESS", nil
+	case "RESOLVED":
+		return "RESOLVED", nil
+	case "CLOSED":
+		return "CLOSED", nil
+	default:
+		return "", ErrInvalidIncidentStatus
+	}
+}
 
 type teamService struct {
 	teamRepo interfaces.ITeamRepository
@@ -143,13 +164,22 @@ func (s *teamService) AssignIncident(ctx context.Context, requesterID, teamID, i
 		return nil, ErrUnauthorizedTeamOp
 	}
 
+	validStatus, err := normalizeIncidentStatus(status)
+	if err != nil {
+		return nil, err
+	}
+
+	if incidentID == uuid.Nil {
+		incidentID = uuid.New()
+	}
+
 	inc := &models.TeamIncident{
 		ID:         uuid.New(),
 		IncidentID: incidentID,
 		TeamID:     teamID,
 		AssignedBy: requesterID,
-		Title:      title,
-		Status:     status,
+		Title:      strings.TrimSpace(title),
+		Status:     validStatus,
 		Details:    details,
 		AssignedAt: time.Now(),
 	}
@@ -194,6 +224,73 @@ func (s *teamService) ListMembers(ctx context.Context, requesterID, teamID uuid.
 	}
 	slog.InfoContext(ctx, "[team-svc] ListMembers: returning", "team_id", teamID, "count", len(members))
 	return members, nil
+}
+
+func (s *teamService) GetIncident(ctx context.Context, requesterID, incidentID uuid.UUID) (*models.TeamIncident, error) {
+	slog.InfoContext(ctx, "[team-svc] GetIncident: fetching incident", "incident_id", incidentID, "requester_id", requesterID)
+	inc, err := s.teamRepo.GetTeamIncidentByID(ctx, incidentID)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] GetIncident: failed", "incident_id", incidentID, "error", err)
+		return nil, err
+	}
+
+	_, err = s.teamRepo.GetMemberRole(ctx, inc.TeamID, requesterID)
+	if err != nil {
+		slog.WarnContext(ctx, "[team-svc] GetIncident: requester not in team", "team_id", inc.TeamID, "requester_id", requesterID, "error", err)
+		return nil, ErrUnauthorizedTeamOp
+	}
+
+	return inc, nil
+}
+
+func (s *teamService) UpdateIncidentStatus(ctx context.Context, requesterID, incidentID uuid.UUID, newStatus, title, details string) (*models.TeamIncident, error) {
+	slog.InfoContext(ctx, "[team-svc] UpdateIncidentStatus: updating incident status", "incident_id", incidentID, "requester_id", requesterID, "new_status", newStatus)
+
+	validStatus, err := normalizeIncidentStatus(newStatus)
+	if err != nil {
+		return nil, err
+	}
+
+	inc, err := s.teamRepo.GetTeamIncidentByID(ctx, incidentID)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] UpdateIncidentStatus: failed to get incident", "incident_id", incidentID, "error", err)
+		return nil, err
+	}
+
+	_, err = s.teamRepo.GetMemberRole(ctx, inc.TeamID, requesterID)
+	if err != nil {
+		slog.WarnContext(ctx, "[team-svc] UpdateIncidentStatus: requester not in team", "team_id", inc.TeamID, "requester_id", requesterID, "error", err)
+		return nil, ErrUnauthorizedTeamOp
+	}
+
+	previousStatus := inc.Status
+	inc.Status = validStatus
+	if strings.TrimSpace(title) != "" {
+		inc.Title = strings.TrimSpace(title)
+	}
+	if details != "" {
+		inc.Details = details
+	}
+
+	history := &models.IncidentStatusHistory{
+		ID:             uuid.New(),
+		TeamIncidentID: inc.ID,
+		UpdatedBy:      requesterID,
+		Title:          inc.Title,
+		NewStatus:      validStatus,
+		PreviousStatus: previousStatus,
+		Details:        details,
+		UpdatedAt:      time.Now(),
+	}
+
+	err = s.teamRepo.UpdateTeamIncidentStatus(ctx, history, inc)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] UpdateIncidentStatus: failed to update", "incident_id", incidentID, "error", err)
+		return nil, err
+	}
+
+	slog.InfoContext(ctx, "[team-svc] UpdateIncidentStatus: success", "incident_id", incidentID, "new_status", validStatus)
+	return s.teamRepo.GetTeamIncidentByID(ctx, incidentID)
 }
 
 

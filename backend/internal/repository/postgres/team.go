@@ -93,11 +93,52 @@ func (t *teamRepository) ListTeamMembers(ctx context.Context, teamID uuid.UUID) 
 }
 
 func (t *teamRepository) AssignTeamIncident(ctx context.Context, incident *models.TeamIncident) error {
-	return t.db.WithContext(ctx).Create(incident).Error
+	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(incident).Error; err != nil {
+			return err
+		}
+		initialHistory := models.IncidentStatusHistory{
+			ID:             uuid.New(),
+			TeamIncidentID: incident.ID,
+			UpdatedBy:      incident.AssignedBy,
+			Title:          incident.Title,
+			NewStatus:      incident.Status,
+			PreviousStatus: "",
+			Details:        incident.Details,
+			UpdatedAt:      incident.AssignedAt,
+		}
+		return tx.Create(&initialHistory).Error
+	})
 }
 
 func (t *teamRepository) ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error) {
 	var incidents []models.TeamIncident
-	err := t.db.WithContext(ctx).Where("team_id = ?", teamID).Order("assigned_at DESC").Find(&incidents).Error
+	err := t.db.WithContext(ctx).Preload("History", func(db *gorm.DB) *gorm.DB {
+		return db.Order("updated_at DESC")
+	}).Where("team_id = ?", teamID).Order("assigned_at DESC").Find(&incidents).Error
 	return incidents, err
+}
+
+func (t *teamRepository) GetTeamIncidentByID(ctx context.Context, incidentID uuid.UUID) (*models.TeamIncident, error) {
+	var incident models.TeamIncident
+	err := t.db.WithContext(ctx).Preload("History", func(db *gorm.DB) *gorm.DB {
+		return db.Order("updated_at DESC")
+	}).Where("id = ?", incidentID).First(&incident).Error
+	if err != nil {
+		return nil, err
+	}
+	return &incident, nil
+}
+
+func (t *teamRepository) UpdateTeamIncidentStatus(ctx context.Context, history *models.IncidentStatusHistory, updatedInc *models.TeamIncident) error {
+	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(updatedInc).Updates(map[string]interface{}{
+			"status":  updatedInc.Status,
+			"title":   updatedInc.Title,
+			"details": updatedInc.Details,
+		}).Error; err != nil {
+			return err
+		}
+		return tx.Create(history).Error
+	})
 }

@@ -11,8 +11,14 @@ type AddTeamMemberRequest struct {
 }
 
 type AssignTeamIncidentRequest struct {
-	IncidentID uuid.UUID `json:"incident_id" binding:"required"`
+	IncidentID uuid.UUID `json:"incident_id"`
 	Title      string    `json:"title" binding:"required"`
 	Status     string    `json:"status"`
 	Details    string    `json:"details"`
+}
+
+type UpdateIncidentStatusRequest struct {
+	Status  string `json:"status" binding:"required"`
+	Title   string `json:"title"`
+	Details string `json:"details"`
 }

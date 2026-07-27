@@ -32,6 +32,7 @@ func InitDatabase(db *gorm.DB) {
 		&models.Team{},
 		&models.TeamMember{},
 		&models.TeamIncident{},
+		&models.IncidentStatusHistory{},
 		&models.Conversation{},
 		&models.Message{},
 	)

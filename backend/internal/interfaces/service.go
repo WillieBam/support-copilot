@@ -9,7 +9,7 @@ import (
 )
 
 type IAppService interface {
-	QueryStreamWithTools(ctx context.Context, prompt string, history []types.HistoryMessage, streamChan chan<- types.StreamEvent) error
+	QueryStreamWithTools(ctx context.Context, prompt string, history []types.HistoryMessage, streamChan chan<- types.StreamEvent, opts ...interface{}) error
 	CreateConversation(ctx context.Context, teamID, userID uuid.UUID) (*models.Conversation, error)
 	GetConversationByID(ctx context.Context, id uuid.UUID) (*models.Conversation, error)
 	ListTeamConversations(ctx context.Context, teamID uuid.UUID, limit int) ([]models.Conversation, error)

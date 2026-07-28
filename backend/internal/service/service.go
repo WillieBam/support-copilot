@@ -30,6 +30,7 @@ type AppService struct {
 	commandInterceptor interfaces.ICommandInterceptor
 	intentClassifier   interfaces.IIntentClassifier
 	convRepo           interfaces.IConversationRepository
+	teamRepo           interfaces.ITeamRepository
 }
 
 func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interfaces.IOllamaClient, mcpClient interfaces.IMCPClient, opts ...interface{}) interfaces.IAppService {
@@ -39,6 +40,7 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 	var cmdInterceptor interfaces.ICommandInterceptor
 	var intentCls interfaces.IIntentClassifier
 	var convRepo interfaces.IConversationRepository
+	var teamRepo interfaces.ITeamRepository
 
 	for _, arg := range opts {
 		if tr, ok := arg.(interfaces.IToolRegistry); ok && tr != nil {
@@ -52,6 +54,9 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 		}
 		if cr, ok := arg.(interfaces.IConversationRepository); ok && cr != nil {
 			convRepo = cr
+		}
+		if tm, ok := arg.(interfaces.ITeamRepository); ok && tm != nil {
+			teamRepo = tm
 		}
 	}
 
@@ -78,6 +83,7 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 		commandInterceptor: cmdInterceptor,
 		intentClassifier:   intentCls,
 		convRepo:           convRepo,
+		teamRepo:           teamRepo,
 	}
 }
 
@@ -127,8 +133,15 @@ func (s *AppService) Intercept(ctx context.Context, prompt string) (*types.Comma
 	return &types.CommandResult{Handled: false}, nil
 }
 
-func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, history []types.HistoryMessage, streamChan chan<- types.StreamEvent) error {
+func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, history []types.HistoryMessage, streamChan chan<- types.StreamEvent, opts ...interface{}) error {
 	slog.Info("[APP SERVICE] QueryStreamWithTools started", "prompt", prompt)
+
+	var teamID uuid.UUID
+	for _, opt := range opts {
+		if tid, ok := opt.(uuid.UUID); ok {
+			teamID = tid
+		}
+	}
 
 	res, err := s.Intercept(ctx, prompt)
 	if err != nil {
@@ -160,6 +173,14 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
   or "00000000-0000-0000-0000-000000000000".
 - When the conversation is winding down (e.g. the user says "thanks", "bye", "ok"), reply
   with a short, friendly closing message and do not call any tools.`
+
+	if teamID != uuid.Nil && s.teamRepo != nil {
+		inst, _, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
+		if err == nil && inst != nil && strings.TrimSpace(inst.InstructionDetails) != "" {
+			slog.Info("[APP SERVICE] Injecting custom team instructions into system prompt", "team_id", teamID)
+			systemPrompt += fmt.Sprintf("\n\n## Team-Specific Custom Instructions\nThe engineering team for this workspace has provided the following custom instructions. You MUST strictly adhere to them in all your responses:\n%s", strings.TrimSpace(inst.InstructionDetails))
+		}
+	}
 
 	// build the full multi-turn messages array:
 	//   [system] + [history turns...] + [current user message]

@@ -68,16 +68,19 @@ func (_m *IAppService) Intercept(ctx context.Context, prompt string) (*types.Com
 }
 
 // QueryStreamWithTools provides a mock function with given fields: ctx, prompt, history, streamChan
-func (_m *IAppService) QueryStreamWithTools(ctx context.Context, prompt string, history []types.HistoryMessage, streamChan chan<- types.StreamEvent) error {
-	ret := _m.Called(ctx, prompt, history, streamChan)
+func (_m *IAppService) QueryStreamWithTools(ctx context.Context, prompt string, history []types.HistoryMessage, streamChan chan<- types.StreamEvent, opts ...interface{}) error {
+	var args []interface{}
+	args = append(args, ctx, prompt, history, streamChan)
+	args = append(args, opts...)
+	ret := _m.Called(args...)
 
 	if len(ret) == 0 {
 		panic("no return value specified for QueryStreamWithTools")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []types.HistoryMessage, chan<- types.StreamEvent) error); ok {
-		r0 = rf(ctx, prompt, history, streamChan)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []types.HistoryMessage, chan<- types.StreamEvent, ...interface{}) error); ok {
+		r0 = rf(ctx, prompt, history, streamChan, opts...)
 	} else {
 		r0 = ret.Error(0)
 	}

@@ -88,6 +88,24 @@ func (_m *ITeamRepository) UpdateTeamIncidentStatus(ctx context.Context, history
 	return ret.Error(0)
 }
 
+func (_m *ITeamRepository) GetTeamInstruction(ctx context.Context, teamID uuid.UUID) (*models.Instruction, []models.InstructionLog, error) {
+	ret := _m.Called(ctx, teamID)
+	var inst *models.Instruction
+	if ret.Get(0) != nil {
+		inst = ret.Get(0).(*models.Instruction)
+	}
+	var logs []models.InstructionLog
+	if ret.Get(1) != nil {
+		logs = ret.Get(1).([]models.InstructionLog)
+	}
+	return inst, logs, ret.Error(2)
+}
+
+func (_m *ITeamRepository) SaveTeamInstruction(ctx context.Context, instruction *models.Instruction, log *models.InstructionLog) error {
+	ret := _m.Called(ctx, instruction, log)
+	return ret.Error(0)
+}
+
 func NewITeamRepository(t interface {
 	mock.TestingT
 	Cleanup(func())

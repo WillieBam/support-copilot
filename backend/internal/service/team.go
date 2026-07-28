@@ -293,4 +293,65 @@ func (s *teamService) UpdateIncidentStatus(ctx context.Context, requesterID, inc
 	return s.teamRepo.GetTeamIncidentByID(ctx, incidentID)
 }
 
+func (s *teamService) GetTeamInstruction(ctx context.Context, requesterID, teamID uuid.UUID) (*models.Instruction, []models.InstructionLog, error) {
+	slog.InfoContext(ctx, "[team-svc] GetTeamInstruction: checking membership", "team_id", teamID, "requester_id", requesterID)
+	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	if err != nil {
+		slog.WarnContext(ctx, "[team-svc] GetTeamInstruction: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
+		return nil, nil, ErrUnauthorizedTeamOp
+	}
+
+	inst, logs, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] GetTeamInstruction: failed", "team_id", teamID, "error", err)
+		return nil, nil, err
+	}
+	return inst, logs, nil
+}
+
+func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, teamID uuid.UUID, details string) (*models.Instruction, error) {
+	slog.InfoContext(ctx, "[team-svc] SaveTeamInstruction: checking membership", "team_id", teamID, "requester_id", requesterID)
+	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	if err != nil {
+		slog.WarnContext(ctx, "[team-svc] SaveTeamInstruction: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
+		return nil, ErrUnauthorizedTeamOp
+	}
+
+	existingInst, existingLogs, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] SaveTeamInstruction: failed to check existing", "team_id", teamID, "error", err)
+		return nil, err
+	}
+
+	newInst := &models.Instruction{
+		ID:                 uuid.New(),
+		CreatedBy:          requesterID,
+		TeamID:             teamID,
+		InstructionDetails: strings.TrimSpace(details),
+		CreatedAt:          time.Now(),
+	}
+
+	var logEntry *models.InstructionLog
+	if existingInst != nil {
+		nextVersion := len(existingLogs) + 1
+		logEntry = &models.InstructionLog{
+			ID:               uuid.New(),
+			InstructionID:    existingInst.ID,
+			UpdatedBy:        requesterID,
+			OlderInstruction: existingInst.InstructionDetails,
+			Version:          nextVersion,
+			UpdatedAt:        time.Now(),
+		}
+	}
+
+	err = s.teamRepo.SaveTeamInstruction(ctx, newInst, logEntry)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] SaveTeamInstruction: failed to save", "team_id", teamID, "error", err)
+		return nil, err
+	}
+
+	updatedInst, _, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
+	return updatedInst, err
+}
+
 

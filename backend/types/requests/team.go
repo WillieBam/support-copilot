@@ -22,3 +22,7 @@ type UpdateIncidentStatusRequest struct {
 	Title   string `json:"title"`
 	Details string `json:"details"`
 }
+
+type SaveTeamInstructionRequest struct {
+	InstructionDetails string `json:"instruction_details" binding:"required"`
+}

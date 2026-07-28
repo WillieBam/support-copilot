@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types/models"
@@ -140,5 +141,47 @@ func (t *teamRepository) UpdateTeamIncidentStatus(ctx context.Context, history *
 			return err
 		}
 		return tx.Create(history).Error
+	})
+}
+
+func (t *teamRepository) GetTeamInstruction(ctx context.Context, teamID uuid.UUID) (*models.Instruction, []models.InstructionLog, error) {
+	var inst models.Instruction
+	err := t.db.WithContext(ctx).Where("team_id = ?", teamID).First(&inst).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, []models.InstructionLog{}, nil
+		}
+		return nil, nil, err
+	}
+
+	var logs []models.InstructionLog
+	err = t.db.WithContext(ctx).Where("instruction_id = ?", inst.ID).Order("version DESC").Find(&logs).Error
+	if logs == nil {
+		logs = []models.InstructionLog{}
+	}
+	return &inst, logs, err
+}
+
+func (t *teamRepository) SaveTeamInstruction(ctx context.Context, instruction *models.Instruction, log *models.InstructionLog) error {
+	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing models.Instruction
+		err := tx.Where("team_id = ?", instruction.TeamID).First(&existing).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return tx.Create(instruction).Error
+			}
+			return err
+		}
+
+		if log != nil {
+			log.InstructionID = existing.ID
+			if err := tx.Create(log).Error; err != nil {
+				return err
+			}
+		}
+
+		existing.InstructionDetails = instruction.InstructionDetails
+		existing.CreatedBy = instruction.CreatedBy
+		return tx.Save(&existing).Error
 	})
 }

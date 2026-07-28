@@ -20,6 +20,8 @@ import { AllHistoryModal } from './components/chat/AllHistoryModal';
 import { ReadOnlyThread } from './components/chat/ReadOnlyThread';
 import { IncidentPanel } from './components/incident/IncidentPanel';
 
+import { ManageInstructionModal } from './components/instruction/ManageInstructionModal';
+
 type AuthState = ReturnType<typeof useFirebaseTotpAuth>;
 
 function LoadingScreen() {
@@ -36,7 +38,7 @@ function LoadingScreen() {
   );
 }
 
-function GlobalHeader({ auth }: { auth: AuthState }) {
+function GlobalHeader({ auth, onOpenInstructionModal }: { auth: AuthState; onOpenInstructionModal: () => void }) {
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -56,7 +58,10 @@ function GlobalHeader({ auth }: { auth: AuthState }) {
         {auth.isSignedIn && (
           <>
             <TeamSelector />
-            <button className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-foreground hover:bg-muted transition-colors text-sm cursor-pointer">
+            <button
+              onClick={onOpenInstructionModal}
+              className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-foreground hover:bg-muted transition-colors text-sm cursor-pointer"
+            >
               <FileText className="w-4 h-4 text-muted-foreground" /> Manage Instruction
             </button>
             <button
@@ -73,7 +78,15 @@ function GlobalHeader({ auth }: { auth: AuthState }) {
   );
 }
 
-function ChatWorkspace({ auth }: { auth: AuthState }) {
+function MainApp({
+  auth,
+  isInstructionModalOpen,
+  onCloseInstructionModal,
+}: {
+  auth: AuthState;
+  isInstructionModalOpen: boolean;
+  onCloseInstructionModal: () => void;
+}) {
   const { isSidebarOpen, toggleSidebar } = useWorkspaceState();
   const { activeTeamId } = useTeam();
   const [sidebarTab, setSidebarTab] = useState<'chats' | 'incidents'>('chats');
@@ -188,12 +201,21 @@ function ChatWorkspace({ auth }: { auth: AuthState }) {
         onClose={convState.closeModal}
         onSelectConversation={convState.openConversation}
       />
+
+      {/* Manage Team Instruction Modal */}
+      {isInstructionModalOpen && (
+        <ManageInstructionModal
+          teamId={activeTeamId}
+          onClose={onCloseInstructionModal}
+        />
+      )}
     </div>
   );
 }
 
 function App() {
   const auth = useFirebaseTotpAuth();
+  const [isInstructionModalOpen, setIsInstructionModalOpen] = useState(false);
 
   // App routing logic has been decoupled into this hook
   useAppRouter(auth);
@@ -203,7 +225,7 @@ function App() {
   return (
     <TeamProvider isSignedIn={auth.isSignedIn}>
       <div className="flex flex-col min-h-screen bg-transparent text-foreground w-full overflow-hidden transition-colors duration-350">
-        <GlobalHeader auth={auth} />
+        <GlobalHeader auth={auth} onOpenInstructionModal={() => setIsInstructionModalOpen(true)} />
         <Routes>
           <Route path="/" element={<Navigate to={auth.isSignedIn ? '/chat' : '/login'} replace />} />
 
@@ -213,10 +235,21 @@ function App() {
           <Route path="/setup-totp" element={<div className="flex-1 flex items-center justify-center"><SetupTotp auth={auth} /></div>} />
           <Route path="/totp" element={<div className="flex-1 flex items-center justify-center"><TotpPage auth={auth} /></div>} />
 
-          {/* Chat Workspace */}
-          <Route path="/chat" element={<ChatWorkspace auth={auth} />} />
-
-          <Route path="*" element={<Navigate to={auth.isSignedIn ? '/chat' : '/login'} replace />} />
+          {/* Main workspace layout */}
+          <Route
+            path="/chat"
+            element={
+              auth.isSignedIn ? (
+                <MainApp
+                  auth={auth}
+                  isInstructionModalOpen={isInstructionModalOpen}
+                  onCloseInstructionModal={() => setIsInstructionModalOpen(false)}
+                />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
         </Routes>
       </div>
     </TeamProvider>

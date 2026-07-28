@@ -18,6 +18,8 @@ type ITeamRepository interface {
 	ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]models.TeamMember, error)
 	AssignTeamIncident(ctx context.Context, incident *models.TeamIncident) error
 	ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error)
+	GetTeamIncidentByID(ctx context.Context, incidentID uuid.UUID) (*models.TeamIncident, error)
+	UpdateTeamIncidentStatus(ctx context.Context, history *models.IncidentStatusHistory, updatedInc *models.TeamIncident) error
 }
 
 type ITeamService interface {
@@ -30,4 +32,6 @@ type ITeamService interface {
 	AssignIncident(ctx context.Context, requesterID, teamID, incidentID uuid.UUID, title, status, details string) (*models.TeamIncident, error)
 	ListIncidents(ctx context.Context, requesterID, teamID uuid.UUID) ([]models.TeamIncident, error)
 	ListMembers(ctx context.Context, requesterID, teamID uuid.UUID) ([]models.TeamMember, error)
+	GetIncident(ctx context.Context, requesterID, incidentID uuid.UUID) (*models.TeamIncident, error)
+	UpdateIncidentStatus(ctx context.Context, requesterID, incidentID uuid.UUID, newStatus, title, details string) (*models.TeamIncident, error)
 }

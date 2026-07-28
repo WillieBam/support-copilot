@@ -228,4 +228,85 @@ var _ = Describe("TeamService", func() {
 			Expect(incidents).To(Equal(expectedIncidents))
 		})
 	})
+
+	Context("GetIncident & UpdateIncidentStatus", func() {
+		var (
+			teamID     uuid.UUID
+			userID     uuid.UUID
+			incidentID uuid.UUID
+		)
+
+		BeforeEach(func() {
+			teamID = uuid.New()
+			userID = uuid.New()
+			incidentID = uuid.New()
+		})
+
+		It("should fail GetIncident if requester is not in team", func() {
+			mockInc := &models.TeamIncident{ID: incidentID, TeamID: teamID, Title: "Database Slow"}
+			teamRepo.On("GetTeamIncidentByID", ctx, incidentID).Return(mockInc, nil)
+			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("", errors.New("not member"))
+
+			inc, err := teamSvc.GetIncident(ctx, userID, incidentID)
+			Expect(err).To(Equal(service.ErrUnauthorizedTeamOp))
+			Expect(inc).To(BeNil())
+		})
+
+		It("should succeed GetIncident when requester is in team", func() {
+			mockInc := &models.TeamIncident{ID: incidentID, TeamID: teamID, Title: "Database Slow"}
+			teamRepo.On("GetTeamIncidentByID", ctx, incidentID).Return(mockInc, nil)
+			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("member", nil)
+
+			inc, err := teamSvc.GetIncident(ctx, userID, incidentID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(inc).To(Equal(mockInc))
+		})
+
+		It("should fail UpdateIncidentStatus when status is invalid", func() {
+			inc, err := teamSvc.UpdateIncidentStatus(ctx, userID, incidentID, "INVALID_STATUS", "Title", "Details")
+			Expect(err).To(Equal(service.ErrInvalidIncidentStatus))
+			Expect(inc).To(BeNil())
+		})
+
+		It("should succeed UpdateIncidentStatus and log status transition", func() {
+			mockInc := &models.TeamIncident{
+				ID:      incidentID,
+				TeamID:  teamID,
+				Title:   "Memory Leak",
+				Status:  "OPEN",
+				Details: "Initial details",
+			}
+			updatedInc := &models.TeamIncident{
+				ID:      incidentID,
+				TeamID:  teamID,
+				Title:   "Memory Leak",
+				Status:  "IN_PROGRESS",
+				Details: "Investigating stack dump",
+				History: []models.IncidentStatusHistory{
+					{
+						TeamIncidentID: incidentID,
+						PreviousStatus: "OPEN",
+						NewStatus:      "IN_PROGRESS",
+					},
+				},
+			}
+
+			teamRepo.On("GetTeamIncidentByID", ctx, incidentID).Return(mockInc, nil).Once()
+			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("member", nil)
+			teamRepo.On("UpdateTeamIncidentStatus", ctx, mock.MatchedBy(func(h *models.IncidentStatusHistory) bool {
+				return h.TeamIncidentID == incidentID && h.PreviousStatus == "OPEN" && h.NewStatus == "IN_PROGRESS" && h.UpdatedBy == userID
+			}), mock.MatchedBy(func(inc *models.TeamIncident) bool {
+				return inc.ID == incidentID && inc.Status == "IN_PROGRESS"
+			})).Return(nil)
+			teamRepo.On("GetTeamIncidentByID", ctx, incidentID).Return(updatedInc, nil).Once()
+
+			inc, err := teamSvc.UpdateIncidentStatus(ctx, userID, incidentID, "IN_PROGRESS", "Memory Leak", "Investigating stack dump")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(inc).NotTo(BeNil())
+			Expect(inc.Status).To(Equal("IN_PROGRESS"))
+			Expect(len(inc.History)).To(Equal(1))
+			Expect(inc.History[0].PreviousStatus).To(Equal("OPEN"))
+			Expect(inc.History[0].NewStatus).To(Equal("IN_PROGRESS"))
+		})
+	})
 })

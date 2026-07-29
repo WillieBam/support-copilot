@@ -174,12 +174,26 @@ func (h *Handler) Query(c *echo.Context) error {
 		flusher.Flush()
 	}
 
+	var teamID uuid.UUID
+	if req.TeamID != nil && *req.TeamID != uuid.Nil {
+		teamID = *req.TeamID
+	} else if convID != uuid.Nil {
+		if conv, err := h.apps.GetConversationByID(ctx, convID); err == nil && conv != nil {
+			teamID = conv.TeamID
+		}
+	}
+
 	streamChan := make(chan types.StreamEvent)
 	errorChan := make(chan error, 1)
 
+	var opts []interface{}
+	if teamID != uuid.Nil {
+		opts = append(opts, teamID)
+	}
+
 	go func() {
 		// pass the channel into the service so it can push events
-		err := h.apps.QueryStreamWithTools(c.Request().Context(), req.Input, req.History, streamChan)
+		err := h.apps.QueryStreamWithTools(c.Request().Context(), req.Input, req.History, streamChan, opts...)
 		if err != nil {
 			errorChan <- err
 		}

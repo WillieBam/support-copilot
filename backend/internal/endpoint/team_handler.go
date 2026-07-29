@@ -411,4 +411,86 @@ func (h *Handler) UpdateTeamIncidentStatus(c *echo.Context) error {
 	return c.JSON(http.StatusOK, inc)
 }
 
+type TeamInstructionResponse struct {
+	Instruction *models.Instruction     `json:"instruction"`
+	Logs        []models.InstructionLog `json:"logs"`
+}
+
+// GetTeamInstruction handles GET /api/teams/:team_id/instruction
+func (h *Handler) GetTeamInstruction(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	teamID, err := uuid.Parse(c.Param("team_id"))
+	if err != nil {
+		slog.Warn("[team] GetTeamInstruction: invalid team_id param", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid team ID"})
+	}
+
+	if h.teamService == nil {
+		slog.Error("[team] GetTeamInstruction: team service is nil")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
+	}
+
+	slog.Info("[team] GetTeamInstruction: fetching instruction", "team_id", teamID, "requester_id", user.ID)
+	inst, logs, err := h.teamService.GetTeamInstruction(c.Request().Context(), user.ID, teamID)
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+			slog.Warn("[team] GetTeamInstruction: unauthorized", "team_id", teamID, "requester_id", user.ID)
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		slog.Error("[team] GetTeamInstruction: failed", "team_id", teamID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if logs == nil {
+		logs = []models.InstructionLog{}
+	}
+
+	return c.JSON(http.StatusOK, TeamInstructionResponse{
+		Instruction: inst,
+		Logs:        logs,
+	})
+}
+
+// SaveTeamInstruction handles POST /api/teams/:team_id/instruction
+func (h *Handler) SaveTeamInstruction(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	teamID, err := uuid.Parse(c.Param("team_id"))
+	if err != nil {
+		slog.Warn("[team] SaveTeamInstruction: invalid team_id param", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid team ID"})
+	}
+
+	var req requests.SaveTeamInstructionRequest
+	if err := c.Bind(&req); err != nil {
+		slog.Warn("[team] SaveTeamInstruction: invalid payload", "team_id", teamID, "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
+	}
+
+	if h.teamService == nil {
+		slog.Error("[team] SaveTeamInstruction: team service is nil")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
+	}
+
+	slog.Info("[team] SaveTeamInstruction: saving instruction", "team_id", teamID, "requester_id", user.ID)
+	inst, err := h.teamService.SaveTeamInstruction(c.Request().Context(), user.ID, teamID, req.InstructionDetails)
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+			slog.Warn("[team] SaveTeamInstruction: unauthorized", "team_id", teamID, "requester_id", user.ID)
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		slog.Error("[team] SaveTeamInstruction: failed", "team_id", teamID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, inst)
+}
+
 

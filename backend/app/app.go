@@ -58,7 +58,7 @@ func NewApp() *App {
 		FirebaseRepo: firebaseRepository,
 	})
 
-	appService := service.NewAppService(appRepository.Alert, appRepository.LLM, mcpOneClient, convRepo)
+	appService := service.NewAppService(appRepository.Alert, appRepository.LLM, mcpOneClient, convRepo, appRepository.Team)
 	teamService := service.NewTeamService(appRepository.Team)
 
 	return &App{

@@ -33,6 +33,8 @@ func InitDatabase(db *gorm.DB) {
 		&models.TeamMember{},
 		&models.TeamIncident{},
 		&models.IncidentStatusHistory{},
+		&models.Instruction{},
+		&models.InstructionLog{},
 		&models.Conversation{},
 		&models.Message{},
 	)
@@ -46,6 +48,7 @@ func InitDatabase(db *gorm.DB) {
 	seedTeamsAndMemberships(db)
 	seedAlerts(db)
 	seedTeamIncidents(db)
+	seedInstructions(db)
 }
 
 func seedUsers(db *gorm.DB) {
@@ -228,7 +231,67 @@ func seedTeamIncidents(db *gorm.DB) {
 			Title:      "Payment Gateway High CPU Spike",
 			Status:     "IN_PROGRESS",
 			Details:    "CPU spike observed on payment gateway pod #3.",
-			AssignedAt: time.Now().Add(-1 * time.Hour),
+			AssignedAt: time.Now().Add(-2 * time.Hour),
+		},
+		{
+			ID:         uuid.MustParse("a2222222-2222-2222-2222-222222222222"),
+			IncidentID: uuid.New(),
+			TeamID:     teamDevOpsID,
+			AssignedBy: realUserID,
+			Title:      "Redis Session Cache Out of Memory",
+			Status:     "OPEN",
+			Details:    "Eviction policy maxmemory exceeded on cache-cluster-01.",
+			AssignedAt: time.Now().Add(-45 * time.Minute),
+		},
+		{
+			ID:         uuid.MustParse("a3333333-3333-3333-3333-333333333333"),
+			IncidentID: uuid.New(),
+			TeamID:     teamDevOpsID,
+			AssignedBy: leadEngineerID,
+			Title:      "Cart Service DB Connection Pool Exhausted",
+			Status:     "IN_PROGRESS",
+			Details:    "Connection pool leak detected in cart-service v2.4.",
+			AssignedAt: time.Now().Add(-3 * time.Hour),
+		},
+		{
+			ID:         uuid.MustParse("a4444444-4444-4444-4444-444444444444"),
+			IncidentID: uuid.New(),
+			TeamID:     teamDevOpsID,
+			AssignedBy: realUserID,
+			Title:      "Kafka Consumer Lag Spike on Orders Topic",
+			Status:     "OPEN",
+			Details:    "Lag count exceeded 50,000 unhandled messages.",
+			AssignedAt: time.Now().Add(-15 * time.Minute),
+		},
+		{
+			ID:         uuid.MustParse("a5555555-5555-5555-5555-555555555555"),
+			IncidentID: uuid.New(),
+			TeamID:     teamDevOpsID,
+			AssignedBy: engineerID1,
+			Title:      "Search Index Synchronization Out of Sync",
+			Status:     "OPEN",
+			Details:    "Elasticsearch cluster node #2 rebalancing failure.",
+			AssignedAt: time.Now().Add(-10 * time.Minute),
+		},
+		{
+			ID:         uuid.MustParse("a6666666-6666-6666-6666-666666666666"),
+			IncidentID: uuid.New(),
+			TeamID:     teamDevOpsID,
+			AssignedBy: superAdminID,
+			Title:      "Kubernetes Node Network Partition",
+			Status:     "RESOLVED",
+			Details:    "Node replaced and network overlay routing rules restored.",
+			AssignedAt: time.Now().Add(-12 * time.Hour),
+		},
+		{
+			ID:         uuid.MustParse("a7777777-7777-7777-7777-777777777777"),
+			IncidentID: uuid.New(),
+			TeamID:     teamDevOpsID,
+			AssignedBy: realUserID,
+			Title:      "Ingress Controller SSL Certificate Expiry",
+			Status:     "CLOSED",
+			Details:    "Cert-manager automatically renewed wildcard TLS certificate.",
+			AssignedAt: time.Now().Add(-24 * time.Hour),
 		},
 		{
 			ID:         uuid.MustParse("b2222222-2222-2222-2222-222222222222"),
@@ -236,20 +299,147 @@ func seedTeamIncidents(db *gorm.DB) {
 			TeamID:     teamPlatformID,
 			AssignedBy: leadEngineerID,
 			Title:      "Authentication Service Latency Degradation",
-			Status:     "OPEN",
+			Status:     "IN_PROGRESS",
 			Details:    "gRPC server response latency exceeded SLA threshold.",
 			AssignedAt: time.Now().Add(-30 * time.Minute),
 		},
+		{
+			ID:         uuid.MustParse("b3333333-3333-3333-3333-333333333333"),
+			IncidentID: uuid.New(),
+			TeamID:     teamPlatformID,
+			AssignedBy: realUserID,
+			Title:      "GraphQL Gateway Schema Stitching Failure",
+			Status:     "RESOLVED",
+			Details:    "Rolled back breaking change in catalog microservice deployment.",
+			AssignedAt: time.Now().Add(-6 * time.Hour),
+		},
+	}
+
+	for _, inc := range mockIncidents {
+		err := db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoNothing: true,
+		}).Create(&inc).Error
+		if err != nil {
+			log.Printf("Warning: TeamIncident seeding failed for %s: %v", inc.Title, err)
+		}
+	}
+	log.Println("TeamIncident database seeding done!")
+
+	seedIncidentStatusHistory(db)
+}
+
+func seedIncidentStatusHistory(db *gorm.DB) {
+	mockHistories := []models.IncidentStatusHistory{
+		{
+			ID:             uuid.MustParse("c1111111-1111-1111-1111-111111111111"),
+			TeamIncidentID: uuid.MustParse("a1111111-1111-1111-1111-111111111111"),
+			UpdatedBy:      realUserID,
+			Title:          "Payment Gateway High CPU Spike",
+			PreviousStatus: "",
+			NewStatus:      "OPEN",
+			Details:        "Incident initialized from critical alert.",
+			UpdatedAt:      time.Now().Add(-2 * time.Hour),
+		},
+		{
+			ID:             uuid.MustParse("c2222222-2222-2222-2222-222222222222"),
+			TeamIncidentID: uuid.MustParse("a1111111-1111-1111-1111-111111111111"),
+			UpdatedBy:      realUserID,
+			Title:          "Payment Gateway High CPU Spike",
+			PreviousStatus: "OPEN",
+			NewStatus:      "IN_PROGRESS",
+			Details:        "Assigned on-call engineer Meilin. Scaling pod replicas from 3 to 6.",
+			UpdatedAt:      time.Now().Add(-1 * time.Hour),
+		},
+		{
+			ID:             uuid.MustParse("c3333333-3333-3333-3333-333333333333"),
+			TeamIncidentID: uuid.MustParse("a3333333-3333-3333-3333-333333333333"),
+			UpdatedBy:      leadEngineerID,
+			Title:          "Cart Service DB Connection Pool Exhausted",
+			PreviousStatus: "",
+			NewStatus:      "OPEN",
+			Details:        "High connection count observed on primary DB node.",
+			UpdatedAt:      time.Now().Add(-3 * time.Hour),
+		},
+		{
+			ID:             uuid.MustParse("c4444444-4444-4444-4444-444444444444"),
+			TeamIncidentID: uuid.MustParse("a3333333-3333-3333-3333-333333333333"),
+			UpdatedBy:      leadEngineerID,
+			Title:          "Cart Service DB Connection Pool Exhausted",
+			PreviousStatus: "OPEN",
+			NewStatus:      "IN_PROGRESS",
+			Details:        "Investigating connection leak in cart-service v2.4 pool driver.",
+			UpdatedAt:      time.Now().Add(-2 * time.Hour),
+		},
+		{
+			ID:             uuid.MustParse("c5555555-5555-5555-5555-555555555555"),
+			TeamIncidentID: uuid.MustParse("a6666666-6666-6666-6666-666666666666"),
+			UpdatedBy:      superAdminID,
+			Title:          "Kubernetes Node Network Partition",
+			PreviousStatus: "OPEN",
+			NewStatus:      "IN_PROGRESS",
+			Details:        "Replacing faulty node worker-04.",
+			UpdatedAt:      time.Now().Add(-10 * time.Hour),
+		},
+		{
+			ID:             uuid.MustParse("c6666666-6666-6666-6666-666666666666"),
+			TeamIncidentID: uuid.MustParse("a6666666-6666-6666-6666-666666666666"),
+			UpdatedBy:      superAdminID,
+			Title:          "Kubernetes Node Network Partition",
+			PreviousStatus: "IN_PROGRESS",
+			NewStatus:      "RESOLVED",
+			Details:        "Node replaced and network overlay routing rules restored.",
+			UpdatedAt:      time.Now().Add(-5 * time.Hour),
+		},
+	}
+
+	for _, h := range mockHistories {
+		err := db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoNothing: true,
+		}).Create(&h).Error
+		if err != nil {
+			log.Printf("Warning: IncidentStatusHistory seeding failed: %v", err)
+		}
+	}
+	log.Println("IncidentStatusHistory database seeding done!")
+}
+
+func seedInstructions(db *gorm.DB) {
+	mockDevOpsInstructionID := uuid.MustParse("d1111111-1111-1111-1111-111111111111")
+
+	instruction := models.Instruction{
+		ID:                 mockDevOpsInstructionID,
+		CreatedBy:          realUserID,
+		TeamID:             teamDevOpsID,
+		InstructionDetails: "Always prioritize high CPU and memory leak alerts for payment-gateway services. When responding, provide concise technical diagnosis steps and recommended kubectl / container remediation commands.",
+		CreatedAt:          time.Now().Add(-24 * time.Hour),
 	}
 
 	err := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoNothing: true,
-	}).Create(&mockIncidents).Error
-
+	}).Create(&instruction).Error
 	if err != nil {
-		log.Printf("Warning: TeamIncident seeding failed: %v", err)
+		log.Printf("Warning: Instruction seeding failed: %v", err)
+	}
+
+	history := models.InstructionLog{
+		ID:               uuid.MustParse("e1111111-1111-1111-1111-111111111111"),
+		InstructionID:    mockDevOpsInstructionID,
+		UpdatedBy:        realUserID,
+		OlderInstruction: "Initial instructions: Assist DevOps engineers with incident analysis.",
+		Version:          1,
+		UpdatedAt:        time.Now().Add(-24 * time.Hour),
+	}
+
+	err = db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoNothing: true,
+	}).Create(&history).Error
+	if err != nil {
+		log.Printf("Warning: InstructionLog seeding failed: %v", err)
 	} else {
-		log.Println("TeamIncident database seeding done!")
+		log.Println("Instruction database seeding done!")
 	}
 }

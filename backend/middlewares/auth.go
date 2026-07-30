@@ -40,17 +40,3 @@ func AuthMiddleware(authSvc interfaces.IAuthService) echo.MiddlewareFunc {
 		}
 	}
 }
-
-// func getBearerToken(header string) string {
-// 	header = strings.TrimSpace(header)
-// 	if header == "" {
-// 		return ""
-// 	}
-
-// 	if strings.HasPrefix(strings.ToLower(header), "bearer ") {
-// 		token := header[len("bearer "):]
-// 		return strings.TrimSpace(token)
-// 	}
-
-// 	return ""
-// }

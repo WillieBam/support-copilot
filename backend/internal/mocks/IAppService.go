@@ -19,6 +19,94 @@ type IAppService struct {
 	mock.Mock
 }
 
+// CreateConversation provides a mock function with given fields: ctx, teamID, userID
+func (_m *IAppService) CreateConversation(ctx context.Context, teamID uuid.UUID, userID uuid.UUID) (*models.Conversation, error) {
+	ret := _m.Called(ctx, teamID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateConversation")
+	}
+
+	var r0 *models.Conversation
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (*models.Conversation, error)); ok {
+		return rf(ctx, teamID, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) *models.Conversation); ok {
+		r0 = rf(ctx, teamID, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Conversation)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, teamID, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GenerateAndSaveTitle provides a mock function with given fields: ctx, convID, userPrompt, assistantReply
+func (_m *IAppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID, userPrompt string, assistantReply string) (string, error) {
+	ret := _m.Called(ctx, convID, userPrompt, assistantReply)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GenerateAndSaveTitle")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string) (string, error)); ok {
+		return rf(ctx, convID, userPrompt, assistantReply)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string) string); ok {
+		r0 = rf(ctx, convID, userPrompt, assistantReply)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, string) error); ok {
+		r1 = rf(ctx, convID, userPrompt, assistantReply)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetConversationByID provides a mock function with given fields: ctx, id
+func (_m *IAppService) GetConversationByID(ctx context.Context, id uuid.UUID) (*models.Conversation, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetConversationByID")
+	}
+
+	var r0 *models.Conversation
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*models.Conversation, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) *models.Conversation); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Conversation)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // IngestAlert provides a mock function with given fields: ctx, incidentID, serviceName, severity, metrics
 func (_m *IAppService) IngestAlert(ctx context.Context, incidentID uuid.UUID, serviceName string, severity string, metrics string) error {
 	ret := _m.Called(ctx, incidentID, serviceName, severity, metrics)
@@ -67,12 +155,72 @@ func (_m *IAppService) Intercept(ctx context.Context, prompt string) (*types.Com
 	return r0, r1
 }
 
-// QueryStreamWithTools provides a mock function with given fields: ctx, prompt, history, streamChan
+// ListMessagesByConversation provides a mock function with given fields: ctx, convID
+func (_m *IAppService) ListMessagesByConversation(ctx context.Context, convID uuid.UUID) ([]models.Message, error) {
+	ret := _m.Called(ctx, convID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessagesByConversation")
+	}
+
+	var r0 []models.Message
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]models.Message, error)); ok {
+		return rf(ctx, convID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []models.Message); ok {
+		r0 = rf(ctx, convID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Message)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, convID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListTeamConversations provides a mock function with given fields: ctx, teamID, limit
+func (_m *IAppService) ListTeamConversations(ctx context.Context, teamID uuid.UUID, limit int) ([]models.Conversation, error) {
+	ret := _m.Called(ctx, teamID, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListTeamConversations")
+	}
+
+	var r0 []models.Conversation
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, int) ([]models.Conversation, error)); ok {
+		return rf(ctx, teamID, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, int) []models.Conversation); ok {
+		r0 = rf(ctx, teamID, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Conversation)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, int) error); ok {
+		r1 = rf(ctx, teamID, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// QueryStreamWithTools provides a mock function with given fields: ctx, prompt, history, streamChan, opts
 func (_m *IAppService) QueryStreamWithTools(ctx context.Context, prompt string, history []types.HistoryMessage, streamChan chan<- types.StreamEvent, opts ...interface{}) error {
-	var args []interface{}
-	args = append(args, ctx, prompt, history, streamChan)
-	args = append(args, opts...)
-	ret := _m.Called(args...)
+	var _ca []interface{}
+	_ca = append(_ca, ctx, prompt, history, streamChan)
+	_ca = append(_ca, opts...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
 		panic("no return value specified for QueryStreamWithTools")
@@ -118,49 +266,34 @@ func (_m *IAppService) RetrieveAlert(ctx context.Context, id uuid.UUID) (*models
 	return r0, r1
 }
 
-func (_m *IAppService) CreateConversation(ctx context.Context, teamID, userID uuid.UUID) (*models.Conversation, error) {
-	ret := _m.Called(ctx, teamID, userID)
-	if ret.Get(0) == nil {
-		return nil, ret.Error(1)
-	}
-	return ret.Get(0).(*models.Conversation), ret.Error(1)
-}
-
-func (_m *IAppService) GetConversationByID(ctx context.Context, id uuid.UUID) (*models.Conversation, error) {
-	ret := _m.Called(ctx, id)
-	if ret.Get(0) == nil {
-		return nil, ret.Error(1)
-	}
-	return ret.Get(0).(*models.Conversation), ret.Error(1)
-}
-
-func (_m *IAppService) ListTeamConversations(ctx context.Context, teamID uuid.UUID, limit int) ([]models.Conversation, error) {
-	ret := _m.Called(ctx, teamID, limit)
-	if ret.Get(0) == nil {
-		return nil, ret.Error(1)
-	}
-	return ret.Get(0).([]models.Conversation), ret.Error(1)
-}
-
-func (_m *IAppService) SaveMessage(ctx context.Context, convID uuid.UUID, sender, content, reasoning string) (*models.Message, error) {
+// SaveMessage provides a mock function with given fields: ctx, convID, sender, content, reasoning
+func (_m *IAppService) SaveMessage(ctx context.Context, convID uuid.UUID, sender string, content string, reasoning string) (*models.Message, error) {
 	ret := _m.Called(ctx, convID, sender, content, reasoning)
-	if ret.Get(0) == nil {
-		return nil, ret.Error(1)
-	}
-	return ret.Get(0).(*models.Message), ret.Error(1)
-}
 
-func (_m *IAppService) ListMessagesByConversation(ctx context.Context, convID uuid.UUID) ([]models.Message, error) {
-	ret := _m.Called(ctx, convID)
-	if ret.Get(0) == nil {
-		return nil, ret.Error(1)
+	if len(ret) == 0 {
+		panic("no return value specified for SaveMessage")
 	}
-	return ret.Get(0).([]models.Message), ret.Error(1)
-}
 
-func (_m *IAppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID, userPrompt, assistantReply string) (string, error) {
-	ret := _m.Called(ctx, convID, userPrompt, assistantReply)
-	return ret.String(0), ret.Error(1)
+	var r0 *models.Message
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string, string) (*models.Message, error)); ok {
+		return rf(ctx, convID, sender, content, reasoning)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string, string) *models.Message); ok {
+		r0 = rf(ctx, convID, sender, content, reasoning)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Message)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, string, string) error); ok {
+		r1 = rf(ctx, convID, sender, content, reasoning)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // NewIAppService creates a new instance of IAppService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

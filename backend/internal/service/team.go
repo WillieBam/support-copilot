@@ -354,4 +354,68 @@ func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, team
 	return updatedInst, err
 }
 
+func (s *teamService) CreateRunbook(ctx context.Context, teamID, incidentID uuid.UUID, title, content string) (*models.Runbook, error) {
+	slog.InfoContext(ctx, "[team-svc] CreateRunbook: persisting", "team_id", teamID, "incident_id", incidentID)
+	rb := &models.Runbook{
+		ID:         uuid.New(),
+		TeamID:     teamID,
+		IncidentID: incidentID,
+		Title:      strings.TrimSpace(title),
+		Status:     "active",
+		Content:    content,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	if err := s.teamRepo.CreateRunbook(ctx, rb); err != nil {
+		slog.ErrorContext(ctx, "[team-svc] CreateRunbook: failed", "error", err)
+		return nil, err
+	}
+	slog.InfoContext(ctx, "[team-svc] CreateRunbook: success", "runbook_id", rb.ID)
+	return rb, nil
+}
 
+func (s *teamService) UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title, content string) (*models.Runbook, error) {
+	slog.InfoContext(ctx, "[team-svc] UpdateRunbook: updating", "runbook_id", runbookID)
+	rb, err := s.teamRepo.UpdateRunbook(ctx, runbookID, strings.TrimSpace(title), content)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] UpdateRunbook: failed", "runbook_id", runbookID, "error", err)
+		return nil, err
+	}
+	slog.InfoContext(ctx, "[team-svc] UpdateRunbook: success", "runbook_id", runbookID)
+	return rb, nil
+}
+
+func (s *teamService) DeprecateRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error) {
+	slog.InfoContext(ctx, "[team-svc] DeprecateRunbook: deprecating", "runbook_id", runbookID)
+	rb, err := s.teamRepo.DeprecateRunbook(ctx, runbookID)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] DeprecateRunbook: failed", "runbook_id", runbookID, "error", err)
+		return nil, err
+	}
+	slog.InfoContext(ctx, "[team-svc] DeprecateRunbook: success", "runbook_id", runbookID)
+	return rb, nil
+}
+
+func (s *teamService) GetRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error) {
+	slog.InfoContext(ctx, "[team-svc] GetRunbook: fetching", "runbook_id", runbookID)
+	return s.teamRepo.GetRunbookByID(ctx, runbookID)
+}
+
+func (s *teamService) ListRunbooks(ctx context.Context, teamID uuid.UUID, status string) ([]models.Runbook, error) {
+	if status == "" {
+		status = "active"
+	}
+	slog.InfoContext(ctx, "[team-svc] ListRunbooks: listing", "team_id", teamID, "status", status)
+	return s.teamRepo.ListRunbooks(ctx, teamID, status)
+}
+
+func (s *teamService) GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error) {
+	slog.InfoContext(ctx, "[team-svc] GetIncidentContext: fetching enriched context", "team_incident_id", teamIncidentID)
+	inc, alerts, err := s.teamRepo.GetIncidentContext(ctx, teamIncidentID)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] GetIncidentContext: failed", "team_incident_id", teamIncidentID, "error", err)
+		return nil, nil, err
+	}
+	slog.InfoContext(ctx, "[team-svc] GetIncidentContext: success", "team_incident_id", teamIncidentID, "alert_count", len(alerts))
+	return inc, alerts, nil
+}

@@ -35,6 +35,7 @@ func InitDatabase(db *gorm.DB) {
 		&models.IncidentStatusHistory{},
 		&models.Instruction{},
 		&models.InstructionLog{},
+		&models.Runbook{},
 		&models.Conversation{},
 		&models.Message{},
 	)
@@ -48,6 +49,7 @@ func InitDatabase(db *gorm.DB) {
 	seedTeamsAndMemberships(db)
 	seedAlerts(db)
 	seedTeamIncidents(db)
+	seedRunbooks(db)
 	seedInstructions(db)
 }
 
@@ -442,4 +444,47 @@ func seedInstructions(db *gorm.DB) {
 	} else {
 		log.Println("Instruction database seeding done!")
 	}
+}
+
+func seedRunbooks(db *gorm.DB) {
+	mockRunbooks := []models.Runbook{
+		{
+			ID:         uuid.MustParse("f1111111-1111-1111-1111-111111111111"),
+			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			TeamID:     teamDevOpsID,
+			Title:      "Payment Gateway CPU Spike — Scale & Throttle",
+			Status:     "active",
+			Content: "## Root Cause\n" +
+				"Pod CPU throttling due to burst limit misconfiguration on payment-gateway-service.\n\n" +
+				"## Diagnostic Steps\n" +
+				"1. Check HPA thresholds: `kubectl get hpa -n production`\n" +
+				"2. Inspect pod CPU limits: `kubectl describe pod <pod-name> -n production`\n" +
+				"3. Review recent deployments: `kubectl rollout history deploy/payment-gateway`\n\n" +
+				"## Resolution\n" +
+				"1. Scale replicas immediately: `kubectl scale deploy payment-gateway --replicas=6 -n production`\n" +
+				"2. Adjust HPA `maxReplicas` to 10 and `targetCPUUtilizationPercentage` to 60\n" +
+				"3. Apply circuit breaker config to prevent downstream cascade\n\n" +
+				"## Prevention\n" +
+				"Set pod CPU requests/limits correctly and enable auto-scaling alerts at 70% threshold.",
+		},
+		{
+			ID:         uuid.MustParse("f2222222-2222-2222-2222-222222222222"),
+			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			TeamID:     teamDevOpsID,
+			Title:      "Old: Manual Pod Restart (Deprecated)",
+			Status:     "deprecated",
+			Content:    "Manually restart pods via `kubectl rollout restart deploy/payment-gateway`. Deprecated in favour of auto-scaling runbook f1111111.",
+		},
+	}
+
+	for _, rb := range mockRunbooks {
+		err := db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoNothing: true,
+		}).Create(&rb).Error
+		if err != nil {
+			log.Printf("Warning: Runbook seeding failed for %s: %v", rb.Title, err)
+		}
+	}
+	log.Println("Runbook database seeding done!")
 }

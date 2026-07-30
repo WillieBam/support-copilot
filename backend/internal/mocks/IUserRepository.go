@@ -63,24 +63,6 @@ func (_m *IUserRepository) GetUserByFirebaseUID(ctx context.Context, firebaseUid
 	return r0, r1
 }
 
-// UpsertUser provides a mock function with given fields: ctx, user
-func (_m *IUserRepository) UpsertUser(ctx context.Context, user *models.User) error {
-	ret := _m.Called(ctx, user)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpsertUser")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.User) error); ok {
-		r0 = rf(ctx, user)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // SearchUsers provides a mock function with given fields: ctx, query, limit
 func (_m *IUserRepository) SearchUsers(ctx context.Context, query string, limit int) ([]models.User, error) {
 	ret := _m.Called(ctx, query, limit)
@@ -109,6 +91,24 @@ func (_m *IUserRepository) SearchUsers(ctx context.Context, query string, limit 
 	}
 
 	return r0, r1
+}
+
+// UpsertUser provides a mock function with given fields: ctx, user
+func (_m *IUserRepository) UpsertUser(ctx context.Context, user *models.User) error {
+	ret := _m.Called(ctx, user)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpsertUser")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.User) error); ok {
+		r0 = rf(ctx, user)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // NewIUserRepository creates a new instance of IUserRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -22,6 +22,15 @@ type ITeamRepository interface {
 	UpdateTeamIncidentStatus(ctx context.Context, history *models.IncidentStatusHistory, updatedInc *models.TeamIncident) error
 	GetTeamInstruction(ctx context.Context, teamID uuid.UUID) (*models.Instruction, []models.InstructionLog, error)
 	SaveTeamInstruction(ctx context.Context, instruction *models.Instruction, log *models.InstructionLog) error
+	// Runbook operations
+	CreateRunbook(ctx context.Context, runbook *models.Runbook) error
+	UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title, content string) (*models.Runbook, error)
+	DeprecateRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error)
+	GetRunbookByID(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error)
+	ListRunbooks(ctx context.Context, teamID uuid.UUID, status string) ([]models.Runbook, error)
+	GetRunbooksByIncidentID(ctx context.Context, incidentID uuid.UUID) ([]models.Runbook, error)
+	// Enriched incident context for MCP KB tools
+	GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error)
 }
 
 type ITeamService interface {
@@ -38,4 +47,11 @@ type ITeamService interface {
 	UpdateIncidentStatus(ctx context.Context, requesterID, incidentID uuid.UUID, newStatus, title, details string) (*models.TeamIncident, error)
 	GetTeamInstruction(ctx context.Context, requesterID, teamID uuid.UUID) (*models.Instruction, []models.InstructionLog, error)
 	SaveTeamInstruction(ctx context.Context, requesterID, teamID uuid.UUID, details string) (*models.Instruction, error)
+	// Runbook operations (used by MCP Server 2 KB tools)
+	CreateRunbook(ctx context.Context, teamID, incidentID uuid.UUID, title, content string) (*models.Runbook, error)
+	UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title, content string) (*models.Runbook, error)
+	DeprecateRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error)
+	GetRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error)
+	ListRunbooks(ctx context.Context, teamID uuid.UUID, status string) ([]models.Runbook, error)
+	GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error)
 }

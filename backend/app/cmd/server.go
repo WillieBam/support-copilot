@@ -70,6 +70,16 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 		g.Use(middlewares.AuthMiddleware(a.AuthService))
 		g.POST("/chat", h.Query)
 
+		// '/internal' group endpoints — protected by x-internal-api-key for MCP server calls
+		internalGroup := e.Group("/internal", middlewares.InternalAPIKeyMiddleware())
+		internalGroup.POST("/teams/:team_id/runbooks", h.CreateRunbook)
+		internalGroup.PATCH("/runbooks/:id", h.UpdateRunbook)
+		internalGroup.PATCH("/runbooks/:id/deprecate", h.DeprecateRunbook)
+		internalGroup.GET("/runbooks/:id", h.GetRunbook)
+		internalGroup.GET("/teams/:team_id/runbooks", h.ListRunbooks)
+		internalGroup.GET("/teams/:team_id/incidents", h.GetTeamIncidents)
+		internalGroup.GET("/incidents/:id/context", h.GetIncidentContext)
+
 		// serve the React SPA with a client-side routing fallback
 		// see static.go for the full routing strategy
 		clientDir := config.Get().ClientDir

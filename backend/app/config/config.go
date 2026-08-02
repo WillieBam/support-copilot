@@ -54,6 +54,11 @@ type Config struct {
 		Host string
 		Port string
 	}
+
+	MCP2 struct {
+		Host string
+		Port string
+	}
 }
 
 func Get() *Config {
@@ -90,6 +95,8 @@ func newConfig() IConfig {
 	cfg.SetDefault("ollama.base_url", "http://localhost:11434")
 	cfg.SetDefault("mcp1.host", "localhost")
 	cfg.SetDefault("mcp1.port", 9000)
+	cfg.SetDefault("mcp2.host", "localhost")
+	cfg.SetDefault("mcp2.port", 9000)
 	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	cfg.AutomaticEnv()
 	cfg.SetConfigName("config")

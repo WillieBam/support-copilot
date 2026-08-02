@@ -17,6 +17,230 @@ type IOrchestratorService struct {
 	mock.Mock
 }
 
+// ExecuteCreateRunbookRaw provides a mock function with given fields: ctx, rawArgs
+func (_m *IOrchestratorService) ExecuteCreateRunbookRaw(ctx context.Context, rawArgs string) (string, error) {
+	ret := _m.Called(ctx, rawArgs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteCreateRunbookRaw")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, rawArgs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, rawArgs)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, rawArgs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ExecuteDeprecateRunbookRaw provides a mock function with given fields: ctx, rawArgs
+func (_m *IOrchestratorService) ExecuteDeprecateRunbookRaw(ctx context.Context, rawArgs string) (string, error) {
+	ret := _m.Called(ctx, rawArgs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteDeprecateRunbookRaw")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, rawArgs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, rawArgs)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, rawArgs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ExecuteGetIncidentRaw provides a mock function with given fields: ctx, rawArgs
+func (_m *IOrchestratorService) ExecuteGetIncidentRaw(ctx context.Context, rawArgs string) (string, error) {
+	ret := _m.Called(ctx, rawArgs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteGetIncidentRaw")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, rawArgs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, rawArgs)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, rawArgs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ExecuteGetRunbookRaw provides a mock function with given fields: ctx, rawArgs
+func (_m *IOrchestratorService) ExecuteGetRunbookRaw(ctx context.Context, rawArgs string) (string, error) {
+	ret := _m.Called(ctx, rawArgs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteGetRunbookRaw")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, rawArgs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, rawArgs)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, rawArgs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ExecuteLinkAlertToIncidentRaw provides a mock function with given fields: ctx, rawArgs
+func (_m *IOrchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context, rawArgs string) (string, error) {
+	ret := _m.Called(ctx, rawArgs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteLinkAlertToIncidentRaw")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, rawArgs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, rawArgs)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, rawArgs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ExecuteListIncidentsRaw provides a mock function with given fields: ctx, rawArgs
+func (_m *IOrchestratorService) ExecuteListIncidentsRaw(ctx context.Context, rawArgs string) (string, error) {
+	ret := _m.Called(ctx, rawArgs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteListIncidentsRaw")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, rawArgs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, rawArgs)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, rawArgs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ExecuteListRunbooksRaw provides a mock function with given fields: ctx, rawArgs
+func (_m *IOrchestratorService) ExecuteListRunbooksRaw(ctx context.Context, rawArgs string) (string, error) {
+	ret := _m.Called(ctx, rawArgs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteListRunbooksRaw")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, rawArgs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, rawArgs)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, rawArgs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ExecuteUpdateRunbookRaw provides a mock function with given fields: ctx, rawArgs
+func (_m *IOrchestratorService) ExecuteUpdateRunbookRaw(ctx context.Context, rawArgs string) (string, error) {
+	ret := _m.Called(ctx, rawArgs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteUpdateRunbookRaw")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, rawArgs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, rawArgs)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, rawArgs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ExecuteValidateAlert provides a mock function with given fields: ctx, alertID
 func (_m *IOrchestratorService) ExecuteValidateAlert(ctx context.Context, alertID uuid.UUID) (*responses.CombinedValidationResult, error) {
 	ret := _m.Called(ctx, alertID)

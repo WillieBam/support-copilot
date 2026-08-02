@@ -34,13 +34,12 @@ type AppService struct {
 }
 
 func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interfaces.IOllamaClient, mcpClient interfaces.IMCPClient, opts ...interface{}) interfaces.IAppService {
-	orchestrator := NewOrchestratorService(alertRepo, mcpClient)
-
 	var registry interfaces.IToolRegistry
 	var cmdInterceptor interfaces.ICommandInterceptor
 	var intentCls interfaces.IIntentClassifier
 	var convRepo interfaces.IConversationRepository
 	var teamRepo interfaces.ITeamRepository
+	var mcpClient2 interfaces.IMCP2Client
 
 	for _, arg := range opts {
 		if tr, ok := arg.(interfaces.IToolRegistry); ok && tr != nil {
@@ -58,7 +57,12 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 		if tm, ok := arg.(interfaces.ITeamRepository); ok && tm != nil {
 			teamRepo = tm
 		}
+		if m2, ok := arg.(interfaces.IMCP2Client); ok && m2 != nil {
+			mcpClient2 = m2
+		}
 	}
+
+	orchestrator := NewOrchestratorService(alertRepo, mcpClient, mcpClient2)
 
 	if registry == nil {
 		tr := tools.NewToolRegistry()
@@ -87,7 +91,7 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 	}
 }
 
-func (s *AppService) IngestAlert(ctx context.Context, incidentID uuid.UUID, serviceName, severity, metrics string) error {
+func (s *AppService) IngestAlert(ctx context.Context, incidentID *uuid.UUID, serviceName, severity, metrics string) error {
 	var buf bytes.Buffer
 	if err := json.Compact(&buf, []byte(metrics)); err != nil {
 		slog.Warn("metrics field is not valid JSON, storing raw value", "err", err)
@@ -121,6 +125,39 @@ func isValidToolCallArgs(toolName string, args map[string]interface{}) bool {
 		}
 		if _, err := uuid.Parse(alertID); err != nil {
 			return false
+		}
+	}
+	if toolName == "link_alert_to_incident" {
+		for _, key := range []string{"alert_id", "incident_id"} {
+			val, exists := args[key]
+			if !exists || val == nil {
+				return false
+			}
+			str, ok := val.(string)
+			if !ok || strings.TrimSpace(str) == "" {
+				return false
+			}
+			if _, err := uuid.Parse(strings.TrimSpace(str)); err != nil {
+				return false
+			}
+		}
+	}
+	if toolName == "get_incident" || toolName == "list_incidents" {
+		for _, key := range []string{"incident_id", "team_id"} {
+			if val, exists := args[key]; exists && val != nil {
+				if str, ok := val.(string); ok && strings.TrimSpace(str) == "" {
+					return false
+				}
+			}
+		}
+	}
+	if toolName == "create_runbook" || toolName == "update_runbook" || toolName == "deprecate_runbook" || toolName == "get_runbook" || toolName == "list_runbooks" {
+		for _, key := range []string{"team_id", "incident_id", "runbook_id", "title", "content"} {
+			if val, exists := args[key]; exists && val != nil {
+				if str, ok := val.(string); ok && strings.TrimSpace(str) == "" {
+					return false
+				}
+			}
 		}
 	}
 	return true
@@ -165,14 +202,21 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 - Respond conversationally (no tools) when the user sends greetings, acknowledgments,
   sign-offs, or short social messages such as "ok", "thanks", "bye", "got it", "alright",
   "yes", "no", or any similar phrase.
-- Call tools ONLY when the user explicitly provides an alert ID (UUID format) or clearly
-  requests alert validation or system inspection.
+- Call tools ONLY when the user explicitly provides required parameters or clearly
+  requests alert validation, incident context, or runbook management.
 - If you are uncertain whether a tool call is appropriate, respond with plain text and ask
-  the user for the alert ID instead of calling the tool with a placeholder value.
-- Never fabricate alert IDs or call tools with placeholder values such as "null", "none",
-  or "00000000-0000-0000-0000-000000000000".
+  the user for necessary information instead of calling the tool with a placeholder value.
+- Never fabricate alert IDs, incident IDs, or runbook IDs.
 - When the conversation is winding down (e.g. the user says "thanks", "bye", "ok"), reply
-  with a short, friendly closing message and do not call any tools.`
+  with a short, friendly closing message and do not call any tools.
+
+## Runbook & Incident Tools
+- Call list_incidents when the user asks to see open incidents for their team.
+- Call get_incident before creating a runbook to retrieve full context.
+- Call create_runbook only after gathering incident context via get_incident.
+- Call get_runbook or list_runbooks when the user asks about existing runbooks.
+- Call update_runbook or deprecate_runbook only when the user explicitly requests it.
+- Call link_alert_to_incident when an alert needs to be linked to a specific incident ID.`
 
 	if teamID != uuid.Nil && s.teamRepo != nil {
 		inst, _, err := s.teamRepo.GetTeamInstruction(ctx, teamID)

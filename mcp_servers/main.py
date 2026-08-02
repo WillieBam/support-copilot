@@ -24,4 +24,4 @@ host.mount(mcp1)
 host.mount(mcp2)
 
 if __name__ == "__main__":
-    host.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path=MCP_PATH)
+    host.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path=MCP_PATH, stateless_http=True, json_response=True)

@@ -108,7 +108,7 @@ func (_m *IAppService) GetConversationByID(ctx context.Context, id uuid.UUID) (*
 }
 
 // IngestAlert provides a mock function with given fields: ctx, incidentID, serviceName, severity, metrics
-func (_m *IAppService) IngestAlert(ctx context.Context, incidentID uuid.UUID, serviceName string, severity string, metrics string) error {
+func (_m *IAppService) IngestAlert(ctx context.Context, incidentID *uuid.UUID, serviceName string, severity string, metrics string) error {
 	ret := _m.Called(ctx, incidentID, serviceName, severity, metrics)
 
 	if len(ret) == 0 {
@@ -116,7 +116,7 @@ func (_m *IAppService) IngestAlert(ctx context.Context, incidentID uuid.UUID, se
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string, string) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *uuid.UUID, string, string, string) error); ok {
 		r0 = rf(ctx, incidentID, serviceName, severity, metrics)
 	} else {
 		r0 = ret.Error(0)

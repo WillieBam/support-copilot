@@ -36,3 +36,11 @@ func (a *alertRepository) RetrieveAlertbyID(ctx context.Context, id uuid.UUID) (
 	}
 	return &alert, nil
 }
+
+// updatealertincidentid links an alert to a specific incident id
+func (a *alertRepository) UpdateAlertIncidentID(ctx context.Context, alertID, incidentID uuid.UUID) error {
+	return a.db.WithContext(ctx).
+		Model(&models.Alert{}).
+		Where("id = ?", alertID).
+		Update("incident_id", incidentID).Error
+}

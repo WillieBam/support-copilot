@@ -20,8 +20,8 @@ MCP_PORT = int(os.getenv("MCP_PORT", "9000"))
 MCP_PATH = os.getenv("MCP_PATH", "/mcp")
 
 host = FastMCP("support-copilot-mcp-host")
-host.mount("/s1", mcp1)
-host.mount("/s2", mcp2)
+host.mount(mcp1)
+host.mount(mcp2)
 
 if __name__ == "__main__":
     host.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path=MCP_PATH)

@@ -65,6 +65,24 @@ func (_m *IAlertRepository) StoreAlert(ctx context.Context, alert *models.Alert)
 	return r0
 }
 
+// UpdateAlertIncidentID provides a mock function with given fields: ctx, alertID, incidentID
+func (_m *IAlertRepository) UpdateAlertIncidentID(ctx context.Context, alertID uuid.UUID, incidentID uuid.UUID) error {
+	ret := _m.Called(ctx, alertID, incidentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAlertIncidentID")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, alertID, incidentID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // NewIAlertRepository creates a new instance of IAlertRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewIAlertRepository(t interface {

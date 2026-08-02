@@ -223,7 +223,7 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 			incidentID := uuid.New()
 			mockAlertRepo.On("StoreAlert", mock.Anything, mock.Anything).Return(nil)
 
-			err := appSvc.IngestAlert(ctx, incidentID, "auth-service", "critical", "cpu_util > 90%")
+			err := appSvc.IngestAlert(ctx, &incidentID, "auth-service", "critical", "cpu_util > 90%")
 			Expect(err).NotTo(HaveOccurred())
 			mockAlertRepo.AssertExpectations(GinkgoT())
 		})
@@ -232,7 +232,7 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 			incidentID := uuid.New()
 			mockAlertRepo.On("StoreAlert", mock.Anything, mock.Anything).Return(errors.New("db error"))
 
-			err := appSvc.IngestAlert(ctx, incidentID, "auth-service", "critical", "cpu_util > 90%")
+			err := appSvc.IngestAlert(ctx, &incidentID, "auth-service", "critical", "cpu_util > 90%")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("db error"))
 			mockAlertRepo.AssertExpectations(GinkgoT())

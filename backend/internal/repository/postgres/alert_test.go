@@ -48,8 +48,9 @@ var _ = Describe("AlertRepository", func() {
 
 	Context("StoreAlert", func() {
 		It("should successfully insert an alert", func() {
+			incID := uuid.New()
 			alert := &models.Alert{
-				IncidentID:  uuid.New(),
+				IncidentID:  &incID,
 				ServiceName: "payment-service",
 				Severity:    "high",
 				Metrics:     `{"cpu": 98}`,
@@ -58,7 +59,7 @@ var _ = Describe("AlertRepository", func() {
 
 			mock.ExpectBegin()
 			mock.ExpectQuery(`INSERT INTO "alerts"`).
-				WithArgs(alert.IncidentID, alert.ServiceName, alert.Severity, alert.Metrics, sqlmock.AnyArg()).
+				WithArgs(alert.ServiceName, alert.Severity, alert.Metrics, *alert.IncidentID, sqlmock.AnyArg()).
 				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
 			mock.ExpectCommit()
 
@@ -67,8 +68,9 @@ var _ = Describe("AlertRepository", func() {
 		})
 
 		It("should return an error if insert fails", func() {
+			incID := uuid.New()
 			alert := &models.Alert{
-				IncidentID:  uuid.New(),
+				IncidentID:  &incID,
 				ServiceName: "payment-service",
 				Severity:    "high",
 				Metrics:     `{"cpu": 98}`,
@@ -82,6 +84,22 @@ var _ = Describe("AlertRepository", func() {
 			err := alertRepo.StoreAlert(ctx, alert)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("db write error"))
+		})
+	})
+
+	Context("UpdateAlertIncidentID", func() {
+		It("should update incident_id for an alert", func() {
+			alertID := uuid.New()
+			incidentID := uuid.New()
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`UPDATE "alerts" SET "incident_id"=\$1 WHERE id = \$2`).
+				WithArgs(incidentID, alertID).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+
+			err := alertRepo.UpdateAlertIncidentID(ctx, alertID, incidentID)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 

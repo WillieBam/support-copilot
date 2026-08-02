@@ -278,12 +278,8 @@ func (h *Handler) IngestAlert(c *echo.Context) error {
 	// 	req.Metrics = compactedBuffer.Bytes()
 	// }
 
-	if req.IncidentID == uuid.Nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "service name is required"})
-	}
-
 	if req.ServiceName == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "incident id is required"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "service name is required"})
 	}
 
 	err := h.apps.IngestAlert(c.Request().Context(), req.IncidentID, req.ServiceName, req.Severity, string(req.Metrics))

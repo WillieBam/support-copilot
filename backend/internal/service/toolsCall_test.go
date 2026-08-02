@@ -22,6 +22,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 		orchestratorSvc interfaces.IOrchestratorService
 		mockAlertRepo   *mocks.IAlertRepository
 		mockMcpOne      *mocks.IMCPClient
+		mockMcpTwo      *mocks.IMCP2Client
 		ctx             context.Context
 		testAlertID     uuid.UUID
 		testAlert       *models.Alert
@@ -32,6 +33,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 		ctx = context.Background()
 		mockAlertRepo = &mocks.IAlertRepository{}
 		mockMcpOne = &mocks.IMCPClient{}
+		mockMcpTwo = &mocks.IMCP2Client{}
 		testAlertID = uuid.New()
 
 		validMetricsJSON = `{
@@ -46,16 +48,17 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			"availability_percent": 99.1
 		}`
 
+		incID := uuid.New()
 		testAlert = &models.Alert{
 			ID:          testAlertID,
-			IncidentID:  uuid.New(),
+			IncidentID:  &incID,
 			ReceivedAt:  time.Now(),
 			ServiceName: "payment-service",
 			Severity:    "CRITICAL",
 			Metrics:     validMetricsJSON,
 		}
 
-		orchestratorSvc = service.NewOrchestratorService(mockAlertRepo, mockMcpOne)
+		orchestratorSvc = service.NewOrchestratorService(mockAlertRepo, mockMcpOne, mockMcpTwo)
 	})
 
 	Context("ExecuteValidateAlert", func() {
@@ -141,6 +144,97 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			_, err := orchestratorSvc.ExecuteValidateAlertRaw(ctx, rawArgs)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid alert id"))
+		})
+	})
+
+	Context("MCP2 Tools Execution", func() {
+		It("should delegate ExecuteGetIncidentRaw to mcpClient2", func() {
+			mockMcpTwo.On("GetIncident", mock.Anything, requests.MCP2GetIncidentArgs{
+				IncidentID: "inc-100",
+			}).Return(`{"incident_id":"inc-100"}`, nil)
+
+			res, err := orchestratorSvc.ExecuteGetIncidentRaw(ctx, `{"incident_id":"inc-100"}`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("inc-100"))
+		})
+
+		It("should delegate ExecuteListIncidentsRaw to mcpClient2", func() {
+			mockMcpTwo.On("ListIncidents", mock.Anything, requests.MCP2ListIncidentsArgs{
+				TeamID: "team-1",
+			}).Return(`[{"id":"inc-1"}]`, nil)
+
+			res, err := orchestratorSvc.ExecuteListIncidentsRaw(ctx, `{"team_id":"team-1"}`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("inc-1"))
+		})
+
+		It("should delegate ExecuteCreateRunbookRaw to mcpClient2", func() {
+			mockMcpTwo.On("CreateRunbook", mock.Anything, requests.MCP2CreateRunbookArgs{
+				TeamID:     "team-1",
+				IncidentID: "inc-1",
+				Title:      "Runbook Title",
+				Content:    "Runbook Content",
+			}).Return(`{"id":"rb-1"}`, nil)
+
+			res, err := orchestratorSvc.ExecuteCreateRunbookRaw(ctx, `{"team_id":"team-1","incident_id":"inc-1","title":"Runbook Title","content":"Runbook Content"}`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("rb-1"))
+		})
+
+		It("should delegate ExecuteUpdateRunbookRaw to mcpClient2", func() {
+			mockMcpTwo.On("UpdateRunbook", mock.Anything, requests.MCP2UpdateRunbookArgs{
+				RunbookID: "rb-1",
+				Title:     "New Title",
+				Content:   "New Content",
+			}).Return(`{"updated":true}`, nil)
+
+			res, err := orchestratorSvc.ExecuteUpdateRunbookRaw(ctx, `{"runbook_id":"rb-1","title":"New Title","content":"New Content"}`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("updated"))
+		})
+
+		It("should delegate ExecuteDeprecateRunbookRaw to mcpClient2", func() {
+			mockMcpTwo.On("DeprecateRunbook", mock.Anything, requests.MCP2DeprecateRunbookArgs{
+				RunbookID: "rb-1",
+			}).Return(`{"status":"deprecated"}`, nil)
+
+			res, err := orchestratorSvc.ExecuteDeprecateRunbookRaw(ctx, `{"runbook_id":"rb-1"}`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("deprecated"))
+		})
+
+		It("should delegate ExecuteGetRunbookRaw to mcpClient2", func() {
+			mockMcpTwo.On("GetRunbook", mock.Anything, requests.MCP2GetRunbookArgs{
+				RunbookID: "rb-1",
+			}).Return(`{"id":"rb-1"}`, nil)
+
+			res, err := orchestratorSvc.ExecuteGetRunbookRaw(ctx, `{"runbook_id":"rb-1"}`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("rb-1"))
+		})
+
+		It("should delegate ExecuteListRunbooksRaw to mcpClient2", func() {
+			mockMcpTwo.On("ListRunbooks", mock.Anything, requests.MCP2ListRunbooksArgs{
+				TeamID: "team-1",
+				Status: "active",
+			}).Return(`[{"id":"rb-1"}]`, nil)
+
+			res, err := orchestratorSvc.ExecuteListRunbooksRaw(ctx, `{"team_id":"team-1","status":"active"}`)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("rb-1"))
+		})
+
+		It("should execute ExecuteLinkAlertToIncidentRaw successfully", func() {
+			alertID := uuid.New()
+			incidentID := uuid.New()
+			mockAlertRepo.On("UpdateAlertIncidentID", mock.Anything, alertID, incidentID).Return(nil)
+
+			rawArgs := `{"alert_id":"` + alertID.String() + `","incident_id":"` + incidentID.String() + `"}`
+			res, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, rawArgs)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("success"))
+			Expect(res).To(ContainSubstring(alertID.String()))
+			Expect(res).To(ContainSubstring(incidentID.String()))
 		})
 	})
 })

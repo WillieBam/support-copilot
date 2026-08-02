@@ -195,7 +195,7 @@ func seedAlerts(db *gorm.DB) {
 	mockAlerts := []models.Alert{
 		{
 			ID:          uuid.New(),
-			IncidentID:  mockIncidentID,
+			IncidentID:  &mockIncidentID,
 			ReceivedAt:  time.Now().Add(-15 * time.Minute),
 			ServiceName: "payment-gateway-service",
 			Severity:    "CRITICAL",
@@ -203,11 +203,19 @@ func seedAlerts(db *gorm.DB) {
 		},
 		{
 			ID:          uuid.New(),
-			IncidentID:  mockIncidentID,
+			IncidentID:  &mockIncidentID,
 			ReceivedAt:  time.Now().Add(-5 * time.Minute),
 			ServiceName: "authentication-service",
 			Severity:    "WARNING",
 			Metrics:     `{"trace.grpc.server.request.hits": 4500, "system.cpu.system": 78.1}`,
+		},
+		{
+			ID:          uuid.New(),
+			IncidentID:  nil,
+			ReceivedAt:  time.Now().Add(-2 * time.Minute),
+			ServiceName: "report-upload-service",
+			Severity:    "CRITICAL",
+			Metrics:     `{"cpu_usage": 96.8, "response_latency": 450.0, "error_rate": 0.08}`,
 		},
 	}
 

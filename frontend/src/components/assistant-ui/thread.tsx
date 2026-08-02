@@ -52,7 +52,7 @@ import { CommandPalette, type SlashCommand } from "@/components/assistant-ui/com
 export const Thread: FC = () => {
   return (
     <ThreadPrimitive.Root
-      className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
+      className="aui-root aui-thread-root @container flex h-full flex-col bg-background [direction:ltr]"
       style={{
         ["--thread-max-width" as string]: "44rem",
         ["--composer-radius" as string]: "24px",
@@ -62,7 +62,7 @@ export const Thread: FC = () => {
       <ThreadPrimitive.Viewport
         turnAnchor="bottom"
         data-slot="aui_thread-viewport"
-        className="relative bg-background flex flex-1 flex-col overflow-x-auto overflow-y-scroll"
+        className="relative bg-background flex flex-1 flex-col overflow-x-auto overflow-y-auto [direction:ltr]"
       >
         <div className="mx-auto flex bg-background w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
           <AuiIf condition={(s) => s.thread.isEmpty}>

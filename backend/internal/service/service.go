@@ -62,7 +62,7 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 		}
 	}
 
-	orchestrator := NewOrchestratorService(alertRepo, mcpClient, mcpClient2)
+	orchestrator := NewOrchestratorService(alertRepo, mcpClient, mcpClient2, teamRepo)
 
 	if registry == nil {
 		tr := tools.NewToolRegistry()
@@ -137,18 +137,29 @@ func isValidToolCallArgs(toolName string, args map[string]interface{}) bool {
 		}
 	}
 	if toolName == "link_alert_to_incident" {
-		for _, key := range []string{"alert_id", "incident_id"} {
-			val, exists := args[key]
-			if !exists || val == nil {
-				return false
+		alertStr, _ := args["alert_id"].(string)
+		incidentStr, _ := args["incident_id"].(string)
+		incidentTitle, _ := args["incident_title"].(string)
+
+		alertStr = strings.TrimSpace(alertStr)
+		incidentStr = strings.TrimSpace(incidentStr)
+		incidentTitle = strings.TrimSpace(incidentTitle)
+
+		if alertStr == "" {
+			// Some models place the alert UUID in incident_id. Recover from that shape.
+			if _, err := uuid.Parse(incidentStr); err == nil {
+				alertStr = incidentStr
 			}
-			str, ok := val.(string)
-			if !ok || strings.TrimSpace(str) == "" {
-				return false
-			}
-			if _, err := uuid.Parse(strings.TrimSpace(str)); err != nil {
-				return false
-			}
+		}
+		if alertStr == "" {
+			return false
+		}
+		if _, err := uuid.Parse(alertStr); err != nil {
+			return false
+		}
+
+		if incidentStr == "" && incidentTitle == "" {
+			return false
 		}
 	}
 	if toolName == "get_incident" || toolName == "list_incidents" {
@@ -205,6 +216,12 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		return nil
 	}
 
+	// emit instant reasoning status event so UI shows live activity immediately before calling Ollama
+	streamChan <- types.StreamEvent{
+		Type:    "reasoning",
+		Content: "🧠 Analyzing prompt and evaluating available tools...\n",
+	}
+
 	systemPrompt := `You are a Support Copilot that helps support engineers resolve production incidents.
 
 ## Behaviour Rules
@@ -225,7 +242,7 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 - Call create_runbook only after gathering incident context via get_incident.
 - Call get_runbook or list_runbooks when the user asks about existing runbooks.
 - Call update_runbook or deprecate_runbook only when the user explicitly requests it.
-- Call link_alert_to_incident when an alert needs to be linked to a specific incident ID.`
+- Call link_alert_to_incident when an alert needs to be linked to an incident. If you know the exact UUID, pass incident_id. If you only know the incident title or service name, pass incident_title or call list_incidents first to find the incident_id.`
 
 	if teamID != uuid.Nil && s.teamRepo != nil {
 		inst, _, err := s.teamRepo.GetTeamInstruction(ctx, teamID)

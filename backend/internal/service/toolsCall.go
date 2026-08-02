@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
+	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 	"github.com/WillieBam/support_copilot/backend/types/responses"
 	"github.com/google/uuid"
@@ -17,18 +18,26 @@ type orchestratorService struct {
 	alertRepo  interfaces.IAlertRepository
 	mcpClient1 interfaces.IMCPClient
 	mcpClient2 interfaces.IMCP2Client
+	teamRepo   interfaces.ITeamRepository
 }
 
 func NewOrchestratorService(
 	repo interfaces.IAlertRepository,
 	mcpClient1 interfaces.IMCPClient,
 	mcpClient2 interfaces.IMCP2Client,
+	opts ...interface{},
 ) interfaces.IOrchestratorService {
-	return &orchestratorService{
+	svc := &orchestratorService{
 		alertRepo:  repo,
 		mcpClient1: mcpClient1,
 		mcpClient2: mcpClient2,
 	}
+	for _, opt := range opts {
+		if tr, ok := opt.(interfaces.ITeamRepository); ok && tr != nil {
+			svc.teamRepo = tr
+		}
+	}
+	return svc
 }
 
 // ExecuteValidateAlert fetches alert metrics from Postgres and predicts anomalies via Python MCP.
@@ -148,7 +157,7 @@ func (s *orchestratorService) ExecuteListIncidentsRaw(ctx context.Context, rawAr
 	return s.mcpClient2.ListIncidents(ctx, args)
 }
 
-//Eexecutecreaterunbookraw parses raw args and invokes mcp2 create_runbook tool
+// Eexecutecreaterunbookraw parses raw args and invokes mcp2 create_runbook tool
 func (s *orchestratorService) ExecuteCreateRunbookRaw(ctx context.Context, rawArgs string) (string, error) {
 	slog.Info("[ORCHESTRATOR] ExecuteCreateRunbookRaw triggered", "rawArgs", rawArgs)
 	if s.mcpClient2 == nil {
@@ -202,7 +211,7 @@ func (s *orchestratorService) ExecuteDeprecateRunbookRaw(ctx context.Context, ra
 	return s.mcpClient2.DeprecateRunbook(ctx, args)
 }
 
-//Eexecutegetrunbookraw parses raw args and invokes mcp2 get_runbook tool
+// Eexecutegetrunbookraw parses raw args and invokes mcp2 get_runbook tool
 func (s *orchestratorService) ExecuteGetRunbookRaw(ctx context.Context, rawArgs string) (string, error) {
 	slog.Info("[ORCHESTRATOR] ExecuteGetRunbookRaw triggered", "rawArgs", rawArgs)
 	if s.mcpClient2 == nil {
@@ -248,14 +257,73 @@ func (s *orchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context,
 		return "", fmt.Errorf("invalid link_alert_to_incident arguments: %w", err)
 	}
 
-	alertUUID, err := uuid.Parse(strings.TrimSpace(args.AlertID))
+	alertID := strings.TrimSpace(args.AlertID)
+	incidentID := strings.TrimSpace(args.IncidentID)
+	incidentTitle := strings.TrimSpace(args.IncidentTitle)
+
+	if alertID == "" && incidentID != "" {
+		// Recover from a common model mistake where the alert UUID is placed in incident_id.
+		if _, err := uuid.Parse(incidentID); err == nil {
+			alertID = incidentID
+			incidentID = ""
+		}
+	}
+
+	alertUUID, err := uuid.Parse(alertID)
 	if err != nil {
 		return "", fmt.Errorf("invalid alert_id %q: %w", args.AlertID, err)
 	}
 
-	incidentUUID, err := uuid.Parse(strings.TrimSpace(args.IncidentID))
-	if err != nil {
-		return "", fmt.Errorf("invalid incident_id %q: %w", args.IncidentID, err)
+	var incidentUUID uuid.UUID
+	var parseErr error
+
+	if incidentID != "" {
+		incidentUUID, parseErr = uuid.Parse(incidentID)
+	}
+
+	// if incident_id is not a valid UUID, treat it or incident_title as a human readable title to resolve
+	if (parseErr != nil || incidentUUID == uuid.Nil) && s.teamRepo != nil {
+		titleToSearch := incidentTitle
+		if titleToSearch == "" {
+			titleToSearch = incidentID
+		}
+		if titleToSearch != "" {
+			if incidents, err := s.teamRepo.ListTeamIncidents(ctx, uuid.Nil); err == nil {
+				cleanSearch := strings.TrimSpace(titleToSearch)
+
+				// 1. Strict exact match first (case-insensitive)
+				for _, inc := range incidents {
+					if strings.EqualFold(strings.TrimSpace(inc.Title), cleanSearch) {
+						incidentUUID = inc.IncidentID
+						slog.Info("[ORCHESTRATOR] Resolved incident by exact title match", "title", cleanSearch, "incident_id", incidentUUID)
+						break
+					}
+				}
+
+				// 2. Substring match ONLY if search string contains full service/incident title
+				if incidentUUID == uuid.Nil {
+					lowSearch := strings.ToLower(cleanSearch)
+					var matches []models.TeamIncident
+					for _, inc := range incidents {
+						lowTitle := strings.ToLower(strings.TrimSpace(inc.Title))
+						if strings.Contains(lowSearch, lowTitle) || strings.Contains(lowTitle, lowSearch) {
+							matches = append(matches, inc)
+						}
+					}
+					// Only link if exactly 1 unambiguous match was found
+					if len(matches) == 1 {
+						incidentUUID = matches[0].IncidentID
+						slog.Info("[ORCHESTRATOR] Resolved incident by single unambiguous title substring", "search", cleanSearch, "matched_title", matches[0].Title, "incident_id", incidentUUID)
+					} else if len(matches) > 1 {
+						slog.Warn("[ORCHESTRATOR] Multiple matching incidents found for title, aborting to prevent mislinking", "count", len(matches), "title", cleanSearch)
+					}
+				}
+			}
+		}
+	}
+
+	if incidentUUID == uuid.Nil {
+		return "", fmt.Errorf("could not resolve valid incident UUID from arguments (incident_id=%q, incident_title=%q)", args.IncidentID, args.IncidentTitle)
 	}
 
 	if err := s.alertRepo.UpdateAlertIncidentID(ctx, alertUUID, incidentUUID); err != nil {

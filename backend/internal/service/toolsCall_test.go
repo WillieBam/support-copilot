@@ -19,13 +19,14 @@ import (
 
 var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 	var (
-		orchestratorSvc interfaces.IOrchestratorService
-		mockAlertRepo   *mocks.IAlertRepository
-		mockMcpOne      *mocks.IMCPClient
-		mockMcpTwo      *mocks.IMCP2Client
-		ctx             context.Context
-		testAlertID     uuid.UUID
-		testAlert       *models.Alert
+		orchestratorSvc  interfaces.IOrchestratorService
+		mockAlertRepo    *mocks.IAlertRepository
+		mockMcpOne       *mocks.IMCPClient
+		mockMcpTwo       *mocks.IMCP2Client
+		mockTeamRepo     *mocks.ITeamRepository
+		ctx              context.Context
+		testAlertID      uuid.UUID
+		testAlert        *models.Alert
 		validMetricsJSON string
 	)
 
@@ -34,6 +35,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 		mockAlertRepo = &mocks.IAlertRepository{}
 		mockMcpOne = &mocks.IMCPClient{}
 		mockMcpTwo = &mocks.IMCP2Client{}
+		mockTeamRepo = &mocks.ITeamRepository{}
 		testAlertID = uuid.New()
 
 		validMetricsJSON = `{
@@ -58,7 +60,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			Metrics:     validMetricsJSON,
 		}
 
-		orchestratorSvc = service.NewOrchestratorService(mockAlertRepo, mockMcpOne, mockMcpTwo)
+		orchestratorSvc = service.NewOrchestratorService(mockAlertRepo, mockMcpOne, mockMcpTwo, mockTeamRepo)
 	})
 
 	Context("ExecuteValidateAlert", func() {
@@ -230,6 +232,22 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			mockAlertRepo.On("UpdateAlertIncidentID", mock.Anything, alertID, incidentID).Return(nil)
 
 			rawArgs := `{"alert_id":"` + alertID.String() + `","incident_id":"` + incidentID.String() + `"}`
+			res, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, rawArgs)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("success"))
+			Expect(res).To(ContainSubstring(alertID.String()))
+			Expect(res).To(ContainSubstring(incidentID.String()))
+		})
+
+		It("should recover when alert_id is missing but the UUID is placed in incident_id", func() {
+			alertID := uuid.New()
+			incidentID := uuid.New()
+			resolvedIncident := models.TeamIncident{IncidentID: incidentID, Title: "report-download-service CPU Spike"}
+
+			mockTeamRepo.On("ListTeamIncidents", mock.Anything, uuid.Nil).Return([]models.TeamIncident{resolvedIncident}, nil)
+			mockAlertRepo.On("UpdateAlertIncidentID", mock.Anything, alertID, incidentID).Return(nil)
+
+			rawArgs := `{"incident_id":"` + alertID.String() + `","incident_title":"report-download-service CPU Spike"}`
 			res, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, rawArgs)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res).To(ContainSubstring("success"))

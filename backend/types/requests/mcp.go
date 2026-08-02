@@ -85,6 +85,7 @@ type MCP2ListIncidentsArgs struct {
 
 // mcp2LinkAlertIncidentArgs is the argument struct for the link_alert_to_incident tool
 type MCP2LinkAlertIncidentArgs struct {
-	AlertID    string `json:"alert_id"`
-	IncidentID string `json:"incident_id"`
+	AlertID       string `json:"alert_id"`
+	IncidentID    string `json:"incident_id,omitempty"`
+	IncidentTitle string `json:"incident_title,omitempty"`
 }

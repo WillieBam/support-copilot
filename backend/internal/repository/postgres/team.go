@@ -114,9 +114,13 @@ func (t *teamRepository) AssignTeamIncident(ctx context.Context, incident *model
 
 func (t *teamRepository) ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error) {
 	var incidents []models.TeamIncident
-	err := t.db.WithContext(ctx).Preload("History", func(db *gorm.DB) *gorm.DB {
+	db := t.db.WithContext(ctx).Preload("History", func(db *gorm.DB) *gorm.DB {
 		return db.Order("updated_at DESC")
-	}).Where("team_id = ?", teamID).Order("assigned_at DESC").Find(&incidents).Error
+	})
+	if teamID != uuid.Nil {
+		db = db.Where("team_id = ?", teamID)
+	}
+	err := db.Order("assigned_at DESC").Find(&incidents).Error
 	return incidents, err
 }
 

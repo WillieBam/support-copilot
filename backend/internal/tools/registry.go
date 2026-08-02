@@ -247,7 +247,7 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 		Type: "function",
 		Function: requests.OllamaFunction{
 			Name:        "link_alert_to_incident",
-			Description: "Associates an existing alert with an incident ID. Call this when an incident is created or assigned to resolve an alert.",
+			Description: "Associates an existing alert with an incident by UUID or title. If you only have the incident title or service name, call list_incidents first to get the exact incident_id, or pass the title in incident_title.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -257,10 +257,14 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 					},
 					"incident_id": map[string]interface{}{
 						"type":        "string",
-						"description": "UUIDv4 of the incident to link.",
+						"description": "UUIDv4 of the target incident (if known).",
+					},
+					"incident_title": map[string]interface{}{
+						"type":        "string",
+						"description": "Human-readable title or name of the target incident (e.g. 'report-download-service CPU Spike').",
 					},
 				},
-				"required": []string{"alert_id", "incident_id"},
+				"required": []string{"alert_id"},
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {

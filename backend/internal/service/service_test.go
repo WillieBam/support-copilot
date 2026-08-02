@@ -58,11 +58,13 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 				events = append(events, ev)
 			}
 
-			Expect(len(events)).To(Equal(2))
-			Expect(events[0].Type).To(Equal("text"))
-			Expect(events[0].Content).To(Equal("Hello"))
+			Expect(len(events)).To(Equal(3))
+			Expect(events[0].Type).To(Equal("reasoning"))
+			Expect(events[0].Content).To(ContainSubstring("Analyzing prompt"))
 			Expect(events[1].Type).To(Equal("text"))
-			Expect(events[1].Content).To(Equal(" world!"))
+			Expect(events[1].Content).To(Equal("Hello"))
+			Expect(events[2].Type).To(Equal("text"))
+			Expect(events[2].Content).To(Equal(" world!"))
 			mockOllama.AssertExpectations(GinkgoT())
 		})
 

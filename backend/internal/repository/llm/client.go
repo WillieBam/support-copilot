@@ -21,6 +21,8 @@ type ollamaClient struct {
 	httpClient    *http.Client
 	ollamaBaseUrl string
 	ollamaModel   string
+	keepAlive     string
+	numCtx        int
 }
 
 func NewOllamaClient(cfg *config.Config) interfaces.IOllamaClient {
@@ -31,13 +33,30 @@ func NewOllamaClient(cfg *config.Config) interfaces.IOllamaClient {
 
 	model := strings.TrimSpace(cfg.Ollama.Model)
 	if model == "" {
-		model = "llama3.2"
+		model = "llama3.2:latest"
+	}
+
+	timeout := cfg.Ollama.Timeout
+	if timeout <= 0 {
+		timeout = 5 * time.Minute
+	}
+
+	keepAlive := cfg.Ollama.KeepAlive
+	if keepAlive == "" {
+		keepAlive = "30m"
+	}
+
+	numCtx := cfg.Ollama.NumCtx
+	if numCtx <= 0 {
+		numCtx = 2048
 	}
 
 	return &ollamaClient{
-		httpClient:    &http.Client{Timeout: 3 * time.Minute},
+		httpClient:    &http.Client{Timeout: timeout},
 		ollamaBaseUrl: baseUrl,
 		ollamaModel:   model,
+		keepAlive:     keepAlive,
+		numCtx:        numCtx,
 	}
 
 }
@@ -45,6 +64,12 @@ func NewOllamaClient(cfg *config.Config) interfaces.IOllamaClient {
 func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.OllamaChatRequest, streamChan chan<- types.StreamEvent) (*requests.OllamaMessage, error) {
 	if req.Model == "" {
 		req.Model = c.ollamaModel
+	}
+	if req.KeepAlive == "" {
+		req.KeepAlive = c.keepAlive
+	}
+	if req.Options == nil && c.numCtx > 0 {
+		req.Options = &requests.OllamaOptions{NumCtx: c.numCtx}
 	}
 	req.Stream = true
 
@@ -81,8 +106,8 @@ func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.Ol
 	for {
 		var chunk struct {
 			Message struct {
-				Role      string                   `json:"role"`
-				Content   string                   `json:"content"`
+				Role      string                    `json:"role"`
+				Content   string                    `json:"content"`
 				ToolCalls []requests.OllamaToolCall `json:"tool_calls"`
 			} `json:"message"`
 			Done  bool   `json:"done"`

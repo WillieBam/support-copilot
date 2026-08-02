@@ -26,11 +26,17 @@ type OllamaTool struct {
 	Function OllamaFunction `json:"function"`
 }
 
+type OllamaOptions struct {
+	NumCtx int `json:"num_ctx,omitempty"`
+}
+
 type OllamaChatRequest struct {
-	Model    string          `json:"model"`
-	Messages []OllamaMessage `json:"messages"`
-	Tools    []OllamaTool    `json:"tools,omitempty"`
-	Stream   bool            `json:"stream"`
+	Model     string         `json:"model"`
+	Messages  []OllamaMessage `json:"messages"`
+	Tools     []OllamaTool   `json:"tools,omitempty"`
+	Stream    bool           `json:"stream"`
+	KeepAlive string         `json:"keep_alive,omitempty"`
+	Options   *OllamaOptions `json:"options,omitempty"`
 }
 
 type OllamaChatResponse struct {

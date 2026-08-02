@@ -29,7 +29,7 @@ var _ = Describe("Config", func() {
 			Expect(cfg.Database.Host).To(Equal("localhost"))
 			Expect(cfg.Database.Port).To(Equal(5432))
 			Expect(cfg.Auth.TOTPRequired).To(BeFalse())
-			Expect(cfg.Ollama.Model).To(Equal("llama3.2"))
+			Expect(cfg.Ollama.Model).To(Equal("llama3.2:latest"))
 		})
 	})
 })

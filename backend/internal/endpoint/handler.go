@@ -270,23 +270,24 @@ func (h *Handler) Query(c *echo.Context) error {
 func (h *Handler) IngestAlert(c *echo.Context) error {
 	var req requests.AlertIngestRequest
 	if err := c.Bind(&req); err != nil {
+		slog.Error("[ALERT] Failed to bind alert request payload", "err", err)
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid alert payload"})
 	}
 
-	// var compactedBuffer bytes.Buffer
-	// if err := json.Compact(&compactedBuffer, req.Metrics); err == nil {
-	// 	req.Metrics = compactedBuffer.Bytes()
-	// }
+	slog.Info("[ALERT] Alert ingestion request received", "service", req.ServiceName, "severity", req.Severity, "incident_id", req.IncidentID)
 
 	if req.ServiceName == "" {
+		slog.Warn("[ALERT] Missing required service name in alert payload")
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "service name is required"})
 	}
 
 	err := h.apps.IngestAlert(c.Request().Context(), req.IncidentID, req.ServiceName, req.Severity, string(req.Metrics))
 	if err != nil {
+		slog.Error("[ALERT] Failed to ingest alert via app service", "service", req.ServiceName, "err", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
+	slog.Info("[ALERT] Alert successfully ingested", "service", req.ServiceName)
 	return c.JSON(http.StatusOK, map[string]string{"status": "success"})
 }
 
@@ -407,4 +408,3 @@ func (h *Handler) GetConversationMessages(c *echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, msgs)
 }
-

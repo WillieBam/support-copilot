@@ -92,9 +92,11 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 }
 
 func (s *AppService) IngestAlert(ctx context.Context, incidentID *uuid.UUID, serviceName, severity, metrics string) error {
+	slog.Info("[Alert Ingestion] Ingestion process started", "service", serviceName, "severity", severity, "has_incident_id", incidentID != nil)
+
 	var buf bytes.Buffer
 	if err := json.Compact(&buf, []byte(metrics)); err != nil {
-		slog.Warn("metrics field is not valid JSON, storing raw value", "err", err)
+		slog.Warn("[Alert Ingestion] Metrics field is not valid JSON, storing raw value", "err", err)
 		buf.WriteString(metrics)
 	}
 
@@ -106,7 +108,14 @@ func (s *AppService) IngestAlert(ctx context.Context, incidentID *uuid.UUID, ser
 		Metrics:     buf.String(),
 		ReceivedAt:  time.Now(),
 	}
-	return s.alertRepo.StoreAlert(ctx, alert)
+
+	if err := s.alertRepo.StoreAlert(ctx, alert); err != nil {
+		slog.Error("[Alert Ingestion] Failed to store alert in database", "alert_id", alert.ID, "service", serviceName, "err", err)
+		return err
+	}
+
+	slog.Info("[Alert Ingestion] Alert successfully stored in database", "alert_id", alert.ID, "service", serviceName)
+	return nil
 }
 
 func isValidToolCallArgs(toolName string, args map[string]interface{}) bool {
@@ -462,4 +471,3 @@ func (s *AppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID,
 	err = s.convRepo.UpdateConversationTitle(ctx, convID, title)
 	return title, err
 }
-

@@ -52,6 +52,7 @@ func (m *mcp2Client) callTool(ctx context.Context, toolName string, args any) (s
 		return "", fmt.Errorf("failed creating request for mcp2: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := m.httpClient.Do(req)
 	if err != nil {

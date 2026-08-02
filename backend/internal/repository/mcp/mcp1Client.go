@@ -64,6 +64,7 @@ func (m *mcp1Client) DetectAnomalies(ctx context.Context, anomalyReq requests.An
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := m.httpClient.Do(req)
 	if err != nil {

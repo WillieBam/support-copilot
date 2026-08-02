@@ -1,7 +1,7 @@
 include .env
 export $(shell sed 's/=.*//' .env)
 
-.PHONY: up down dev-start dev mcp-one test build-frontend
+.PHONY: up down dev-start dev mcp-servers mcp-one mcp test build-frontend
 
 build-frontend:
 	cd frontend && npm install && npm run build
@@ -24,8 +24,8 @@ migrate:
 dev:
 	go run -race backend/main.go server
 
-mcp-one:
-	python mcp_server_1/server.py
+mcp-servers:
+	cd mcp_servers && ( [ -d .venv ] && .venv/bin/python main.py || python3 main.py )
 
 MOCKERY = $(shell pwd)/backend/bin/mockery
 

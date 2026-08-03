@@ -10,7 +10,7 @@ from typing import Optional
 import httpx
 
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8080")
-INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key")
 
 _logger = logging.getLogger("mcp2-client")
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, History, Save, Loader2, X, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Instruction, InstructionLog } from '@/types/instruction';
 import { fetchTeamInstruction, saveTeamInstruction } from '@/service/instruction/instructionService';
+import { useTeam } from '@/context/TeamContext';
 
 interface ManageInstructionModalProps {
   teamId?: string | null;
@@ -12,6 +13,7 @@ export const ManageInstructionModal: React.FC<ManageInstructionModalProps> = ({
   teamId,
   onClose,
 }) => {
+  const { getUserDisplayName } = useTeam();
   const [instruction, setInstruction] = useState<Instruction | null>(null);
   const [logs, setLogs] = useState<InstructionLog[]>([]);
   const [details, setDetails] = useState('');
@@ -203,7 +205,7 @@ export const ManageInstructionModal: React.FC<ManageInstructionModalProps> = ({
                           {log.older_instruction}
                         </p>
                         <span className="text-[10px] text-muted-foreground/70 block">
-                          Updated by: {log.updated_by}
+                          Updated by: {getUserDisplayName(log.updated_by)}
                         </span>
                       </div>
                     ))}

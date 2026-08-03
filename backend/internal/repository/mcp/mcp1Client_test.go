@@ -15,6 +15,22 @@ import (
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 )
 
+// buildMCPResponse wraps a tool result inside a JSON-RPC 2.0 response envelope,
+// with the tool payload serialised as a text content block (as FastMCP does).
+func buildMCPResponse(result any) map[string]any {
+	text, _ := json.Marshal(result)
+	return map[string]any{
+		"jsonrpc": "2.0",
+		"id":      "1",
+		"result": map[string]any{
+			"content": []map[string]any{
+				{"type": "text", "text": string(text)},
+			},
+			"isError": false,
+		},
+	}
+}
+
 var _ = Describe("McpOneClient", func() {
 	Context("NewMcpOneClient", func() {
 		It("should set default host and port when config is empty", func() {
@@ -36,12 +52,17 @@ var _ = Describe("McpOneClient", func() {
 	Context("DetectAnomalies", func() {
 		It("should detect anomalies successfully from mock MCP server", func() {
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				Expect(r.URL.Path).To(Equal("/tools/detect_anomalies"))
+				// Verify path and method match FastMCP streamable-http transport.
+				Expect(r.URL.Path).To(Equal("/mcp"))
 				Expect(r.Method).To(Equal(http.MethodPost))
 
-				var req requests.AnomalyDetectionRequest
-				err := json.NewDecoder(r.Body).Decode(&req)
+				// verify the json-rpc envelope is correct
+				var rpcReq requests.MCPToolsCallRequest
+				err := json.NewDecoder(r.Body).Decode(&rpcReq)
 				Expect(err).NotTo(HaveOccurred())
+				Expect(rpcReq.JSONRPC).To(Equal("2.0"))
+				Expect(rpcReq.Method).To(Equal("tools/call"))
+				Expect(rpcReq.Params.Name).To(Equal("detect_anomalies"))
 
 				res := requests.AnomalyDetectionResponse{
 					Status: 1,
@@ -50,7 +71,7 @@ var _ = Describe("McpOneClient", func() {
 				}
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(res)
+				json.NewEncoder(w).Encode(buildMCPResponse(res))
 			}))
 			defer mockServer.Close()
 
@@ -103,6 +124,40 @@ var _ = Describe("McpOneClient", func() {
 			Expect(res).To(BeNil())
 		})
 
+		It("should handle JSON-RPC error response from MCP server", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      "1",
+					"error": map[string]any{
+						"code":    -32601,
+						"message": "Method not found",
+					},
+				})
+			}))
+			defer mockServer.Close()
+
+			u, err := url.Parse(mockServer.URL)
+			Expect(err).NotTo(HaveOccurred())
+
+			cfg := &config.Config{}
+			cfg.MCP1.Host = u.Hostname()
+			cfg.MCP1.Port = u.Port()
+
+			client := mcp.NewMcpOneClient(cfg)
+
+			anomalyReq := requests.AnomalyDetectionRequest{
+				CpuUsage: 50.0,
+			}
+
+			res, err := client.DetectAnomalies(context.Background(), anomalyReq)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("mcp server returned rpc error"))
+			Expect(res).To(BeNil())
+		})
+
 		It("should handle decoding failure when MCP server returns non-JSON body", func() {
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
@@ -125,7 +180,7 @@ var _ = Describe("McpOneClient", func() {
 
 			res, err := client.DetectAnomalies(context.Background(), anomalyReq)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed decoding anomaly response payload"))
+			Expect(err.Error()).To(ContainSubstring("failed decoding MCP JSON-RPC envelope"))
 			Expect(res).To(BeNil())
 		})
 	})

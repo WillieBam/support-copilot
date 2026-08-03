@@ -10,8 +10,8 @@ import { TotpPage } from './pages/totpPage';
 import { useAppRouter } from './hooks/useAppRouter';
 import { useWorkspaceState } from './hooks/useWorkspaceState';
 import { useConversationState } from './hooks/useConversationState';
-import { useState } from 'react';
-import { Brain, FileText, LogOut, PanelLeftClose, PanelLeftOpen, Sun, Moon, MessageSquare, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Brain, FileText, LogOut, PanelLeftClose, PanelLeftOpen, Sun, Moon, MessageSquare, AlertTriangle, BookOpen } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
 import { TeamProvider, useTeam } from './context/TeamContext';
 import { TeamSelector } from './components/team/TeamSelector';
@@ -19,6 +19,9 @@ import { ChatHistoryPanel } from './components/chat/ChatHistoryPanel';
 import { AllHistoryModal } from './components/chat/AllHistoryModal';
 import { ReadOnlyThread } from './components/chat/ReadOnlyThread';
 import { IncidentPanel } from './components/incident/IncidentPanel';
+import { RunbookPanel } from './components/runbook/RunbookPanel';
+import { RunbookThreadView } from './components/runbook/RunbookThreadView';
+import { IncidentThreadView } from './components/incident/IncidentThreadView';
 
 import { ManageInstructionModal } from './components/instruction/ManageInstructionModal';
 
@@ -42,7 +45,7 @@ function GlobalHeader({ auth, onOpenInstructionModal }: { auth: AuthState; onOpe
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="flex w-full h-[73px] items-center justify-between px-6 bg-card border-b border-border shrink-0 transition-colors duration-350 z-20">
+    <header className="flex w-full h-[73px] items-center justify-between px-6 bg-card border-b border-border shrink-0 transition-colors duration-350 z-20 sticky top-0">
       <div className="flex items-center gap-3">
         <Brain className="w-6 h-6 text-emerald-500" />
         <span className="text-foreground font-bold text-lg tracking-tight">Support Copilot</span>
@@ -89,7 +92,15 @@ function MainApp({
 }) {
   const { isSidebarOpen, toggleSidebar } = useWorkspaceState();
   const { activeTeamId } = useTeam();
-  const [sidebarTab, setSidebarTab] = useState<'chats' | 'incidents'>('chats');
+  const [sidebarTab, setSidebarTab] = useState<'chats' | 'incidents' | 'runbooks'>('chats');
+  const [selectedRunbookId, setSelectedRunbookId] = useState<string | null>(null);
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+
+  // Reset open runbook & incident threads whenever active team is switched
+  useEffect(() => {
+    setSelectedRunbookId(null);
+    setSelectedIncidentId(null);
+  }, [activeTeamId]);
 
   const convState = useConversationState(activeTeamId);
 
@@ -106,10 +117,10 @@ function MainApp({
   const displayName = email ? email.split('@')[0] : '';
 
   return (
-    <div className="flex w-full flex-1 overflow-hidden bg-transparent text-foreground relative">
+    <div className="flex w-full flex-1 min-h-0 overflow-hidden bg-transparent text-foreground relative">
       {/* Left Panel Drawer */}
       <aside
-        className={`flex flex-col border-r border-border bg-card/40 backdrop-blur-md transition-all duration-300 ease-in-out ${
+        className={`flex flex-col border-r border-border bg-card/40 backdrop-blur-md transition-all duration-300 ease-in-out shrink-0 h-full ${
           isSidebarOpen ? 'w-[320px]' : 'w-0 border-r-0 overflow-hidden opacity-0'
         }`}
       >
@@ -127,7 +138,7 @@ function MainApp({
         <div className="flex items-center border-b border-border p-1 bg-muted/20 shrink-0 min-w-[320px]">
           <button
             onClick={() => setSidebarTab('chats')}
-            className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
               sidebarTab === 'chats'
                 ? 'bg-card text-foreground shadow-sm border border-border'
                 : 'text-muted-foreground hover:text-foreground'
@@ -137,7 +148,7 @@ function MainApp({
           </button>
           <button
             onClick={() => setSidebarTab('incidents')}
-            className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
               sidebarTab === 'incidents'
                 ? 'bg-card text-foreground shadow-sm border border-border'
                 : 'text-muted-foreground hover:text-foreground'
@@ -145,27 +156,63 @@ function MainApp({
           >
             <AlertTriangle className="w-3.5 h-3.5 text-emerald-500" /> Incidents
           </button>
+          <button
+            onClick={() => setSidebarTab('runbooks')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              sidebarTab === 'runbooks'
+                ? 'bg-card text-foreground shadow-sm border border-border'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5 text-emerald-500" /> Runbooks
+          </button>
         </div>
 
         {/* Panel Content View */}
-        <div className="flex-1 overflow-hidden min-w-[320px]">
+        <div className="flex-1 min-h-0 overflow-hidden min-w-[320px] flex flex-col">
           {sidebarTab === 'chats' ? (
             <ChatHistoryPanel
               conversations={convState.recentConvs}
               selectedConvId={convState.selectedConvId}
               isLoading={convState.isLoadingRecent}
-              onSelectConversation={convState.openConversation}
+              onSelectConversation={(id) => {
+                setSelectedRunbookId(null);
+                setSelectedIncidentId(null);
+                convState.openConversation(id);
+              }}
               onViewAll={convState.openModal}
-              onNewChat={convState.startNewChat}
+              onNewChat={() => {
+                setSelectedRunbookId(null);
+                setSelectedIncidentId(null);
+                convState.startNewChat();
+              }}
+            />
+          ) : sidebarTab === 'incidents' ? (
+            <IncidentPanel
+              teamId={activeTeamId}
+              selectedIncidentId={selectedIncidentId}
+              onSelectIncidentForThread={(id) => {
+                setSelectedIncidentId(id);
+                setSelectedRunbookId(null);
+                convState.closeReadOnly();
+              }}
             />
           ) : (
-            <IncidentPanel teamId={activeTeamId} />
+            <RunbookPanel
+              teamId={activeTeamId}
+              selectedRunbookId={selectedRunbookId}
+              onSelectRunbookForThread={(id) => {
+                setSelectedRunbookId(id);
+                setSelectedIncidentId(null);
+                convState.closeReadOnly();
+              }}
+            />
           )}
         </div>
       </aside>
 
       {/* Right Panel Main Workspace */}
-      <main className="flex-1 relative overflow-hidden flex flex-col p-6 items-center">
+      <main className="flex-1 min-h-0 relative overflow-hidden flex flex-col p-6 items-center h-full">
         <button
           onClick={toggleSidebar}
           className="absolute top-6 left-6 z-20 flex items-center justify-center w-10 h-10 bg-card/60 border border-border rounded-[20px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
@@ -177,8 +224,20 @@ function MainApp({
           <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/5 rounded-[20px] blur-[120px] pointer-events-none" />
           <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-orange-500/5 rounded-[20px] blur-[120px] pointer-events-none" />
 
-          <div className="flex-1 flex bg-transparent flex-col pt-14 relative z-10 w-full overflow-hidden">
-            {convState.isReadOnly ? (
+          <div className="flex-1 min-h-0 flex bg-transparent flex-col pt-14 relative z-10 w-full overflow-hidden">
+            {selectedIncidentId ? (
+              <IncidentThreadView
+                incidentId={selectedIncidentId}
+                activeTeamId={activeTeamId}
+                onBack={() => setSelectedIncidentId(null)}
+              />
+            ) : selectedRunbookId ? (
+              <RunbookThreadView
+                runbookId={selectedRunbookId}
+                activeTeamId={activeTeamId}
+                onBack={() => setSelectedRunbookId(null)}
+              />
+            ) : convState.isReadOnly ? (
               <ReadOnlyThread
                 messages={convState.selectedMessages}
                 isLoading={convState.isLoadingMessages}
@@ -224,7 +283,7 @@ function App() {
 
   return (
     <TeamProvider isSignedIn={auth.isSignedIn}>
-      <div className="flex flex-col min-h-screen bg-transparent text-foreground w-full overflow-hidden transition-colors duration-350">
+      <div className="flex flex-col h-screen max-h-screen bg-transparent text-foreground w-full overflow-hidden transition-colors duration-350">
         <GlobalHeader auth={auth} onOpenInstructionModal={() => setIsInstructionModalOpen(true)} />
         <Routes>
           <Route path="/" element={<Navigate to={auth.isSignedIn ? '/chat' : '/login'} replace />} />

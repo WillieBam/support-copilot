@@ -1,5 +1,4 @@
 import {
-  ComposerAddAttachment,
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
@@ -52,7 +51,7 @@ import { CommandPalette, type SlashCommand } from "@/components/assistant-ui/com
 export const Thread: FC = () => {
   return (
     <ThreadPrimitive.Root
-      className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
+      className="aui-root aui-thread-root @container flex h-full flex-col bg-background [direction:ltr]"
       style={{
         ["--thread-max-width" as string]: "44rem",
         ["--composer-radius" as string]: "24px",
@@ -62,7 +61,7 @@ export const Thread: FC = () => {
       <ThreadPrimitive.Viewport
         turnAnchor="bottom"
         data-slot="aui_thread-viewport"
-        className="relative bg-background flex flex-1 flex-col overflow-x-auto overflow-y-scroll"
+        className="relative bg-background flex flex-1 flex-col overflow-x-auto overflow-y-auto [direction:ltr]"
       >
         <div className="mx-auto flex bg-background w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
           <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -80,7 +79,7 @@ export const Thread: FC = () => {
       </div>
       </ThreadPrimitive.Viewport>
 
-      <div className="mx-auto w-full max-w-(--thread-max-width) px-4 pb-4 md:pb-6 relative flex flex-col gap-4 bg-background">
+      <div className="mx-auto w-full max-w-(--thread-max-width) px-4 pb-4 md:pb-6 relative flex flex-col gap-4 bg-background shrink-0">
         <ThreadScrollToBottom />
         <Composer />
       </div>
@@ -212,8 +211,7 @@ const Composer: FC = () => {
 
 const ComposerAction: FC = () => {
   return (
-    <div className="aui-composer-action-wrapper relative flex items-center justify-between">
-      <ComposerAddAttachment />
+    <div className="aui-composer-action-wrapper relative flex items-center justify-end">
       <AuiIf condition={(s) => !s.thread.isRunning}>
         <ComposerPrimitive.Send asChild>
           <TooltipIconButton

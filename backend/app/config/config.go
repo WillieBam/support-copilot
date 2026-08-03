@@ -46,11 +46,19 @@ type Config struct {
 	}
 
 	Ollama struct {
-		Model   string
-		BaseURL string `mapstructure:"base_url"`
+		Model     string
+		BaseURL   string        `mapstructure:"base_url"`
+		KeepAlive string        `mapstructure:"keep_alive"`
+		Timeout   time.Duration `mapstructure:"timeout"`
+		NumCtx    int           `mapstructure:"num_ctx"`
 	}
 
 	MCP1 struct {
+		Host string
+		Port string
+	}
+
+	MCP2 struct {
 		Host string
 		Port string
 	}
@@ -86,10 +94,15 @@ func newConfig() IConfig {
 	cfg.SetDefault("auth.jwt_secret", "local_development_fallback_secret_key_32_bytes_long")
 	cfg.SetDefault("firebase.project_id", "")
 	cfg.SetDefault("firebase.service_account_path", "backend/app/config/serviceAccountKey.json")
-	cfg.SetDefault("ollama.model", "llama3.2")
+	cfg.SetDefault("ollama.model", "llama3.2:latest")
 	cfg.SetDefault("ollama.base_url", "http://localhost:11434")
+	cfg.SetDefault("ollama.keep_alive", "30m")
+	cfg.SetDefault("ollama.timeout", 5*time.Minute)
+	cfg.SetDefault("ollama.num_ctx", 2048)
 	cfg.SetDefault("mcp1.host", "localhost")
 	cfg.SetDefault("mcp1.port", 9000)
+	cfg.SetDefault("mcp2.host", "localhost")
+	cfg.SetDefault("mcp2.port", 9000)
 	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	cfg.AutomaticEnv()
 	cfg.SetConfigName("config")

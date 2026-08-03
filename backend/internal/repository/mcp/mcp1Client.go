@@ -39,10 +39,21 @@ func NewMcpOneClient(cfg *config.Config) interfaces.IMCPClient {
 }
 
 func (m *mcp1Client) DetectAnomalies(ctx context.Context, anomalyReq requests.AnomalyDetectionRequest) (*requests.AnomalyDetectionResponse, error) {
-	// FastMCP streamable-http exposes tools as simple endpoint routers: /tools/<tool_name>
-	mcpURL := fmt.Sprintf("%s/tools/detect_anomalies", m.mcpBaseUrl)
+	// FastMCP (streamable-http) exposes a single JSON-RPC 2.0 endpoint at /mcp.
+	// Tools are invoked via method="tools/call" — there are no per-tool REST paths.
+	mcpURL := fmt.Sprintf("%s/mcp", m.mcpBaseUrl)
 
-	payloadBytes, err := json.Marshal(anomalyReq)
+	envelope := requests.MCPToolsCallRequest{
+		JSONRPC: "2.0",
+		ID:      "1",
+		Method:  "tools/call",
+		Params: requests.MCPToolsParams{
+			Name:      "detect_anomalies",
+			Arguments: anomalyReq,
+		},
+	}
+
+	payloadBytes, err := json.Marshal(envelope)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal MCP payload: %w", err)
 	}
@@ -53,6 +64,7 @@ func (m *mcp1Client) DetectAnomalies(ctx context.Context, anomalyReq requests.An
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := m.httpClient.Do(req)
 	if err != nil {
@@ -65,8 +77,30 @@ func (m *mcp1Client) DetectAnomalies(ctx context.Context, anomalyReq requests.An
 		return nil, fmt.Errorf("mcp server returned bad status code %d: %s", resp.StatusCode, string(body))
 	}
 
+	var rpcResp requests.MCPToolsCallResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
+		return nil, fmt.Errorf("failed decoding MCP JSON-RPC envelope: %w", err)
+	}
+
+	if rpcResp.Error != nil {
+		return nil, fmt.Errorf("mcp server returned rpc error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
+	}
+
+	if rpcResp.Result.IsError {
+		errMsg := "unknown error"
+		if len(rpcResp.Result.Content) > 0 {
+			errMsg = rpcResp.Result.Content[0].Text
+		}
+		return nil, fmt.Errorf("mcp tool returned an error result: %s", errMsg)
+	}
+	if len(rpcResp.Result.Content) == 0 {
+		return nil, fmt.Errorf("mcp tool returned empty content")
+	}
+
+	// the tool result is returned as a text/json content block
+	textContent := rpcResp.Result.Content[0].Text
 	var anomalyResp requests.AnomalyDetectionResponse
-	if err := json.NewDecoder(resp.Body).Decode(&anomalyResp); err != nil {
+	if err := json.Unmarshal([]byte(textContent), &anomalyResp); err != nil {
 		return nil, fmt.Errorf("failed decoding anomaly response payload: %w", err)
 	}
 

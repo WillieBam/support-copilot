@@ -34,13 +34,12 @@ type AppService struct {
 }
 
 func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interfaces.IOllamaClient, mcpClient interfaces.IMCPClient, opts ...interface{}) interfaces.IAppService {
-	orchestrator := NewOrchestratorService(alertRepo, mcpClient)
-
 	var registry interfaces.IToolRegistry
 	var cmdInterceptor interfaces.ICommandInterceptor
 	var intentCls interfaces.IIntentClassifier
 	var convRepo interfaces.IConversationRepository
 	var teamRepo interfaces.ITeamRepository
+	var mcpClient2 interfaces.IMCP2Client
 
 	for _, arg := range opts {
 		if tr, ok := arg.(interfaces.IToolRegistry); ok && tr != nil {
@@ -58,7 +57,12 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 		if tm, ok := arg.(interfaces.ITeamRepository); ok && tm != nil {
 			teamRepo = tm
 		}
+		if m2, ok := arg.(interfaces.IMCP2Client); ok && m2 != nil {
+			mcpClient2 = m2
+		}
 	}
+
+	orchestrator := NewOrchestratorService(alertRepo, mcpClient, mcpClient2, teamRepo)
 
 	if registry == nil {
 		tr := tools.NewToolRegistry()
@@ -87,10 +91,12 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 	}
 }
 
-func (s *AppService) IngestAlert(ctx context.Context, incidentID uuid.UUID, serviceName, severity, metrics string) error {
+func (s *AppService) IngestAlert(ctx context.Context, incidentID *uuid.UUID, serviceName, severity, metrics string) error {
+	slog.Info("[Alert Ingestion] Ingestion process started", "service", serviceName, "severity", severity, "has_incident_id", incidentID != nil)
+
 	var buf bytes.Buffer
 	if err := json.Compact(&buf, []byte(metrics)); err != nil {
-		slog.Warn("metrics field is not valid JSON, storing raw value", "err", err)
+		slog.Warn("[Alert Ingestion] Metrics field is not valid JSON, storing raw value", "err", err)
 		buf.WriteString(metrics)
 	}
 
@@ -102,7 +108,14 @@ func (s *AppService) IngestAlert(ctx context.Context, incidentID uuid.UUID, serv
 		Metrics:     buf.String(),
 		ReceivedAt:  time.Now(),
 	}
-	return s.alertRepo.StoreAlert(ctx, alert)
+
+	if err := s.alertRepo.StoreAlert(ctx, alert); err != nil {
+		slog.Error("[Alert Ingestion] Failed to store alert in database", "alert_id", alert.ID, "service", serviceName, "err", err)
+		return err
+	}
+
+	slog.Info("[Alert Ingestion] Alert successfully stored in database", "alert_id", alert.ID, "service", serviceName)
+	return nil
 }
 
 func isValidToolCallArgs(toolName string, args map[string]interface{}) bool {
@@ -121,6 +134,50 @@ func isValidToolCallArgs(toolName string, args map[string]interface{}) bool {
 		}
 		if _, err := uuid.Parse(alertID); err != nil {
 			return false
+		}
+	}
+	if toolName == "link_alert_to_incident" {
+		alertStr, _ := args["alert_id"].(string)
+		incidentStr, _ := args["incident_id"].(string)
+		incidentTitle, _ := args["incident_title"].(string)
+
+		alertStr = strings.TrimSpace(alertStr)
+		incidentStr = strings.TrimSpace(incidentStr)
+		incidentTitle = strings.TrimSpace(incidentTitle)
+
+		if alertStr == "" {
+			// Some models place the alert UUID in incident_id. Recover from that shape.
+			if _, err := uuid.Parse(incidentStr); err == nil {
+				alertStr = incidentStr
+			}
+		}
+		if alertStr == "" {
+			return false
+		}
+		if _, err := uuid.Parse(alertStr); err != nil {
+			return false
+		}
+
+		if incidentStr == "" && incidentTitle == "" {
+			return false
+		}
+	}
+	if toolName == "get_incident" || toolName == "list_incidents" {
+		for _, key := range []string{"incident_id", "team_id"} {
+			if val, exists := args[key]; exists && val != nil {
+				if str, ok := val.(string); ok && strings.TrimSpace(str) == "" {
+					return false
+				}
+			}
+		}
+	}
+	if toolName == "create_runbook" || toolName == "update_runbook" || toolName == "deprecate_runbook" || toolName == "get_runbook" || toolName == "list_runbooks" {
+		for _, key := range []string{"team_id", "incident_id", "runbook_id", "title", "content"} {
+			if val, exists := args[key]; exists && val != nil {
+				if str, ok := val.(string); ok && strings.TrimSpace(str) == "" {
+					return false
+				}
+			}
 		}
 	}
 	return true
@@ -159,20 +216,33 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		return nil
 	}
 
+	// emit instant reasoning status event so UI shows live activity immediately before calling Ollama
+	streamChan <- types.StreamEvent{
+		Type:    "reasoning",
+		Content: "🧠 Analyzing prompt and evaluating available tools...\n",
+	}
+
 	systemPrompt := `You are a Support Copilot that helps support engineers resolve production incidents.
 
 ## Behaviour Rules
 - Respond conversationally (no tools) when the user sends greetings, acknowledgments,
   sign-offs, or short social messages such as "ok", "thanks", "bye", "got it", "alright",
   "yes", "no", or any similar phrase.
-- Call tools ONLY when the user explicitly provides an alert ID (UUID format) or clearly
-  requests alert validation or system inspection.
+- Call tools ONLY when the user explicitly provides required parameters or clearly
+  requests alert validation, incident context, or runbook management.
 - If you are uncertain whether a tool call is appropriate, respond with plain text and ask
-  the user for the alert ID instead of calling the tool with a placeholder value.
-- Never fabricate alert IDs or call tools with placeholder values such as "null", "none",
-  or "00000000-0000-0000-0000-000000000000".
+  the user for necessary information instead of calling the tool with a placeholder value.
+- Never fabricate alert IDs, incident IDs, or runbook IDs.
 - When the conversation is winding down (e.g. the user says "thanks", "bye", "ok"), reply
-  with a short, friendly closing message and do not call any tools.`
+  with a short, friendly closing message and do not call any tools.
+
+## Runbook & Incident Tools
+- Call list_incidents when the user asks to see open incidents for their team.
+- Call get_incident before creating a runbook to retrieve full context.
+- Call create_runbook only after gathering incident context via get_incident.
+- Call get_runbook or list_runbooks when the user asks about existing runbooks.
+- Call update_runbook or deprecate_runbook only when the user explicitly requests it.
+- Call link_alert_to_incident when an alert needs to be linked to an incident. If you know the exact UUID, pass incident_id. If you only know the incident title or service name, pass incident_title or call list_incidents first to find the incident_id.`
 
 	if teamID != uuid.Nil && s.teamRepo != nil {
 		inst, _, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
@@ -223,14 +293,20 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		return err
 	}
 
-	// detect when the LLM has emitted a raw JSON tool-call object as plain text (e.g. {"name":"greet","parameters":{"message":"I"}}).
-	// checking here is to suppress that kind of response
+	// detect when the LLM has emitted a raw JSON tool-call object as plain text (e.g. {"name":"create_runbook","parameters":{...}}).
 	if assistantMsg != nil && classifier.LooksLikeEmbeddedToolCall(assistantMsg.Content) {
-		slog.Warn("[APP SERVICE] LLM emitted embedded JSON tool-call as text — suppressing and falling back", "content", assistantMsg.Content)
-		streamChan <- types.StreamEvent{Type: "drain", Content: ""}
-		fallbackReq := requests.OllamaChatRequest{Messages: messages}
-		_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
-		return fallbackErr
+		slog.Info("[APP SERVICE] LLM emitted embedded JSON tool-call as text — parsing into tool call struct", "content", assistantMsg.Content)
+		if parsedCall, parseErr := classifier.ParseEmbeddedToolCall(assistantMsg.Content); parseErr == nil {
+			assistantMsg.ToolCalls = append(assistantMsg.ToolCalls, *parsedCall)
+			assistantMsg.Content = ""
+			streamChan <- types.StreamEvent{Type: "drain", Content: ""}
+		} else {
+			slog.Warn("[APP SERVICE] Failed to parse embedded JSON tool call, suppressing and falling back", "err", parseErr)
+			streamChan <- types.StreamEvent{Type: "drain", Content: ""}
+			fallbackReq := requests.OllamaChatRequest{Messages: messages}
+			_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
+			return fallbackErr
+		}
 	}
 
 	// check if LLM requested a tool execution
@@ -238,6 +314,15 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		// emit reasoning event so React UI displays it immediately in the reasoning block
 		for _, toolCall := range assistantMsg.ToolCalls {
 			toolName := toolCall.Function.Name
+
+			// Auto-populate team_id if omitted by LLM for team tools
+			if toolCall.Function.Arguments != nil && teamID != uuid.Nil {
+				if val, exists := toolCall.Function.Arguments["team_id"]; !exists || val == nil || strings.TrimSpace(fmt.Sprintf("%v", val)) == "" {
+					toolCall.Function.Arguments["team_id"] = teamID.String()
+					slog.Info("[APP SERVICE] Auto-populated team_id for tool call", "tool", toolName, "team_id", teamID.String())
+				}
+			}
+
 			slog.Info("[APP SERVICE] Ollama triggered tool call", "tool", toolName, "args", toolCall.Function.Arguments)
 
 			// pre-check tool arguments for dummy/invalid values BEFORE executing or emitting tool reasoning
@@ -418,4 +503,3 @@ func (s *AppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID,
 	err = s.convRepo.UpdateConversationTitle(ctx, convID, title)
 	return title, err
 }
-

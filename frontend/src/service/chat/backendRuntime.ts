@@ -193,6 +193,7 @@ export function useBackendRuntime(options?: UseBackendRuntimeOptions) {
         };
 
         optionsRef.current?.onFinish?.();
+        window.dispatchEvent(new CustomEvent('runbooks-updated'));
         return;
 
       } catch (error: any) {

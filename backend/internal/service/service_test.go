@@ -58,11 +58,13 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 				events = append(events, ev)
 			}
 
-			Expect(len(events)).To(Equal(2))
-			Expect(events[0].Type).To(Equal("text"))
-			Expect(events[0].Content).To(Equal("Hello"))
+			Expect(len(events)).To(Equal(3))
+			Expect(events[0].Type).To(Equal("reasoning"))
+			Expect(events[0].Content).To(ContainSubstring("Analyzing prompt"))
 			Expect(events[1].Type).To(Equal("text"))
-			Expect(events[1].Content).To(Equal(" world!"))
+			Expect(events[1].Content).To(Equal("Hello"))
+			Expect(events[2].Type).To(Equal("text"))
+			Expect(events[2].Content).To(Equal(" world!"))
 			mockOllama.AssertExpectations(GinkgoT())
 		})
 
@@ -223,7 +225,7 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 			incidentID := uuid.New()
 			mockAlertRepo.On("StoreAlert", mock.Anything, mock.Anything).Return(nil)
 
-			err := appSvc.IngestAlert(ctx, incidentID, "auth-service", "critical", "cpu_util > 90%")
+			err := appSvc.IngestAlert(ctx, &incidentID, "auth-service", "critical", "cpu_util > 90%")
 			Expect(err).NotTo(HaveOccurred())
 			mockAlertRepo.AssertExpectations(GinkgoT())
 		})
@@ -232,7 +234,7 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 			incidentID := uuid.New()
 			mockAlertRepo.On("StoreAlert", mock.Anything, mock.Anything).Return(errors.New("db error"))
 
-			err := appSvc.IngestAlert(ctx, incidentID, "auth-service", "critical", "cpu_util > 90%")
+			err := appSvc.IngestAlert(ctx, &incidentID, "auth-service", "critical", "cpu_util > 90%")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("db error"))
 			mockAlertRepo.AssertExpectations(GinkgoT())

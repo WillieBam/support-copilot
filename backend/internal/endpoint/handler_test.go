@@ -198,28 +198,10 @@ var _ = Describe("Handler", func() {
 			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 
-		It("should return 400 when IncidentID is nil", func() {
-			reqBody := requests.AlertIngestRequest{
-				IncidentID:  uuid.Nil,
-				ServiceName: "payment-service",
-				Severity:    "high",
-				Metrics:     json.RawMessage(`{"cpu": 95}`),
-			}
-			body, _ := json.Marshal(reqBody)
-			req := httptest.NewRequest(http.MethodPost, "/api/alerts", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
-
-			err := h.IngestAlert(c)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(rec.Code).To(Equal(http.StatusBadRequest))
-		})
-
 		It("should return 400 when ServiceName is empty", func() {
 			incID := uuid.New()
 			reqBody := requests.AlertIngestRequest{
-				IncidentID:  incID,
+				IncidentID:  &incID,
 				ServiceName: "",
 				Severity:    "high",
 				Metrics:     json.RawMessage(`{"cpu": 95}`),
@@ -238,7 +220,7 @@ var _ = Describe("Handler", func() {
 		It("should return 500 when service IngestAlert fails", func() {
 			incID := uuid.New()
 			reqBody := requests.AlertIngestRequest{
-				IncidentID:  incID,
+				IncidentID:  &incID,
 				ServiceName: "auth-service",
 				Severity:    "critical",
 				Metrics:     json.RawMessage(`{"latency": 5000}`),
@@ -249,7 +231,7 @@ var _ = Describe("Handler", func() {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			mockAppSvc.On("IngestAlert", mock.Anything, incID, "auth-service", "critical", `{"latency":5000}`).
+			mockAppSvc.On("IngestAlert", mock.Anything, &incID, "auth-service", "critical", `{"latency":5000}`).
 				Return(errors.New("db error"))
 
 			err := h.IngestAlert(c)
@@ -257,10 +239,10 @@ var _ = Describe("Handler", func() {
 			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 
-		It("should return 200 on successful alert ingestion", func() {
+		It("should return 200 on successful alert ingestion with or without IncidentID", func() {
 			incID := uuid.New()
 			reqBody := requests.AlertIngestRequest{
-				IncidentID:  incID,
+				IncidentID:  &incID,
 				ServiceName: "auth-service",
 				Severity:    "info",
 				Metrics:     json.RawMessage(`{"status": "ok"}`),
@@ -271,9 +253,8 @@ var _ = Describe("Handler", func() {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			mockAppSvc.On("IngestAlert", mock.Anything, incID, "auth-service", "info", `{"status":"ok"}`).
+			mockAppSvc.On("IngestAlert", mock.Anything, &incID, "auth-service", "info", `{"status":"ok"}`).
 				Return(nil)
-
 
 			err := h.IngestAlert(c)
 			Expect(err).NotTo(HaveOccurred())

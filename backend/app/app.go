@@ -44,6 +44,7 @@ func NewApp() *App {
 	convRepo := postgresRepo.NewConversationRepository(gormDB)
 	llmClient := llm.NewOllamaClient(cfg)
 	mcpOneClient := mcp.NewMcpOneClient(cfg)
+	mcpTwoClient := mcp.NewMcpTwoClient(cfg)
 
 	appRepository := NewAppRepository(llmClient, userRepo, alertRepo, teamRepo, convRepo)
 
@@ -58,7 +59,7 @@ func NewApp() *App {
 		FirebaseRepo: firebaseRepository,
 	})
 
-	appService := service.NewAppService(appRepository.Alert, appRepository.LLM, mcpOneClient, convRepo, appRepository.Team)
+	appService := service.NewAppService(appRepository.Alert, appRepository.LLM, mcpOneClient, mcpTwoClient, convRepo, appRepository.Team)
 	teamService := service.NewTeamService(appRepository.Team)
 
 	return &App{

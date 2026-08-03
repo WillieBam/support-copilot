@@ -56,9 +56,17 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 		apiGroup.GET("/teams/:team_id/incidents", h.GetTeamIncidents)
 		apiGroup.GET("/incidents/:id", h.GetTeamIncident)
 		apiGroup.PUT("/incidents/:id", h.UpdateTeamIncidentStatus)
+		// team instruction endpoints
 		apiGroup.GET("/teams/:team_id/instruction", h.GetTeamInstruction)
 		apiGroup.POST("/teams/:team_id/instruction", h.SaveTeamInstruction)
 		apiGroup.GET("/users/search", h.SearchUsers)
+
+		// runbook endpoints
+		apiGroup.POST("/teams/:team_id/runbooks", h.CreateRunbook)
+		apiGroup.GET("/teams/:team_id/runbooks", h.ListRunbooks)
+		apiGroup.GET("/runbooks/:id", h.GetRunbook)
+		apiGroup.PATCH("/runbooks/:id", h.UpdateRunbook)
+		apiGroup.PATCH("/runbooks/:id/deprecate", h.DeprecateRunbook)
 
 		// conversation endpoints
 		apiGroup.POST("/conversations", h.CreateConversation)

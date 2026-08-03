@@ -57,7 +57,7 @@ func (r *ToolRegistry) Execute(ctx context.Context, name string, rawArgs string)
 	return def.Handler(ctx, rawArgs)
 }
 
-// RegisterDefaultTools registers standard backend tools such as validate_alert
+// registerdefaulttools registers standard backend tools for anomaly validation and mcp2 knowledge base
 func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrchestratorService) {
 	registry.Register("validate_alert", requests.OllamaTool{
 		Type: "function",
@@ -77,5 +77,197 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
 		return orchestrator.ExecuteValidateAlertRaw(ctx, rawArgs)
+	})
+
+	registry.Register("get_incident", requests.OllamaTool{
+		Type: "function",
+		Function: requests.OllamaFunction{
+			Name:        "get_incident",
+			Description: "Retrieves enriched incident context — summary, affected services with key metrics, status timeline, and existing runbooks. Call this before creating a runbook.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"incident_id": map[string]interface{}{
+						"type":        "string",
+						"description": "A valid UUIDv4 incident identifier.",
+					},
+				},
+				"required": []string{"incident_id"},
+			},
+		},
+	}, func(ctx context.Context, rawArgs string) (string, error) {
+		return orchestrator.ExecuteGetIncidentRaw(ctx, rawArgs)
+	})
+
+	registry.Register("list_incidents", requests.OllamaTool{
+		Type: "function",
+		Function: requests.OllamaFunction{
+			Name:        "list_incidents",
+			Description: "Lists all team incidents with summary info including id, title, status, and age.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"team_id": map[string]interface{}{
+						"type":        "string",
+						"description": "A valid UUIDv4 team identifier.",
+					},
+				},
+				"required": []string{"team_id"},
+			},
+		},
+	}, func(ctx context.Context, rawArgs string) (string, error) {
+		return orchestrator.ExecuteListIncidentsRaw(ctx, rawArgs)
+	})
+
+	registry.Register("create_runbook", requests.OllamaTool{
+		Type: "function",
+		Function: requests.OllamaFunction{
+			Name:        "create_runbook",
+			Description: "Creates a runbook in the Knowledge Base for an incident. Use after get_incident. Content must follow: ## Root Cause, ## Diagnostic Steps, ## Resolution, ## Prevention.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"team_id": map[string]interface{}{
+						"type":        "string",
+						"description": "UUIDv4 of the team.",
+					},
+					"incident_id": map[string]interface{}{
+						"type":        "string",
+						"description": "UUIDv4 of the incident.",
+					},
+					"title": map[string]interface{}{
+						"type":        "string",
+						"description": "Short descriptive title for the runbook.",
+					},
+					"content": map[string]interface{}{
+						"type":        "string",
+						"description": "Full runbook markdown content.",
+					},
+				},
+				"required": []string{"team_id", "incident_id", "title", "content"},
+			},
+		},
+	}, func(ctx context.Context, rawArgs string) (string, error) {
+		return orchestrator.ExecuteCreateRunbookRaw(ctx, rawArgs)
+	})
+
+	registry.Register("update_runbook", requests.OllamaTool{
+		Type: "function",
+		Function: requests.OllamaFunction{
+			Name:        "update_runbook",
+			Description: "Updates the title and/or content of an existing active runbook in the Knowledge Base.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"runbook_id": map[string]interface{}{
+						"type":        "string",
+						"description": "UUIDv4 of the runbook to update.",
+					},
+					"title": map[string]interface{}{
+						"type":        "string",
+						"description": "Updated runbook title.",
+					},
+					"content": map[string]interface{}{
+						"type":        "string",
+						"description": "Updated runbook content in markdown.",
+					},
+				},
+				"required": []string{"runbook_id", "title", "content"},
+			},
+		},
+	}, func(ctx context.Context, rawArgs string) (string, error) {
+		return orchestrator.ExecuteUpdateRunbookRaw(ctx, rawArgs)
+	})
+
+	registry.Register("deprecate_runbook", requests.OllamaTool{
+		Type: "function",
+		Function: requests.OllamaFunction{
+			Name:        "deprecate_runbook",
+			Description: "Marks a runbook as deprecated so it is retained for audit but excluded from active listings.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"runbook_id": map[string]interface{}{
+						"type":        "string",
+						"description": "UUIDv4 of the runbook to deprecate.",
+					},
+				},
+				"required": []string{"runbook_id"},
+			},
+		},
+	}, func(ctx context.Context, rawArgs string) (string, error) {
+		return orchestrator.ExecuteDeprecateRunbookRaw(ctx, rawArgs)
+	})
+
+	registry.Register("get_runbook", requests.OllamaTool{
+		Type: "function",
+		Function: requests.OllamaFunction{
+			Name:        "get_runbook",
+			Description: "Retrieves a single runbook by ID including its full content.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"runbook_id": map[string]interface{}{
+						"type":        "string",
+						"description": "UUIDv4 of the runbook to retrieve.",
+					},
+				},
+				"required": []string{"runbook_id"},
+			},
+		},
+	}, func(ctx context.Context, rawArgs string) (string, error) {
+		return orchestrator.ExecuteGetRunbookRaw(ctx, rawArgs)
+	})
+
+	registry.Register("list_runbooks", requests.OllamaTool{
+		Type: "function",
+		Function: requests.OllamaFunction{
+			Name:        "list_runbooks",
+			Description: "Lists runbooks for a team filtered by status ('active' or 'deprecated').",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"team_id": map[string]interface{}{
+						"type":        "string",
+						"description": "UUIDv4 of the team.",
+					},
+					"status": map[string]interface{}{
+						"type":        "string",
+						"description": "Status filter: 'active' or 'deprecated'.",
+					},
+				},
+				"required": []string{"team_id"},
+			},
+		},
+	}, func(ctx context.Context, rawArgs string) (string, error) {
+		return orchestrator.ExecuteListRunbooksRaw(ctx, rawArgs)
+	})
+
+	registry.Register("link_alert_to_incident", requests.OllamaTool{
+		Type: "function",
+		Function: requests.OllamaFunction{
+			Name:        "link_alert_to_incident",
+			Description: "Associates an existing alert with an incident by UUID or title. If you only have the incident title or service name, call list_incidents first to get the exact incident_id, or pass the title in incident_title.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"alert_id": map[string]interface{}{
+						"type":        "string",
+						"description": "UUIDv4 of the target alert.",
+					},
+					"incident_id": map[string]interface{}{
+						"type":        "string",
+						"description": "UUIDv4 of the target incident (if known).",
+					},
+					"incident_title": map[string]interface{}{
+						"type":        "string",
+						"description": "Human-readable title or name of the target incident (e.g. 'report-download-service CPU Spike').",
+					},
+				},
+				"required": []string{"alert_id"},
+			},
+		},
+	}, func(ctx context.Context, rawArgs string) (string, error) {
+		return orchestrator.ExecuteLinkAlertToIncidentRaw(ctx, rawArgs)
 	})
 }

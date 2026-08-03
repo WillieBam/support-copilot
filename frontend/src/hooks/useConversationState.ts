@@ -14,7 +14,7 @@ export function useConversationState(activeTeamId: string | null) {
   const [isLoadingAll, setIsLoadingAll] = useState<boolean>(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
 
-  // fetch top 5 recent conversations for the active team
+  // fetch top 10 recent conversations for the active team
   const loadRecent = useCallback(async () => {
     if (!activeTeamId) {
       setRecentConvs([]);
@@ -22,7 +22,7 @@ export function useConversationState(activeTeamId: string | null) {
     }
     setIsLoadingRecent(true);
     try {
-      const data = await fetchTeamConversations(activeTeamId, 5);
+      const data = await fetchTeamConversations(activeTeamId, 10);
       setRecentConvs(data || []);
     } catch (err) {
       console.error('Failed to load recent conversations:', err);

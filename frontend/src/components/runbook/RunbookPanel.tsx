@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Plus, Search, Filter, RefreshCw, Loader2, Clock, ChevronRight } from 'lucide-react';
+import { BookOpen, Plus, Search, RefreshCw, Loader2, Clock, ChevronRight } from 'lucide-react';
 import { useRunbookState } from './useRunbookState';
 import { CreateRunbookModal } from './CreateRunbookModal';
 
@@ -19,8 +19,6 @@ export const RunbookPanel: React.FC<RunbookPanelProps> = ({
     isLoading,
     searchQuery,
     setSearchQuery,
-    showAllStatuses,
-    setShowAllStatuses,
     isCreateModalOpen,
     setIsCreateModalOpen,
     refreshRunbooks,
@@ -67,30 +65,16 @@ export const RunbookPanel: React.FC<RunbookPanelProps> = ({
           </div>
         </div>
 
-        {/* Search & Filter */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search runbooks..."
-              className="w-full bg-background border border-border rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-            />
-          </div>
-          <button
-            onClick={() => setShowAllStatuses(!showAllStatuses)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs border rounded-xl transition-colors cursor-pointer whitespace-nowrap ${
-              showAllStatuses
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
-                : 'bg-background border-border text-muted-foreground hover:text-foreground'
-            }`}
-            title={showAllStatuses ? 'Showing All (incl. Deprecated)' : 'Showing Active Only'}
-          >
-            <Filter className="w-3 h-3" />
-            {showAllStatuses ? 'All' : 'Active'}
-          </button>
+        {/* Search */}
+        <div className="relative w-full">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search runbooks..."
+            className="w-full bg-background border border-border rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          />
         </div>
       </div>
 
@@ -111,9 +95,7 @@ export const RunbookPanel: React.FC<RunbookPanelProps> = ({
             <BookOpen className="w-8 h-8 text-muted-foreground/30 mb-2" />
             <p className="text-xs font-medium text-foreground">No runbooks found</p>
             <p className="text-[11px] mt-1 text-muted-foreground">
-              {showAllStatuses
-                ? 'No runbooks exist for this team.'
-                : 'No active runbooks. Click "All" filter to view deprecated runbooks.'}
+              No active runbooks exist for this team.
             </p>
           </div>
         ) : (
@@ -132,33 +114,34 @@ export const RunbookPanel: React.FC<RunbookPanelProps> = ({
                 onClick={() => onSelectRunbookForThread(rb.id)}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <h3 className="text-xs font-semibold text-foreground group-hover:text-emerald-500 transition-colors truncate">
-                      {rb.title}
-                    </h3>
-                  </div>
+                  <span
+                    className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${
+                      isDeprecated
+                        ? 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                        : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                    }`}
+                  >
+                    {rb.status}
+                  </span>
                   <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-1">
                     <Clock className="w-3 h-3" /> {formatDate(rb.created_at)}
                   </span>
                 </div>
 
-                <p className="text-[11px] text-muted-foreground line-clamp-2">
-                  {rb.content}
-                </p>
+                <div className="flex items-start gap-1.5 min-w-0">
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  <h3 className="text-xs font-semibold text-foreground group-hover:text-emerald-500 transition-colors line-clamp-2">
+                    {rb.title}
+                  </h3>
+                </div>
 
-                {/* Footer Status Badge */}
-                <div className="flex items-center justify-between pt-1 border-t border-border/50 text-[10px]">
-                  <span
-                    className={`px-2 py-0.5 rounded-full font-medium ${
-                      isDeprecated
-                        ? 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-                        : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                    }`}
-                  >
-                    {rb.status}
-                  </span>
+                {rb.content && (
+                  <p className="text-[11px] text-muted-foreground line-clamp-2">
+                    {rb.content}
+                  </p>
+                )}
 
+                <div className="flex items-center justify-end pt-1 border-t border-border/50 text-[10px]">
                   <span className="flex items-center gap-0.5 text-muted-foreground group-hover:text-emerald-500 font-medium transition-colors text-[11px]">
                     Open thread <ChevronRight className="w-3 h-3" />
                   </span>

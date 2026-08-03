@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, AlertTriangle, Clock, Save, Loader2, User, History, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
 import { useIncidentThreadState } from './useIncidentThreadState';
+import { useTeam } from '@/context/TeamContext';
 
 interface IncidentThreadViewProps {
   incidentId: string;
@@ -15,6 +16,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
   onBack,
   onIncidentUpdated,
 }) => {
+  const { getUserDisplayName } = useTeam();
   const {
     incident,
     isLoading,
@@ -114,7 +116,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                   <div>
                     <h1 className="text-xl font-bold text-foreground tracking-tight">{incident.title}</h1>
                     <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                      <User className="w-3.5 h-3.5" /> Assigned By: <span className="text-foreground font-medium">{incident.assigned_by || 'System'}</span>
+                      <User className="w-3.5 h-3.5" /> Assigned to: <span className="text-foreground font-medium">{getUserDisplayName(incident.assigned_by)}</span>
                     </p>
                   </div>
                 </div>
@@ -131,7 +133,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
             </div>
 
             {/* Update / Edit State Form */}
-            <form onSubmit={handleUpdate} className="bg-card border border-border rounded-[20px] p-6 shadow-sm space-y-4">
+            <form onSubmit={handleUpdate} className="bg-card border border-border rounded-[20px] p-6 py-12 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <Save className="w-4 h-4 text-emerald-500" /> Update Incident Status & Resolution Details
               </h2>
@@ -170,9 +172,9 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                 <textarea
                   value={details}
                   onChange={(e) => setDetails(e.target.value)}
-                  rows={4}
+                  rows={12}
                   placeholder="Add details, diagnostic notes, root cause, or resolution steps..."
-                  className="w-full bg-background border border-border rounded-xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none"
+                  className="w-full bg-background border border-border rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 min-h-[300px] resize-y"
                   disabled={isSubmitting}
                 />
               </div>
@@ -204,7 +206,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
             {/* Status Change History Timeline */}
             <div className="bg-card border border-border rounded-[20px] p-6 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <History className="w-4 h-4 text-emerald-500" /> Status Transition History Timeline
+                <History className="w-4 h-4 text-emerald-500" /> Status Transition History
               </h2>
 
               {!incident.history || incident.history.length === 0 ? (
@@ -212,34 +214,41 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                   No status transition logs recorded yet.
                 </p>
               ) : (
-                <div className="relative border-l-2 border-border ml-3 pl-5 space-y-4 pt-1">
+                <div className="relative border-l-2 border-border ml-3 pl-5 space-y-3 pt-1">
                   {incident.history.map((item) => (
                     <div key={item.id} className="relative group">
                       {/* Timeline dot */}
-                      <div className="absolute -left-[27px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
+                      <div className="absolute -left-[27px] top-3.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
 
-                      <div className="bg-background border border-border p-4 rounded-xl space-y-1.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-foreground">
-                              {item.previous_status ? `${item.previous_status} → ` : 'Initial: '}
+                      <div className="bg-background border border-border p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                            <span className="text-muted-foreground font-normal">Status:</span>
+                            {item.previous_status ? (
+                              <span className="flex items-center gap-1.5">
+                                <span className={`px-2 py-0.5 text-[10px] rounded-full border ${getStatusBadgeClass(item.previous_status)}`}>
+                                  {item.previous_status}
+                                </span>
+                                <span className="text-muted-foreground font-normal">→</span>
+                                <span className={`px-2 py-0.5 text-[10px] rounded-full border ${getStatusBadgeClass(item.new_status)}`}>
+                                  {item.new_status}
+                                </span>
+                              </span>
+                            ) : (
                               <span className={`px-2 py-0.5 text-[10px] rounded-full border ${getStatusBadgeClass(item.new_status)}`}>
                                 {item.new_status}
                               </span>
-                            </span>
+                            )}
                           </div>
-                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {formatDate(item.updated_at)}
-                          </span>
+
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground border-l border-border pl-3">
+                            <User className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Updated by: <strong className="text-foreground font-medium">{getUserDisplayName(item.updated_by)}</strong></span>
+                          </div>
                         </div>
 
-                        {item.details && (
-                          <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                            {item.details}
-                          </p>
-                        )}
-                        <span className="text-[10px] text-muted-foreground/70 block pt-1">
-                          Updated by: {item.updated_by || 'System'}
+                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {formatDate(item.updated_at)}
                         </span>
                       </div>
                     </div>

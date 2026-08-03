@@ -67,7 +67,7 @@ export function ChatHistoryPanel({
         </button>
       </div>
 
-      {/* List of maximum 5 recent conversations */}
+      {/* List of maximum 10 recent conversations */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {isLoading ? (
           <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">
@@ -78,7 +78,7 @@ export function ChatHistoryPanel({
             No past conversations yet
           </div>
         ) : (
-          conversations.slice(0, 5).map((conv) => {
+          conversations.slice(0, 10).map((conv) => {
             const isSelected = conv.id === selectedConvId;
             const userName = conv.user?.display_name || conv.user?.email || 'User';
 

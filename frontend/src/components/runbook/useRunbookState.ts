@@ -6,7 +6,6 @@ export function useRunbookState(teamId?: string | null) {
   const [runbooks, setRunbooks] = useState<Runbook[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAllStatuses, setShowAllStatuses] = useState(false);
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -18,15 +17,14 @@ export function useRunbookState(teamId?: string | null) {
     }
     setIsLoading(true);
     try {
-      const statusParam = showAllStatuses ? '' : 'active';
-      const data = await fetchTeamRunbooks(teamId, statusParam);
+      const data = await fetchTeamRunbooks(teamId, 'active');
       setRunbooks(data || []);
     } catch {
       setRunbooks([]);
     } finally {
       setIsLoading(false);
     }
-  }, [teamId, showAllStatuses]);
+  }, [teamId]);
 
   useEffect(() => {
     loadRunbooks();
@@ -42,6 +40,9 @@ export function useRunbookState(teamId?: string | null) {
   }, [loadRunbooks]);
 
   const filteredRunbooks = runbooks.filter((rb) => {
+    if (rb.status && rb.status !== 'active') {
+      return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchTitle = rb.title?.toLowerCase().includes(q);
@@ -58,8 +59,6 @@ export function useRunbookState(teamId?: string | null) {
     isLoading,
     searchQuery,
     setSearchQuery,
-    showAllStatuses,
-    setShowAllStatuses,
     isCreateModalOpen,
     setIsCreateModalOpen,
     refreshRunbooks: loadRunbooks,

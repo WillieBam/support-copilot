@@ -71,8 +71,15 @@ func (m *mcp2Client) callTool(ctx context.Context, toolName string, args any) (s
 	if rpcResp.Error != nil {
 		return "", fmt.Errorf("mcp2 rpc error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
 	}
-	if rpcResp.Result.IsError || len(rpcResp.Result.Content) == 0 {
-		return "", fmt.Errorf("mcp2 tool %q returned an error result", toolName)
+	if rpcResp.Result.IsError {
+		errMsg := "unknown error"
+		if len(rpcResp.Result.Content) > 0 {
+			errMsg = rpcResp.Result.Content[0].Text
+		}
+		return "", fmt.Errorf("mcp2 tool %q returned an error result: %s", toolName, errMsg)
+	}
+	if len(rpcResp.Result.Content) == 0 {
+		return "", fmt.Errorf("mcp2 tool %q returned empty content", toolName)
 	}
 	return rpcResp.Result.Content[0].Text, nil
 }

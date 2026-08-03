@@ -86,8 +86,15 @@ func (m *mcp1Client) DetectAnomalies(ctx context.Context, anomalyReq requests.An
 		return nil, fmt.Errorf("mcp server returned rpc error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
 	}
 
-	if rpcResp.Result.IsError || len(rpcResp.Result.Content) == 0 {
-		return nil, fmt.Errorf("mcp tool returned an error result")
+	if rpcResp.Result.IsError {
+		errMsg := "unknown error"
+		if len(rpcResp.Result.Content) > 0 {
+			errMsg = rpcResp.Result.Content[0].Text
+		}
+		return nil, fmt.Errorf("mcp tool returned an error result: %s", errMsg)
+	}
+	if len(rpcResp.Result.Content) == 0 {
+		return nil, fmt.Errorf("mcp tool returned empty content")
 	}
 
 	// the tool result is returned as a text/json content block

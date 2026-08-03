@@ -293,14 +293,20 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		return err
 	}
 
-	// detect when the LLM has emitted a raw JSON tool-call object as plain text (e.g. {"name":"greet","parameters":{"message":"I"}}).
-	// checking here is to suppress that kind of response
+	// detect when the LLM has emitted a raw JSON tool-call object as plain text (e.g. {"name":"create_runbook","parameters":{...}}).
 	if assistantMsg != nil && classifier.LooksLikeEmbeddedToolCall(assistantMsg.Content) {
-		slog.Warn("[APP SERVICE] LLM emitted embedded JSON tool-call as text — suppressing and falling back", "content", assistantMsg.Content)
-		streamChan <- types.StreamEvent{Type: "drain", Content: ""}
-		fallbackReq := requests.OllamaChatRequest{Messages: messages}
-		_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
-		return fallbackErr
+		slog.Info("[APP SERVICE] LLM emitted embedded JSON tool-call as text — parsing into tool call struct", "content", assistantMsg.Content)
+		if parsedCall, parseErr := classifier.ParseEmbeddedToolCall(assistantMsg.Content); parseErr == nil {
+			assistantMsg.ToolCalls = append(assistantMsg.ToolCalls, *parsedCall)
+			assistantMsg.Content = ""
+			streamChan <- types.StreamEvent{Type: "drain", Content: ""}
+		} else {
+			slog.Warn("[APP SERVICE] Failed to parse embedded JSON tool call, suppressing and falling back", "err", parseErr)
+			streamChan <- types.StreamEvent{Type: "drain", Content: ""}
+			fallbackReq := requests.OllamaChatRequest{Messages: messages}
+			_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
+			return fallbackErr
+		}
 	}
 
 	// check if LLM requested a tool execution
@@ -308,6 +314,15 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		// emit reasoning event so React UI displays it immediately in the reasoning block
 		for _, toolCall := range assistantMsg.ToolCalls {
 			toolName := toolCall.Function.Name
+
+			// Auto-populate team_id if omitted by LLM for team tools
+			if toolCall.Function.Arguments != nil && teamID != uuid.Nil {
+				if val, exists := toolCall.Function.Arguments["team_id"]; !exists || val == nil || strings.TrimSpace(fmt.Sprintf("%v", val)) == "" {
+					toolCall.Function.Arguments["team_id"] = teamID.String()
+					slog.Info("[APP SERVICE] Auto-populated team_id for tool call", "tool", toolName, "team_id", teamID.String())
+				}
+			}
+
 			slog.Info("[APP SERVICE] Ollama triggered tool call", "tool", toolName, "args", toolCall.Function.Arguments)
 
 			// pre-check tool arguments for dummy/invalid values BEFORE executing or emitting tool reasoning

@@ -1,24 +1,27 @@
 package classifier
 
 import (
+	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/WillieBam/support_copilot/backend/types/requests"
 )
 
 // Intent labels the nature of a user prompt.
 type Intent string
 
 const (
-	// IntentConversational indicates a social/acknowledgement message that
-	// does not require tool execution (e.g. "ok", "thanks", "bye")
+	// IntentConversational is used for social/acknowledgement message that
+	// does not require tool execution e.g. "ok", "thanks", "bye"
 	IntentConversational Intent = "conversational"
 
 	// IntentTask indicates the user is requesting an operation that may
-	// require tool execution (e.g. providing an alert ID for validation).
+	// require tool execution e.g. providing an alert ID for validation
 	IntentTask Intent = "task"
 )
 
-// uuidPattern matches a standard v4-style UUID string
 var uuidPattern = regexp.MustCompile(
 	`(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`,
 )
@@ -59,9 +62,55 @@ var embeddedToolCallPattern = regexp.MustCompile(
 
 // LooksLikeEmbeddedToolCall returns true when content appears to be a raw
 // JSON tool-call emitted by the LLM as text rather than through the
-// tool_calls field. Such content should be suppressed and a fallback triggered.
+// tool_calls field. Such content should be parsed into a proper tool call.
 func LooksLikeEmbeddedToolCall(content string) bool {
 	return embeddedToolCallPattern.MatchString(strings.TrimSpace(content))
+}
+
+type rawEmbeddedCall struct {
+	Name         string                 `json:"name"`
+	FunctionName string                 `json:"function"`
+	Parameters   map[string]interface{} `json:"parameters"`
+	Arguments    map[string]interface{} `json:"arguments"`
+}
+
+// ParseEmbeddedToolCall extracts and parses an embedded JSON tool call from text content.
+func ParseEmbeddedToolCall(content string) (*requests.OllamaToolCall, error) {
+	s := strings.TrimSpace(content)
+	start := strings.Index(s, "{")
+	end := strings.LastIndex(s, "}")
+	if start == -1 || end == -1 || start >= end {
+		return nil, fmt.Errorf("no json object found in text content")
+	}
+	jsonStr := s[start : end+1]
+
+	var raw rawEmbeddedCall
+	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal embedded tool call json: %w", err)
+	}
+
+	name := raw.Name
+	if name == "" {
+		name = raw.FunctionName
+	}
+	if name == "" {
+		return nil, fmt.Errorf("embedded tool call missing tool name")
+	}
+
+	args := raw.Parameters
+	if len(args) == 0 {
+		args = raw.Arguments
+	}
+	if args == nil {
+		args = make(map[string]interface{})
+	}
+
+	return &requests.OllamaToolCall{
+		Function: requests.OllamaFunctionCall{
+			Name:      name,
+			Arguments: args,
+		},
+	}, nil
 }
 
 // IntentClassifier classifies a prompt as conversational or task-oriented

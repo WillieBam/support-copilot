@@ -1,5 +1,4 @@
 import {
-  ComposerAddAttachment,
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
@@ -80,7 +79,7 @@ export const Thread: FC = () => {
       </div>
       </ThreadPrimitive.Viewport>
 
-      <div className="mx-auto w-full max-w-(--thread-max-width) px-4 pb-4 md:pb-6 relative flex flex-col gap-4 bg-background">
+      <div className="mx-auto w-full max-w-(--thread-max-width) px-4 pb-4 md:pb-6 relative flex flex-col gap-4 bg-background shrink-0">
         <ThreadScrollToBottom />
         <Composer />
       </div>
@@ -212,8 +211,7 @@ const Composer: FC = () => {
 
 const ComposerAction: FC = () => {
   return (
-    <div className="aui-composer-action-wrapper relative flex items-center justify-between">
-      <ComposerAddAttachment />
+    <div className="aui-composer-action-wrapper relative flex items-center justify-end">
       <AuiIf condition={(s) => !s.thread.isRunning}>
         <ComposerPrimitive.Send asChild>
           <TooltipIconButton

@@ -24,7 +24,7 @@ export function ReadOnlyThread({ messages, isLoading, onBack }: ReadOnlyThreadPr
       </div>
 
       {/* Messages Scroll View */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
         {isLoading ? (
           <div className="p-12 text-center text-sm text-muted-foreground animate-pulse">
             Loading chat conversation...

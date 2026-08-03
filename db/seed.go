@@ -483,6 +483,54 @@ func seedRunbooks(db *gorm.DB) {
 			Status:     "deprecated",
 			Content:    "Manually restart pods via `kubectl rollout restart deploy/payment-gateway`. Deprecated in favour of auto-scaling runbook f1111111.",
 		},
+		{
+			ID:         uuid.MustParse("f3333333-3333-3333-3333-333333333333"),
+			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			TeamID:     teamDevOpsID,
+			Title:      "PostgreSQL Connection Pool Exhaustion & Recovery",
+			Status:     "active",
+			Content: "## Symptom\n" +
+				"Applications logging `pg_stat_activity: FATAL: remaining connection slots reserved for non-replication superuser connections`.\n\n" +
+				"## Diagnostic Steps\n" +
+				"1. Query active pool usage: `SELECT count(*), state FROM pg_stat_activity GROUP BY state;`\n" +
+				"2. Identify idle connections: `SELECT pid, now() - query_start AS duration, query FROM pg_stat_activity WHERE state = 'idle in transaction' ORDER BY duration DESC;`\n\n" +
+				"## Remediation\n" +
+				"1. Terminate runaway idle connections: `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state = 'idle in transaction' AND now() - query_start > interval '5 minutes';`\n" +
+				"2. Scale up PgBouncer pooler replicas or adjust `max_client_conn` setting.\n" +
+				"3. Restart application deployment if connection leak persists.",
+		},
+		{
+			ID:         uuid.MustParse("f4444444-4444-4444-4444-444444444444"),
+			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			TeamID:     teamDevOpsID,
+			Title:      "Redis Cache Eviction Surge — Memory Remediation",
+			Status:     "active",
+			Content: "## Trigger\n" +
+				"Alert `RedisMemoryHigh` (>90% maxmemory) with spike in `evicted_keys` per second.\n\n" +
+				"## Investigation\n" +
+				"1. Connect to Redis CLI: `redis-cli -h $REDIS_HOST info memory`\n" +
+				"2. Check current eviction policy: `redis-cli -h $REDIS_HOST config get maxmemory-policy`\n" +
+				"3. Check big keys: `redis-cli -h $REDIS_HOST --bigkeys`\n\n" +
+				"## Resolution Steps\n" +
+				"1. Flush volatile non-critical session keys if TTL is set: `redis-cli EVAL \"...\"`\n" +
+				"2. Temporarily increase memory limit via cloud console or Helm chart value.\n" +
+				"3. Update eviction policy to `volatile-lru` if currently `noeviction`.",
+		},
+		{
+			ID:         uuid.MustParse("f5555555-5555-5555-5555-555555555555"),
+			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			TeamID:     teamPlatformID,
+			Title:      "API Gateway Ingress Rate Limiting & Circuit Breaking",
+			Status:     "active",
+			Content: "## Overview\n" +
+				"Runbook for platform team managing Envoy/Kong API Gateway rate limits during traffic spikes.\n\n" +
+				"## Diagnostics\n" +
+				"1. Monitor 429 Too Many Requests response rates across ingress routes.\n" +
+				"2. Inspect active rate limiter token bucket status via Prometheus metrics.\n\n" +
+				"## Resolution\n" +
+				"1. Temporarily increase burst limit threshold in Envoy filter config.\n" +
+				"2. Enable IP-based throttling for abusive client user-agents.",
+		},
 	}
 
 	for _, rb := range mockRunbooks {

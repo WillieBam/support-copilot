@@ -1,11 +1,13 @@
 package requests
 
 type OllamaFunctionCall struct {
-	Name      string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments"`
+	Name             string                 `json:"name"`
+	Arguments        map[string]interface{} `json:"arguments"`
+	ThoughtSignature string                 `json:"thought_signature,omitempty"`
 }
 
 type OllamaToolCall struct {
+	ID       string             `json:"id,omitempty"`
 	Function OllamaFunctionCall `json:"function"`
 }
 
@@ -31,12 +33,12 @@ type OllamaOptions struct {
 }
 
 type OllamaChatRequest struct {
-	Model     string         `json:"model"`
+	Model     string          `json:"model"`
 	Messages  []OllamaMessage `json:"messages"`
-	Tools     []OllamaTool   `json:"tools,omitempty"`
-	Stream    bool           `json:"stream"`
-	KeepAlive string         `json:"keep_alive,omitempty"`
-	Options   *OllamaOptions `json:"options,omitempty"`
+	Tools     []OllamaTool    `json:"tools,omitempty"`
+	Stream    bool            `json:"stream"`
+	KeepAlive string          `json:"keep_alive,omitempty"`
+	Options   *OllamaOptions  `json:"options,omitempty"`
 }
 
 type OllamaChatResponse struct {

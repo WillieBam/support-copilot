@@ -7,6 +7,8 @@ import (
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 )
 
-type IOllamaClient interface {
+type ILLMClient interface {
 	QueryStreamWithTools(ctx context.Context, req requests.OllamaChatRequest, streamChan chan<- types.StreamEvent) (*requests.OllamaMessage, error)
 }
+
+type IOllamaClient = ILLMClient

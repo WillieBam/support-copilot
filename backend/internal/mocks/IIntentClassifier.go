@@ -4,6 +4,7 @@ package mocks
 
 import (
 	classifier "github.com/WillieBam/support_copilot/backend/internal/classifier"
+	"github.com/WillieBam/support_copilot/backend/types"
 
 	mock "github.com/stretchr/testify/mock"
 )
@@ -24,6 +25,24 @@ func (_m *IIntentClassifier) Classify(prompt string) classifier.Intent {
 	var r0 classifier.Intent
 	if rf, ok := ret.Get(0).(func(string) classifier.Intent); ok {
 		r0 = rf(prompt)
+	} else {
+		r0 = ret.Get(0).(classifier.Intent)
+	}
+
+	return r0
+}
+
+// ClassifyWithHistory provides a mock function with given fields: prompt, history
+func (_m *IIntentClassifier) ClassifyWithHistory(prompt string, history []types.HistoryMessage) classifier.Intent {
+	ret := _m.Called(prompt, history)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClassifyWithHistory")
+	}
+
+	var r0 classifier.Intent
+	if rf, ok := ret.Get(0).(func(string, []types.HistoryMessage) classifier.Intent); ok {
+		r0 = rf(prompt, history)
 	} else {
 		r0 = ret.Get(0).(classifier.Intent)
 	}

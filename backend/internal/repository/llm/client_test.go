@@ -1,4 +1,4 @@
-package ollama_test
+package llm_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/WillieBam/support_copilot/backend/app/config"
-	ollama "github.com/WillieBam/support_copilot/backend/internal/repository/llm"
+	llm "github.com/WillieBam/support_copilot/backend/internal/repository/llm"
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 )
@@ -20,22 +20,22 @@ var _ = Describe("OllamaClient", func() {
 	Context("NewOllamaClient", func() {
 		It("should initialize with defaults when config fields are empty", func() {
 			cfg := &config.Config{}
-			client := ollama.NewOllamaClient(cfg)
+			client := llm.NewOllamaClient(cfg)
 			Expect(client).NotTo(BeNil())
 		})
 
 		It("should initialize with provided config values", func() {
 			cfg := &config.Config{}
-			cfg.Ollama.BaseURL = "http://localhost:11434/"
-			cfg.Ollama.Model = "llama3.2:latest"
+			cfg.LLM.BaseURL = "http://localhost:11434/"
+			cfg.LLM.Model = "llama3.2:latest"
 
-			client := ollama.NewOllamaClient(cfg)
+			client := llm.NewOllamaClient(cfg)
 			Expect(client).NotTo(BeNil())
 		})
 	})
 
 	Context("QueryStreamWithTools", func() {
-		It("should stream responses successfully from Ollama mock server", func() {
+		It("should stream responses successfully from LLM mock server", func() {
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				Expect(r.URL.Path).To(Equal("/api/chat"))
 				Expect(r.Method).To(Equal(http.MethodPost))
@@ -54,10 +54,10 @@ var _ = Describe("OllamaClient", func() {
 			defer mockServer.Close()
 
 			cfg := &config.Config{}
-			cfg.Ollama.BaseURL = mockServer.URL
-			cfg.Ollama.Model = "test-model"
+			cfg.LLM.BaseURL = mockServer.URL
+			cfg.LLM.Model = "test-model"
 
-			client := ollama.NewOllamaClient(cfg)
+			client := llm.NewOllamaClient(cfg)
 
 			ch := make(chan types.StreamEvent, 10)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -93,10 +93,10 @@ var _ = Describe("OllamaClient", func() {
 			defer mockServer.Close()
 
 			cfg := &config.Config{}
-			cfg.Ollama.BaseURL = mockServer.URL
-			cfg.Ollama.Model = "test-model"
+			cfg.LLM.BaseURL = mockServer.URL
+			cfg.LLM.Model = "test-model"
 
-			client := ollama.NewOllamaClient(cfg)
+			client := llm.NewOllamaClient(cfg)
 
 			ch := make(chan types.StreamEvent, 10)
 			req := requests.OllamaChatRequest{
@@ -109,7 +109,7 @@ var _ = Describe("OllamaClient", func() {
 			Expect(err.Error()).To(ContainSubstring("status code 500"))
 		})
 
-		It("should return error when Ollama returns an in-stream API error", func() {
+		It("should return error when LLM returns an in-stream API error", func() {
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				fmt.Fprintln(w, `{"error":"model not found"}`)
@@ -117,10 +117,10 @@ var _ = Describe("OllamaClient", func() {
 			defer mockServer.Close()
 
 			cfg := &config.Config{}
-			cfg.Ollama.BaseURL = mockServer.URL
-			cfg.Ollama.Model = "nonexistent-model"
+			cfg.LLM.BaseURL = mockServer.URL
+			cfg.LLM.Model = "nonexistent-model"
 
-			client := ollama.NewOllamaClient(cfg)
+			client := llm.NewOllamaClient(cfg)
 
 			ch := make(chan types.StreamEvent, 10)
 			req := requests.OllamaChatRequest{
@@ -140,10 +140,10 @@ var _ = Describe("OllamaClient", func() {
 			defer mockServer.Close()
 
 			cfg := &config.Config{}
-			cfg.Ollama.BaseURL = mockServer.URL
-			cfg.Ollama.Model = "test-model"
+			cfg.LLM.BaseURL = mockServer.URL
+			cfg.LLM.Model = "test-model"
 
-			client := ollama.NewOllamaClient(cfg)
+			client := llm.NewOllamaClient(cfg)
 
 			ch := make(chan types.StreamEvent, 10)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -157,6 +157,161 @@ var _ = Describe("OllamaClient", func() {
 
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("STREAM ERROR"))
+		})
+	})
+
+	Context("NewLLMClient Factory", func() {
+		It("should return LLM client when provider is empty or ollama", func() {
+			cfg := &config.Config{}
+			client := llm.NewLLMClient(cfg)
+			Expect(client).NotTo(BeNil())
+		})
+
+		It("should return OpenAI client when provider is gemini or openai", func() {
+			cfg := &config.Config{}
+			cfg.LLM.Provider = "gemini"
+			cfg.LLM.APIKey = "test-gemini-key"
+			client := llm.NewLLMClient(cfg)
+			Expect(client).NotTo(BeNil())
+		})
+	})
+
+	Context("OpenAIClient (Gemini & OpenAI API)", func() {
+		It("should stream text response from Gemini/OpenAI SSE server", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				Expect(r.Header.Get("Authorization")).To(Equal("Bearer test-gemini-key"))
+				Expect(r.Header.Get("Content-Type")).To(Equal("application/json"))
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(http.StatusOK)
+
+				flusher, ok := w.(http.Flusher)
+				Expect(ok).To(BeTrue())
+
+				fmt.Fprintln(w, `data: {"choices":[{"delta":{"content":"Hello from "}}]}`)
+				flusher.Flush()
+
+				fmt.Fprintln(w, `data: {"choices":[{"delta":{"content":"Gemini!"}}]}`)
+				flusher.Flush()
+
+				fmt.Fprintln(w, `data: [DONE]`)
+				flusher.Flush()
+			}))
+			defer mockServer.Close()
+
+			cfg := &config.Config{}
+			cfg.LLM.Provider = "gemini"
+			cfg.LLM.BaseURL = mockServer.URL
+			cfg.LLM.APIKey = "test-gemini-key"
+			cfg.LLM.Model = "gemini-2.0-flash"
+
+			client := llm.NewLLMClient(cfg)
+
+			ch := make(chan types.StreamEvent, 10)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			req := requests.OllamaChatRequest{
+				Messages: []requests.OllamaMessage{
+					{Role: "user", Content: "Hello"},
+				},
+			}
+
+			msg, err := client.QueryStreamWithTools(ctx, req, ch)
+			close(ch)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(msg.Content).To(Equal("Hello from Gemini!"))
+
+			var events []types.StreamEvent
+			for ev := range ch {
+				events = append(events, ev)
+			}
+
+			Expect(len(events)).To(Equal(2))
+			Expect(events[0].Content).To(Equal("Hello from "))
+			Expect(events[1].Content).To(Equal("Gemini!"))
+		})
+
+		It("should fall back to reasoning content when Gemini/OpenAI omits content", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(http.StatusOK)
+
+				flusher, ok := w.(http.Flusher)
+				Expect(ok).To(BeTrue())
+
+				fmt.Fprintln(w, `data: {"choices":[{"delta":{"reasoning_content":"Final answer from Gemini."}}]}`)
+				flusher.Flush()
+
+				fmt.Fprintln(w, `data: [DONE]`)
+				flusher.Flush()
+			}))
+			defer mockServer.Close()
+
+			cfg := &config.Config{}
+			cfg.LLM.Provider = "gemini"
+			cfg.LLM.BaseURL = mockServer.URL
+			cfg.LLM.APIKey = "test-gemini-key"
+			cfg.LLM.Model = "gemini-2.0-flash"
+
+			client := llm.NewLLMClient(cfg)
+
+			ch := make(chan types.StreamEvent, 10)
+			req := requests.OllamaChatRequest{
+				Messages: []requests.OllamaMessage{{Role: "user", Content: "Hello"}},
+			}
+
+			msg, err := client.QueryStreamWithTools(context.Background(), req, ch)
+			close(ch)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(msg.Content).To(Equal("Final answer from Gemini."))
+
+			var events []types.StreamEvent
+			for ev := range ch {
+				events = append(events, ev)
+			}
+
+			Expect(len(events)).To(Equal(1))
+			Expect(events[0].Type).To(Equal("text"))
+			Expect(events[0].Content).To(Equal("Final answer from Gemini."))
+		})
+
+		It("should parse tool calls from Gemini/OpenAI stream", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(http.StatusOK)
+
+				flusher, ok := w.(http.Flusher)
+				Expect(ok).To(BeTrue())
+
+				fmt.Fprintln(w, `data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"create_runbook","arguments":"{\"title\":\"Test Runbook\"}"}}]}}]}`)
+				flusher.Flush()
+
+				fmt.Fprintln(w, `data: [DONE]`)
+				flusher.Flush()
+			}))
+			defer mockServer.Close()
+
+			cfg := &config.Config{}
+			cfg.LLM.Provider = "gemini"
+			cfg.LLM.BaseURL = mockServer.URL
+			cfg.LLM.APIKey = "test-key"
+
+			client := llm.NewOpenAIClient(cfg)
+
+			ch := make(chan types.StreamEvent, 10)
+			req := requests.OllamaChatRequest{
+				Messages: []requests.OllamaMessage{{Role: "user", Content: "create a runbook"}},
+			}
+
+			msg, err := client.QueryStreamWithTools(context.Background(), req, ch)
+			close(ch)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(msg.ToolCalls)).To(Equal(1))
+			Expect(msg.ToolCalls[0].Function.Name).To(Equal("create_runbook"))
+			Expect(msg.ToolCalls[0].Function.Arguments["title"]).To(Equal("Test Runbook"))
 		})
 	})
 })

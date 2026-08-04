@@ -6,9 +6,13 @@ onto a single FastMCP instance exposing streamable HTTP transport on /mcp.
 
 import logging
 import os
+from dotenv import load_dotenv
 from fastmcp import FastMCP
 from server_1.server import mcp as mcp1
 from server_2.server import mcp as mcp2
+
+load_dotenv()
+
 
 logging.basicConfig(
     level=logging.INFO,

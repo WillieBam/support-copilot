@@ -110,6 +110,21 @@ func (h *Handler) ListRunbooks(c *echo.Context) error {
 	return c.JSON(http.StatusOK, runbooks)
 }
 
+// ListIncidentsInternal handles GET /internal/teams/:team_id/incidents
+func (h *Handler) ListIncidentsInternal(c *echo.Context) error {
+	teamID, err := uuid.Parse(c.Param("team_id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid team_id"})
+	}
+
+	incidents, err := h.teamService.ListTeamIncidents(c.Request().Context(), teamID)
+	if err != nil {
+		slog.Error("[runbook] ListIncidentsInternal failed", "team_id", teamID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, incidents)
+}
+
 // ─── incident context handler ─────────────────────────────────────────────────
 
 // relativeTime formats a past time as a human-readable string like "2h ago"

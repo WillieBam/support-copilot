@@ -461,6 +461,36 @@ func (_m *ITeamService) ListRunbooks(ctx context.Context, teamID uuid.UUID, stat
 	return r0, r1
 }
 
+// ListTeamIncidents provides a mock function with given fields: ctx, teamID
+func (_m *ITeamService) ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListTeamIncidents")
+	}
+
+	var r0 []models.TeamIncident
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]models.TeamIncident, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []models.TeamIncident); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.TeamIncident)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // RemoveMember provides a mock function with given fields: ctx, requesterID, teamID, userID
 func (_m *ITeamService) RemoveMember(ctx context.Context, requesterID uuid.UUID, teamID uuid.UUID, userID uuid.UUID) error {
 	ret := _m.Called(ctx, requesterID, teamID, userID)

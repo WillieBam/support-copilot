@@ -32,11 +32,16 @@ class BackendClient:
         resp.raise_for_status()
         return resp.json()
 
-    def update_runbook(self, runbook_id: str, title: str, content: str) -> dict:
+    def update_runbook(self, runbook_id: str, title: Optional[str] = None, content: Optional[str] = None) -> dict:
         _logger.info("client=update_runbook runbook_id=%s", runbook_id)
+        payload = {}
+        if title is not None:
+            payload["title"] = title
+        if content is not None:
+            payload["content"] = content
         resp = self._client.patch(
             f"/internal/runbooks/{runbook_id}",
-            json={"title": title, "content": content},
+            json=payload,
         )
         resp.raise_for_status()
         return resp.json()

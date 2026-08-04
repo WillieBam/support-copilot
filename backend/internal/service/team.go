@@ -210,6 +210,11 @@ func (s *teamService) ListIncidents(ctx context.Context, requesterID, teamID uui
 	return incidents, nil
 }
 
+func (s *teamService) ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error) {
+	slog.InfoContext(ctx, "[team-svc] ListTeamIncidents internal call", "team_id", teamID)
+	return s.teamRepo.ListTeamIncidents(ctx, teamID)
+}
+
 func (s *teamService) ListMembers(ctx context.Context, requesterID, teamID uuid.UUID) ([]models.TeamMember, error) {
 	slog.InfoContext(ctx, "[team-svc] ListMembers: checking membership", "team_id", teamID, "requester_id", requesterID)
 	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)

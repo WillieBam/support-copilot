@@ -72,7 +72,8 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 						"description": "The alert identifier must be a valid UUIDv4 (36 characters including hyphens, in the form xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx). Only call this tool when the user has explicitly provided this UUID. Do not guess, generate, or infer the alert_id.",
 					},
 				},
-				"required": []string{"alert_id"},
+				"required":             []string{"alert_id"},
+				"additionalProperties": false,
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
@@ -92,7 +93,8 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 						"description": "A valid UUIDv4 incident identifier.",
 					},
 				},
-				"required": []string{"incident_id"},
+				"required":             []string{"incident_id"},
+				"additionalProperties": false,
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
@@ -112,7 +114,8 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 						"description": "A valid UUIDv4 team identifier.",
 					},
 				},
-				"required": []string{"team_id"},
+				"required":             []string{"team_id"},
+				"additionalProperties": false,
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
@@ -144,7 +147,8 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 						"description": "Full runbook markdown content.",
 					},
 				},
-				"required": []string{"team_id", "incident_id", "title", "content"},
+				"required":             []string{"team_id", "incident_id", "title", "content"},
+				"additionalProperties": false,
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
@@ -172,7 +176,8 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 						"description": "Updated runbook content in markdown.",
 					},
 				},
-				"required": []string{"runbook_id", "title", "content"},
+				"required":             []string{"runbook_id"},
+				"additionalProperties": false,
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
@@ -192,7 +197,8 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 						"description": "UUIDv4 of the runbook to deprecate.",
 					},
 				},
-				"required": []string{"runbook_id"},
+				"required":             []string{"runbook_id"},
+				"additionalProperties": false,
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
@@ -212,7 +218,8 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 						"description": "UUIDv4 of the runbook to retrieve.",
 					},
 				},
-				"required": []string{"runbook_id"},
+				"required":             []string{"runbook_id"},
+				"additionalProperties": false,
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
@@ -229,14 +236,16 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 				"properties": map[string]interface{}{
 					"team_id": map[string]interface{}{
 						"type":        "string",
-						"description": "UUIDv4 of the team.",
+						"description": "UUIDv4 of the team. This is automatically injected by the system if omitted; do NOT ask the user for team_id.",
 					},
 					"status": map[string]interface{}{
 						"type":        "string",
-						"description": "Status filter: 'active' or 'deprecated'.",
+						"description": "Status filter.",
+						"enum":        []string{"active", "deprecated"},
 					},
 				},
-				"required": []string{"team_id"},
+				"required":             []string{"team_id"},
+				"additionalProperties": false,
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
@@ -264,7 +273,8 @@ func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrche
 						"description": "Human-readable title or name of the target incident (e.g. 'report-download-service CPU Spike').",
 					},
 				},
-				"required": []string{"alert_id"},
+				"required":             []string{"alert_id"},
+				"additionalProperties": false,
 			},
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {

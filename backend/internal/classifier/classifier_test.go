@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/WillieBam/support_copilot/backend/internal/classifier"
+	"github.com/WillieBam/support_copilot/backend/types"
 )
 
 var _ = Describe("IntentClassifier", func() {
@@ -89,7 +90,30 @@ var _ = Describe("IntentClassifier", func() {
 			"the service is throwing an error"),
 		Entry("contains task keyword monitor",
 			"please monitor the cpu usage"),
+		Entry("short list runbooks",
+			"list runbooks"),
 	)
+
+	Context("ClassifyWithHistory", func() {
+		It("should return IntentTask when user replies affirmative in a task conversation", func() {
+			history := []types.HistoryMessage{
+				{Role: "user", Content: "update runbook for payment gateway"},
+				{Role: "assistant", Content: "I am ready to update the runbook. Should I proceed?"},
+			}
+			Expect(c.ClassifyWithHistory("yes that is correct", history)).To(Equal(classifier.IntentTask))
+			Expect(c.ClassifyWithHistory("ok, I will wait for you", history)).To(Equal(classifier.IntentTask))
+			Expect(c.ClassifyWithHistory("go ahead", history)).To(Equal(classifier.IntentTask))
+		})
+
+		It("should return IntentConversational when user says goodbye at the end of a conversation", func() {
+			history := []types.HistoryMessage{
+				{Role: "user", Content: "update runbook for payment gateway"},
+				{Role: "assistant", Content: "Done! I updated the runbook."},
+			}
+			Expect(c.ClassifyWithHistory("thanks mate", history)).To(Equal(classifier.IntentConversational))
+			Expect(c.ClassifyWithHistory("bye", history)).To(Equal(classifier.IntentConversational))
+		})
+	})
 })
 
 var _ = Describe("LooksLikeEmbeddedToolCall", func() {

@@ -122,70 +122,86 @@ export function useBackendRuntime(options?: UseBackendRuntimeOptions) {
         let currentReasoning = "";
         let fullText = "";
         let currentConvId = optionsRef.current?.conversationId || undefined;
+        let bufferedChunk = "";
+
+        const applyEvent = (rawEvent: string) => {
+          const trimmedEvent = rawEvent.trim();
+          if (!trimmedEvent.startsWith("data:")) return;
+
+          const jsonString = trimmedEvent.replace(/^data:\s*/, "").trim();
+          if (!jsonString) return;
+
+          try {
+            const parsed = JSON.parse(jsonString);
+            if (parsed.type === "meta") {
+              currentConvId = parsed.content;
+              optionsRef.current?.onConversationCreated?.(parsed.content);
+            } else if (parsed.type === "title") {
+              if (currentConvId) {
+                optionsRef.current?.onTitleGenerated?.(currentConvId, parsed.content);
+              }
+            } else if (parsed.type === "text") {
+              fullText += parsed.content;
+            } else if (parsed.type === "reasoning") {
+              currentReasoning += parsed.content + "\n";
+            } else if (parsed.type === "drain") {
+              // backend detected hallucinated content (e.g. embedded JSON
+              // tool-call). it will discard everything accumulated so far so the
+              // clean fallback response renders from a blank slate.
+              fullText = "";
+              currentReasoning = "";
+            }
+
+            const contentParts: any[] = [];
+            if (currentReasoning.trim()) {
+              contentParts.push({
+                type: "reasoning",
+                text: currentReasoning.trim(),
+              });
+            }
+            contentParts.push({
+              type: "text",
+              text: fullText,
+            });
+            return { content: contentParts };
+          } catch (e) {
+            console.error("Error parsing chunk:", jsonString, e);
+            return null;
+          }
+        };
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const rawChunk = decoder.decode(value, { stream: true });
-          const events = rawChunk.split("\n\n");
+          bufferedChunk += decoder.decode(value, { stream: true });
 
-          for (const event of events) {
-            if (!event.startsWith("data: ")) continue;
+          let separatorIndex = bufferedChunk.indexOf("\n\n");
+          while (separatorIndex !== -1) {
+            const event = bufferedChunk.slice(0, separatorIndex);
+            bufferedChunk = bufferedChunk.slice(separatorIndex + 2);
 
-            const jsonString = event.replace("data: ", "").trim();
-            if (!jsonString) continue;
-
-            try {
-              const parsed = JSON.parse(jsonString);
-              if (parsed.type === "meta") {
-                currentConvId = parsed.content;
-                optionsRef.current?.onConversationCreated?.(parsed.content);
-              } else if (parsed.type === "title") {
-                if (currentConvId) {
-                  optionsRef.current?.onTitleGenerated?.(currentConvId, parsed.content);
-                }
-              } else if (parsed.type === "text") {
-                fullText += parsed.content;
-              } else if (parsed.type === "reasoning") {
-                currentReasoning += parsed.content + "\n";
-              } else if (parsed.type === "drain") {
-                // backend detected hallucinated content (e.g. embedded JSON
-                // tool-call). it will discard everything accumulated so far so the
-                // clean fallback response renders from a blank slate.
-                fullText = "";
-                currentReasoning = "";
-              }
-
-              const contentParts: any[] = [];
-              if (currentReasoning.trim()) {
-                contentParts.push({
-                  type: "reasoning",
-                  text: currentReasoning.trim(),
-                });
-              }
-              if (fullText.trim() || contentParts.length === 0) {
-                contentParts.push({
-                  type: "text",
-                  text: fullText,
-                });
-              }
-              yield {
-                content: contentParts,
-              };
-            } catch (e) {
-              console.error("Error parsing chunk:", jsonString, e);
+            const payload = applyEvent(event);
+            if (payload) {
+              yield payload;
             }
+
+            separatorIndex = bufferedChunk.indexOf("\n\n");
           }
         }
+
+        if (bufferedChunk.trim()) {
+          const payload = applyEvent(bufferedChunk);
+          if (payload) {
+            yield payload;
+          }
+        }
+
         const finalContentParts: any[] = [];
         if (currentReasoning.trim()) {
           finalContentParts.push({ type: "reasoning", text: currentReasoning.trim() });
         }
-
-        if (fullText.trim() || finalContentParts.length === 0) {
-          finalContentParts.push({ type: "text", text: fullText });
-        }
+        finalContentParts.push({ type: "text", text: fullText });
 
         yield {
           content: finalContentParts,

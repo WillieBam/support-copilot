@@ -85,7 +85,7 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 		internalGroup.PATCH("/runbooks/:id/deprecate", h.DeprecateRunbook)
 		internalGroup.GET("/runbooks/:id", h.GetRunbook)
 		internalGroup.GET("/teams/:team_id/runbooks", h.ListRunbooks)
-		internalGroup.GET("/teams/:team_id/incidents", h.GetTeamIncidents)
+		internalGroup.GET("/teams/:team_id/incidents", h.ListIncidentsInternal)
 		internalGroup.GET("/incidents/:id/context", h.GetIncidentContext)
 
 		// serve the React SPA with a client-side routing fallback

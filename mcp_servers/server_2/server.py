@@ -24,7 +24,7 @@ def create_runbook(team_id: str, incident_id: str, title: str, content: str) -> 
 
 
 @mcp.tool(description="Update the title and/or content of an existing active runbook.")
-def update_runbook(runbook_id: str, title: str, content: str) -> dict:
+def update_runbook(runbook_id: str, title: Optional[str] = None, content: Optional[str] = None) -> dict:
     _logger.info("tool=update_runbook runbook_id=%s", runbook_id)
     return _client.update_runbook(runbook_id, title, content)
 

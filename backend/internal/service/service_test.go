@@ -201,7 +201,7 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 
 		It("should withhold tools when a mock IIntentClassifier returns IntentConversational", func() {
 			mockCls := &mocks.IIntentClassifier{}
-			mockCls.On("Classify", "thanks mate").Return(classifier.IntentConversational)
+			mockCls.On("ClassifyWithHistory", "thanks mate", mock.Anything).Return(classifier.IntentConversational)
 
 			customAppSvc := service.NewAppService(mockAlertRepo, mockOllama, mockMcpOne, mockCls)
 

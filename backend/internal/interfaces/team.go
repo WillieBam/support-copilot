@@ -53,5 +53,6 @@ type ITeamService interface {
 	DeprecateRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error)
 	GetRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error)
 	ListRunbooks(ctx context.Context, teamID uuid.UUID, status string) ([]models.Runbook, error)
+	ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error)
 	GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error)
 }

@@ -1,4 +1,4 @@
-package ollama
+package llm
 
 import (
 	"bytes"
@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/WillieBam/support_copilot/backend/app/config"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
@@ -18,52 +17,36 @@ import (
 )
 
 type ollamaClient struct {
-	httpClient    *http.Client
-	ollamaBaseUrl string
-	ollamaModel   string
-	keepAlive     string
-	numCtx        int
+	httpClient *http.Client
+	baseURL    string
+	model      string
+	keepAlive  string
+	numCtx     int
 }
 
 func NewOllamaClient(cfg *config.Config) interfaces.IOllamaClient {
-	baseUrl := strings.TrimRight(cfg.Ollama.BaseURL, "/")
-	if baseUrl == "" {
-		baseUrl = "http://localhost:11434"
-	}
+	baseUrl := strings.TrimRight(cfg.LLM.BaseURL, "/")
 
-	model := strings.TrimSpace(cfg.Ollama.Model)
-	if model == "" {
-		model = "llama3.2:latest"
-	}
+	model := strings.TrimSpace(cfg.LLM.Model)
 
-	timeout := cfg.Ollama.Timeout
-	if timeout <= 0 {
-		timeout = 5 * time.Minute
-	}
+	timeout := cfg.LLM.Timeout
 
-	keepAlive := cfg.Ollama.KeepAlive
-	if keepAlive == "" {
-		keepAlive = "30m"
-	}
+	keepAlive := cfg.LLM.KeepAlive
 
-	numCtx := cfg.Ollama.NumCtx
-	if numCtx <= 0 {
-		numCtx = 2048
-	}
+	numCtx := cfg.LLM.NumCtx
 
 	return &ollamaClient{
-		httpClient:    &http.Client{Timeout: timeout},
-		ollamaBaseUrl: baseUrl,
-		ollamaModel:   model,
-		keepAlive:     keepAlive,
-		numCtx:        numCtx,
+		httpClient: newHTTPClient(timeout, cfg.LLM.TLSSkipVerify),
+		baseURL:    baseUrl,
+		model:      model,
+		keepAlive:  keepAlive,
+		numCtx:     numCtx,
 	}
-
 }
 
 func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.OllamaChatRequest, streamChan chan<- types.StreamEvent) (*requests.OllamaMessage, error) {
 	if req.Model == "" {
-		req.Model = c.ollamaModel
+		req.Model = c.model
 	}
 	if req.KeepAlive == "" {
 		req.KeepAlive = c.keepAlive
@@ -73,15 +56,15 @@ func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.Ol
 	}
 	req.Stream = true
 
-	url := c.ollamaBaseUrl + "/api/chat"
+	url := c.baseURL + "/api/chat"
 	payloadBytes, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal Ollama chat request: %w", err)
+		return nil, fmt.Errorf("failed to marshal LLM chat request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payloadBytes))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request context for Ollama: %w", err)
+		return nil, fmt.Errorf("failed to create LLM request context: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
@@ -90,13 +73,13 @@ func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.Ol
 		if errors.Is(err, context.Canceled) {
 			return nil, fmt.Errorf("[STREAM ERROR]: client aborted stream")
 		}
-		return nil, fmt.Errorf("failed communicating with Ollama: %w", err)
+		return nil, fmt.Errorf("failed communicating with LLM: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ollama returned status code %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("LLM returned status code %d: %s", resp.StatusCode, string(body))
 	}
 
 	decoder := json.NewDecoder(resp.Body)

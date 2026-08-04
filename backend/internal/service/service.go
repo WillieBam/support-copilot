@@ -174,8 +174,15 @@ func isValidToolCallArgs(toolName string, args map[string]interface{}) bool {
 	if toolName == "create_runbook" || toolName == "update_runbook" || toolName == "deprecate_runbook" || toolName == "get_runbook" || toolName == "list_runbooks" {
 		for _, key := range []string{"team_id", "incident_id", "runbook_id", "title", "content"} {
 			if val, exists := args[key]; exists && val != nil {
-				if str, ok := val.(string); ok && strings.TrimSpace(str) == "" {
+				str, ok := val.(string)
+				if !ok || strings.TrimSpace(str) == "" {
 					return false
+				}
+				// team_id and UUIDs must parse correctly
+				if key == "team_id" || key == "incident_id" || key == "runbook_id" {
+					if _, err := uuid.Parse(strings.TrimSpace(str)); err != nil {
+						return false
+					}
 				}
 			}
 		}
@@ -224,6 +231,11 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 
 	systemPrompt := `You are a Support Copilot that helps support engineers resolve production incidents.
 
+## Domain Scope & Role Boundaries
+- You are strictly an IT Support Copilot for production incident management, alerts, and runbooks.
+- Do NOT perform off-topic, creative, or non-work requests such as writing songs, poems, stories, jokes, or games.
+- If a user asks for an off-topic request (e.g. "write me a song"), politely decline: "I am an IT Support Copilot specialized in production incidents, alerts, and runbooks. I cannot fulfill off-topic requests like writing songs. How can I assist you with your IT support tasks today?"
+
 ## Behaviour Rules
 - Respond conversationally (no tools) when the user sends greetings, acknowledgments,
   sign-offs, or short social messages such as "ok", "thanks", "bye", "got it", "alright",
@@ -241,8 +253,12 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 - Call get_incident before creating a runbook to retrieve full context.
 - Call create_runbook only after gathering incident context via get_incident.
 - Call get_runbook or list_runbooks when the user asks about existing runbooks.
-- Call update_runbook or deprecate_runbook only when the user explicitly requests it.
-- Call link_alert_to_incident when an alert needs to be linked to an incident. If you know the exact UUID, pass incident_id. If you only know the incident title or service name, pass incident_title or call list_incidents first to find the incident_id.`
+- When get_runbook returns data, format and display the full runbook (Title, Root Cause, Diagnostic Steps, Resolution, Prevention) clearly in Markdown in your
+  final response.
+- Call update_runbook when user asks to add on context on the existing runbooks. Argument: runbook_id, title[opt], content[opt]
+- Call deprecate_runbook when user asks to deprecate on an existing runbooks. Argument: runbook_id
+- Call link_alert_to_incident when an alert needs to be linked to an incident. If you know the exact UUID, pass incident_id. If you only know the incident title or service name, pass incident_title or call list_incidents first to find the incident_id.
+- NOTE: Never ask the user for team_id. The backend automatically injects the active workspace team_id into tool calls.`
 
 	if teamID != uuid.Nil && s.teamRepo != nil {
 		inst, _, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
@@ -271,14 +287,14 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	// classify the user's intent to decide whether to expose tool
 	// For conversational prompts the tool list is withheld entirely so the LLM
 	// physically cannot make a tool call
-	intent := s.intentClassifier.Classify(prompt)
+	intent := s.intentClassifier.ClassifyWithHistory(prompt, history)
 	slog.Info("[APP SERVICE] Intent classified", "intent", intent, "prompt", prompt)
 
 	var availableTools []requests.OllamaTool
 	if intent == classifier.IntentTask {
 		availableTools = s.toolRegistry.GetTools()
 	} else {
-		slog.Info("[APP SERVICE] Conversational intent detected — withholding tools from Ollama request")
+		slog.Info("[APP SERVICE] Conversational intent detected — withholding tools from LLM request")
 	}
 
 	req := requests.OllamaChatRequest{
@@ -315,15 +331,16 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		for _, toolCall := range assistantMsg.ToolCalls {
 			toolName := toolCall.Function.Name
 
-			// Auto-populate team_id if omitted by LLM for team tools
+			// Auto-populate team_id if omitted or not a valid UUID (e.g. Groq generated "your_team_id")
 			if toolCall.Function.Arguments != nil && teamID != uuid.Nil {
-				if val, exists := toolCall.Function.Arguments["team_id"]; !exists || val == nil || strings.TrimSpace(fmt.Sprintf("%v", val)) == "" {
+				current, _ := toolCall.Function.Arguments["team_id"].(string)
+				if _, err := uuid.Parse(strings.TrimSpace(current)); err != nil {
 					toolCall.Function.Arguments["team_id"] = teamID.String()
 					slog.Info("[APP SERVICE] Auto-populated team_id for tool call", "tool", toolName, "team_id", teamID.String())
 				}
 			}
 
-			slog.Info("[APP SERVICE] Ollama triggered tool call", "tool", toolName, "args", toolCall.Function.Arguments)
+			slog.Info("[APP SERVICE] LLM triggered tool call", "tool", toolName, "args", toolCall.Function.Arguments)
 
 			// pre-check tool arguments for dummy/invalid values BEFORE executing or emitting tool reasoning
 			if !isValidToolCallArgs(toolName, toolCall.Function.Arguments) {
@@ -376,10 +393,16 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 			})
 
 			// 2nd Pass: Stream Ollama's final synthesis based on the tool result
+			slog.Info("[APP SERVICE] Starting Pass 2 synthesis with LLM...")
 			secondReq := requests.OllamaChatRequest{
 				Messages: messages,
 			}
 			_, err = s.ollamaClient.QueryStreamWithTools(ctx, secondReq, streamChan)
+			if err != nil {
+				slog.Error("[APP SERVICE] Pass 2 synthesis failed", "err", err)
+			} else {
+				slog.Info("[APP SERVICE] Pass 2 synthesis completed successfully")
+			}
 			return err
 		}
 	}

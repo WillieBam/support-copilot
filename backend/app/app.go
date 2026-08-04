@@ -7,7 +7,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/app/config"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	firebaseRepo "github.com/WillieBam/support_copilot/backend/internal/repository/firebase"
-	llm "github.com/WillieBam/support_copilot/backend/internal/repository/llm"
+	"github.com/WillieBam/support_copilot/backend/internal/repository/llm"
 	mcp "github.com/WillieBam/support_copilot/backend/internal/repository/mcp"
 	postgresRepo "github.com/WillieBam/support_copilot/backend/internal/repository/postgres"
 	"github.com/WillieBam/support_copilot/backend/internal/service"
@@ -42,7 +42,7 @@ func NewApp() *App {
 	alertRepo := postgresRepo.NewAlertRepository(gormDB)
 	teamRepo := postgresRepo.NewTeamRepository(gormDB)
 	convRepo := postgresRepo.NewConversationRepository(gormDB)
-	llmClient := llm.NewOllamaClient(cfg)
+	llmClient := llm.NewLLMClient(cfg)
 	mcpOneClient := mcp.NewMcpOneClient(cfg)
 	mcpTwoClient := mcp.NewMcpTwoClient(cfg)
 

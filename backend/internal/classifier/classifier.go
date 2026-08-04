@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 )
 
@@ -51,6 +52,8 @@ var conversationalPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)^(done|stop|quit|exit|finish(ed)?|that'?s?\s+all)(\s+[\w\s'!,.]{0,20})?$`),
 	// pattern7: wellness / small-talk questions: "are you ok?", "how are you?", "you good?"
 	regexp.MustCompile(`(?i)^(are\s+you\s+ok\??|how\s+are\s+you\??|you\s+good\??|you\s+ok\??)$`),
+	// pattern8: off-topic creative requests: song, poem, story, joke, rap
+	// regexp.MustCompile(`(?i)^.*(write|sing|tell|compose|create|teach)\s+(me\s+)?(a\s+)?(song|poem|joke|story|rap|rhyme).*$`),
 }
 
 // embeddedToolCallPattern detects when the LLM emits a raw JSON tool-call
@@ -148,12 +151,14 @@ func (c *IntentClassifier) Classify(prompt string) Intent {
 	return IntentTask
 }
 
-// taskKeywords are lowercase substrings whose presence in the prompt strongly
+// taskKeywords are lowercase substrings whose presence in the prompt or history strongly
 // signals a task request that may need tool execution
 var taskKeywords = []string{
 	"validate", "alert", "incident", "check", "inspect", "anomaly",
 	"metric", "status", "monitor", "error", "failure", "cpu", "memory",
 	"healthy", "health", "service", "latency", "throughput", "outage",
+	"runbook", "update", "create", "deprecate", "link", "search", "find",
+	"list", "show", "get",
 }
 
 func containsTaskKeyword(s string) bool {
@@ -164,4 +169,48 @@ func containsTaskKeyword(s string) bool {
 		}
 	}
 	return false
+}
+
+var pureSignOffOrGreetingPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)^(hi+|h[ae]llo+|hey+|halo+|hei|yo)(\s+[\w\s'!,.?]{0,30})?$`),
+	regexp.MustCompile(`(?i)^good\s+(morning|afternoon|evening|day)(\s+[\w\s'!,.]{0,20})?$`),
+	regexp.MustCompile(`(?i)^(bye(bye)?|goodbye|see\s+you|cya|ttyl|later)(\s+[\w\s'!,.]{0,20})?$`),
+	regexp.MustCompile(`(?i)^(thanks?|thank\s+you|ty|cheers|much\s+appreciated)(\s+[\w\s'!,.]{0,20})?$`),
+}
+
+func isPureSignOffOrGreeting(s string) bool {
+	for _, re := range pureSignOffOrGreetingPatterns {
+		if re.MatchString(s) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasTaskContextInHistory(history []types.HistoryMessage) bool {
+	for _, h := range history {
+		if uuidPattern.MatchString(h.Content) || containsTaskKeyword(h.Content) {
+			return true
+		}
+	}
+	return false
+}
+
+// ClassifyWithHistory classifies a prompt taking the conversation history into
+// account. When an active conversation history contains task context (runbooks,
+// alerts, incidents, tool usage), user confirmation and follow-up prompts are
+// classified as IntentTask so that tools are not withheld.
+func (c *IntentClassifier) ClassifyWithHistory(prompt string, history []types.HistoryMessage) Intent {
+	s := strings.TrimSpace(prompt)
+
+	if len(history) > 0 {
+		if isPureSignOffOrGreeting(s) {
+			return IntentConversational
+		}
+		if hasTaskContextInHistory(history) {
+			return IntentTask
+		}
+	}
+
+	return c.Classify(prompt)
 }

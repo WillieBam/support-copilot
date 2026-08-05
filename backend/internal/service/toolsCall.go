@@ -169,6 +169,17 @@ func (s *orchestratorService) ExecuteCreateRunbookRaw(ctx context.Context, rawAr
 		slog.Error("[ORCHESTRATOR] Failed to parse create_runbook raw args", "err", err)
 		return "", fmt.Errorf("invalid create_runbook arguments: %w", err)
 	}
+	// If team_id is empty or uuid.Nil, auto-resolve team_id from the specified incident_id
+	parsedTeamID, _ := uuid.Parse(strings.TrimSpace(args.TeamID))
+	if (strings.TrimSpace(args.TeamID) == "" || parsedTeamID == uuid.Nil) && s.teamRepo != nil {
+		if incID, err := uuid.Parse(strings.TrimSpace(args.IncidentID)); err == nil && incID != uuid.Nil {
+			if inc, _, err := s.teamRepo.GetIncidentContext(ctx, incID); err == nil && inc != nil {
+				args.TeamID = inc.TeamID.String()
+				slog.Info("[ORCHESTRATOR] Auto-resolved team_id from incident for create_runbook", "incident_id", incID.String(), "team_id", args.TeamID)
+			}
+		}
+	}
+
 	if strings.TrimSpace(args.TeamID) == "" || strings.TrimSpace(args.IncidentID) == "" || strings.TrimSpace(args.Title) == "" || strings.TrimSpace(args.Content) == "" {
 		return "", fmt.Errorf("team_id, incident_id, title, and content are required")
 	}
@@ -294,7 +305,7 @@ func (s *orchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context,
 				// 1. Strict exact match first (case-insensitive)
 				for _, inc := range incidents {
 					if strings.EqualFold(strings.TrimSpace(inc.Title), cleanSearch) {
-						incidentUUID = inc.IncidentID
+						incidentUUID = inc.ID
 						slog.Info("[ORCHESTRATOR] Resolved incident by exact title match", "title", cleanSearch, "incident_id", incidentUUID)
 						break
 					}
@@ -312,7 +323,7 @@ func (s *orchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context,
 					}
 					// Only link if exactly 1 unambiguous match was found
 					if len(matches) == 1 {
-						incidentUUID = matches[0].IncidentID
+						incidentUUID = matches[0].ID
 						slog.Info("[ORCHESTRATOR] Resolved incident by single unambiguous title substring", "search", cleanSearch, "matched_title", matches[0].Title, "incident_id", incidentUUID)
 					} else if len(matches) > 1 {
 						slog.Warn("[ORCHESTRATOR] Multiple matching incidents found for title, aborting to prevent mislinking", "count", len(matches), "title", cleanSearch)

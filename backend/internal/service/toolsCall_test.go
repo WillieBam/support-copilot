@@ -242,7 +242,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 		It("should recover when alert_id is missing but the UUID is placed in incident_id", func() {
 			alertID := uuid.New()
 			incidentID := uuid.New()
-			resolvedIncident := models.TeamIncident{IncidentID: incidentID, Title: "report-download-service CPU Spike"}
+			resolvedIncident := models.TeamIncident{ID: incidentID, Title: "report-download-service CPU Spike"}
 
 			mockTeamRepo.On("ListTeamIncidents", mock.Anything, uuid.Nil).Return([]models.TeamIncident{resolvedIncident}, nil)
 			mockAlertRepo.On("UpdateAlertIncidentID", mock.Anything, alertID, incidentID).Return(nil)

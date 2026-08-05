@@ -50,5 +50,4 @@ func Execute() {
 
 func init() {
 	rootCmd.AddCommand(migrateCmd)
-	rootCmd.Flags().BoolP("toggle", "t", false, "yeehaa")
 }

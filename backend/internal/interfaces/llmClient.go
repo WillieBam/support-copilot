@@ -8,7 +8,5 @@ import (
 )
 
 type ILLMClient interface {
-	QueryStreamWithTools(ctx context.Context, req requests.OllamaChatRequest, streamChan chan<- types.StreamEvent) (*requests.OllamaMessage, error)
+	QueryStreamWithTools(ctx context.Context, req requests.LLMChatRequest, streamChan chan<- types.StreamEvent) (*requests.LLMMessage, error)
 }
-
-type IOllamaClient = ILLMClient

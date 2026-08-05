@@ -78,7 +78,7 @@ type rawEmbeddedCall struct {
 }
 
 // ParseEmbeddedToolCall extracts and parses an embedded JSON tool call from text content.
-func ParseEmbeddedToolCall(content string) (*requests.OllamaToolCall, error) {
+func ParseEmbeddedToolCall(content string) (*requests.LLMToolCall, error) {
 	s := strings.TrimSpace(content)
 	start := strings.Index(s, "{")
 	end := strings.LastIndex(s, "}")
@@ -108,8 +108,8 @@ func ParseEmbeddedToolCall(content string) (*requests.OllamaToolCall, error) {
 		args = make(map[string]interface{})
 	}
 
-	return &requests.OllamaToolCall{
-		Function: requests.OllamaFunctionCall{
+	return &requests.LLMToolCall{
+		Function: requests.LLMFunctionCall{
 			Name:      name,
 			Arguments: args,
 		},

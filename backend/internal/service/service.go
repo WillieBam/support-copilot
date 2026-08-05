@@ -13,17 +13,17 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/classifier"
 	"github.com/WillieBam/support_copilot/backend/internal/command"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
+	promptpkg "github.com/WillieBam/support_copilot/backend/internal/prompt"
 	"github.com/WillieBam/support_copilot/backend/internal/tools"
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type AppService struct {
 	alertRepo          interfaces.IAlertRepository
-	ollamaClient       interfaces.IOllamaClient
+	llmClient       interfaces.ILLMClient
 	mcpClient          interfaces.IMCPClient
 	orchestrator       interfaces.IOrchestratorService
 	toolRegistry       interfaces.IToolRegistry
@@ -33,7 +33,7 @@ type AppService struct {
 	teamRepo           interfaces.ITeamRepository
 }
 
-func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interfaces.IOllamaClient, mcpClient interfaces.IMCPClient, opts ...interface{}) interfaces.IAppService {
+func NewAppService(alertRepo interfaces.IAlertRepository, llmClient interfaces.ILLMClient, mcpClient interfaces.IMCPClient, opts ...interface{}) interfaces.IAppService {
 	var registry interfaces.IToolRegistry
 	var cmdInterceptor interfaces.ICommandInterceptor
 	var intentCls interfaces.IIntentClassifier
@@ -80,7 +80,7 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 
 	return &AppService{
 		alertRepo:          alertRepo,
-		ollamaClient:       ollamaClient,
+		llmClient:          llmClient,
 		mcpClient:          mcpClient,
 		orchestrator:       orchestrator,
 		toolRegistry:       registry,
@@ -236,36 +236,7 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		Content: "🧠 Analyzing prompt and evaluating available tools...\n",
 	}
 
-	systemPrompt := `You are a Support Copilot that helps support engineers resolve production incidents.
-
-## Domain Scope & Role Boundaries
-- You are strictly an IT Support Copilot for production incident management, alerts, and runbooks.
-- Do NOT perform off-topic, creative, or non-work requests such as writing songs, poems, stories, jokes, or games.
-- If a user asks for an off-topic request (e.g. "write me a song"), politely decline: "I am an IT Support Copilot specialized in production incidents, alerts, and runbooks. I cannot fulfill off-topic requests like writing songs. How can I assist you with your IT support tasks today?"
-
-## Behaviour Rules
-- Respond conversationally (no tools) when the user sends greetings, acknowledgments,
-  sign-offs, or short social messages such as "ok", "thanks", "bye", "got it", "alright",
-  "yes", "no", or any similar phrase.
-- Call tools ONLY when the user explicitly provides required parameters or clearly
-  requests alert validation, incident context, or runbook management.
-- If you are uncertain whether a tool call is appropriate, respond with plain text and ask
-  the user for necessary information instead of calling the tool with a placeholder value.
-- Never fabricate alert IDs, incident IDs, or runbook IDs.
-- When the conversation is winding down (e.g. the user says "thanks", "bye", "ok"), reply
-  with a short, friendly closing message and do not call any tools.
-
-## Runbook & Incident Tools
-- Call list_incidents when the user asks to see open incidents for their team.
-- Call get_incident before creating a runbook to retrieve full context.
-- Call create_runbook only after gathering incident context via get_incident.
-- Call get_runbook or list_runbooks when the user asks about existing runbooks.
-- When get_runbook returns data, format and display the full runbook (Title, Root Cause, Diagnostic Steps, Resolution, Prevention) clearly in Markdown in your
-  final response.
-- Call update_runbook when user asks to add on context on the existing runbooks. Argument: runbook_id, title[opt], content[opt]
-- Call deprecate_runbook when user asks to deprecate on an existing runbooks. Argument: runbook_id
-- Call link_alert_to_incident when an alert needs to be linked to an incident. If you know the exact UUID, pass incident_id. If you only know the incident title or service name, pass incident_title or call list_incidents first to find the incident_id.
-- NOTE: Never ask the user for team_id. The backend automatically injects the active workspace team_id into tool calls.`
+	systemPrompt := promptpkg.SystemPrompt
 
 	if teamID != uuid.Nil && s.teamRepo != nil {
 		inst, _, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
@@ -278,18 +249,18 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	// build the full multi-turn messages array:
 	//   [system] + [history turns...] + [current user message]
 	// this is to remain LLM full conversation context so it can remember context of a conversation
-	messages := []requests.OllamaMessage{
+	messages := []requests.LLMMessage{
 		{Role: "system", Content: systemPrompt},
 	}
 	for _, h := range history {
 		if h.Role == "user" || h.Role == "assistant" {
-			messages = append(messages, requests.OllamaMessage{
+			messages = append(messages, requests.LLMMessage{
 				Role:    h.Role,
 				Content: h.Content,
 			})
 		}
 	}
-	messages = append(messages, requests.OllamaMessage{Role: "user", Content: prompt})
+	messages = append(messages, requests.LLMMessage{Role: "user", Content: prompt})
 
 	// classify the user's intent to decide whether to expose tool
 	// For conversational prompts the tool list is withheld entirely so the LLM
@@ -297,20 +268,20 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	intent := s.intentClassifier.ClassifyWithHistory(prompt, history)
 	slog.Info("[APP SERVICE] Intent classified", "intent", intent, "prompt", prompt)
 
-	var availableTools []requests.OllamaTool
+	var availableTools []requests.LLMTool
 	if intent == classifier.IntentTask {
 		availableTools = s.toolRegistry.GetTools()
 	} else {
 		slog.Info("[APP SERVICE] Conversational intent detected — withholding tools from LLM request")
 	}
 
-	req := requests.OllamaChatRequest{
+	req := requests.LLMChatRequest{
 		Messages: messages,
 		Tools:    availableTools,
 	}
 
 	// Call Ollama streaming with tool declarations dynamically provided by ToolRegistry
-	assistantMsg, err := s.ollamaClient.QueryStreamWithTools(ctx, req, streamChan)
+	assistantMsg, err := s.llmClient.QueryStreamWithTools(ctx, req, streamChan)
 	if err != nil {
 		slog.Error("[APP SERVICE] First pass QueryStreamWithTools failed", "err", err)
 		return err
@@ -326,8 +297,8 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		} else {
 			slog.Warn("[APP SERVICE] Failed to parse embedded JSON tool call, suppressing and falling back", "err", parseErr)
 			streamChan <- types.StreamEvent{Type: "drain", Content: ""}
-			fallbackReq := requests.OllamaChatRequest{Messages: messages}
-			_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
+			fallbackReq := requests.LLMChatRequest{Messages: messages}
+			_, fallbackErr := s.llmClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
 			return fallbackErr
 		}
 	}
@@ -356,10 +327,10 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 
 				if strings.TrimSpace(assistantMsg.Content) == "" {
 					slog.Info("[APP SERVICE] Falling back to direct text response without tools")
-					fallbackReq := requests.OllamaChatRequest{
+					fallbackReq := requests.LLMChatRequest{
 						Messages: messages,
 					}
-					_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
+					_, fallbackErr := s.llmClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
 					return fallbackErr
 				}
 				continue
@@ -383,10 +354,10 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 				// fall back to a conversational text stream without tools to avoid sending raw error noise to user
 				if strings.TrimSpace(assistantMsg.Content) == "" {
 					slog.Info("[APP SERVICE] Falling back to direct text response without tools")
-					fallbackReq := requests.OllamaChatRequest{
+					fallbackReq := requests.LLMChatRequest{
 						Messages: messages,
 					}
-					_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
+					_, fallbackErr := s.llmClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
 					return fallbackErr
 				}
 				toolResult = fmt.Sprintf(`{"error": "%s"}`, err.Error())
@@ -395,17 +366,17 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 			slog.Info("[APP SERVICE] Tool result retrieved", "tool", toolName, "resultLen", len(toolResult))
 
 			messages = append(messages, *assistantMsg)
-			messages = append(messages, requests.OllamaMessage{
+			messages = append(messages, requests.LLMMessage{
 				Role:    "tool",
 				Content: toolResult,
 			})
 
-			// 2nd Pass: Stream Ollama's final synthesis based on the tool result
+			// 2nd Pass: Stream LLM's final synthesis based on the tool result
 			slog.Info("[APP SERVICE] Starting Pass 2 synthesis with LLM...")
-			secondReq := requests.OllamaChatRequest{
+			secondReq := requests.LLMChatRequest{
 				Messages: messages,
 			}
-			_, err = s.ollamaClient.QueryStreamWithTools(ctx, secondReq, streamChan)
+			_, err = s.llmClient.QueryStreamWithTools(ctx, secondReq, streamChan)
 			if err != nil {
 				slog.Error("[APP SERVICE] Pass 2 synthesis failed", "err", err)
 			} else {
@@ -416,17 +387,6 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	}
 
 	return nil
-}
-
-func (s *AppService) RetrieveAlert(ctx context.Context, id uuid.UUID) (*models.Alert, error) {
-	alert, err := s.alertRepo.RetrieveAlertbyID(ctx, id)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("alert not found")
-		}
-		return nil, err
-	}
-	return alert, nil
 }
 
 // createconversation initializes a new conversation entry for team and user
@@ -508,8 +468,8 @@ func (s *AppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID,
 		}
 	}()
 
-	msg, err := s.ollamaClient.QueryStreamWithTools(ctx, requests.OllamaChatRequest{
-		Messages: []requests.OllamaMessage{
+	msg, err := s.llmClient.QueryStreamWithTools(ctx, requests.LLMChatRequest{
+		Messages: []requests.LLMMessage{
 			{Role: "system", Content: "You generate concise conversation titles. Output only the title text."},
 			{Role: "user", Content: titlePrompt},
 		},

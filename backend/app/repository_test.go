@@ -13,7 +13,7 @@ var _ = Describe("AppRepository", func() {
 		mockUser := &mocks.IUserRepository{}
 		mockAlert := &mocks.IAlertRepository{}
 		mockTeam := &mocks.ITeamRepository{}
-		mockLLM := &mocks.IOllamaClient{}
+		mockLLM := &mocks.ILLMClient{}
 		mockConv := &mocks.IConversationRepository{}
 
 		appRepo := app.NewAppRepository(mockLLM, mockUser, mockAlert, mockTeam, mockConv)

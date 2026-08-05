@@ -291,19 +291,6 @@ func (h *Handler) IngestAlert(c *echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "success"})
 }
 
-func (h *Handler) RetrieveAlert(c *echo.Context) error {
-	idStr := c.Param("id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid alert ID"})
-	}
-
-	a, err := h.apps.RetrieveAlert(c.Request().Context(), id)
-	if err != nil {
-		return err
-	}
-	return c.JSON(http.StatusOK, a)
-}
 
 type UserSearchResult struct {
 	ID          uuid.UUID `json:"id"`

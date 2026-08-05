@@ -152,7 +152,7 @@ type openAIStreamChunk struct {
 	} `json:"error"`
 }
 
-func (c *openAIClient) QueryStreamWithTools(ctx context.Context, req requests.OllamaChatRequest, streamChan chan<- types.StreamEvent) (*requests.OllamaMessage, error) {
+func (c *openAIClient) QueryStreamWithTools(ctx context.Context, req requests.LLMChatRequest, streamChan chan<- types.StreamEvent) (*requests.LLMMessage, error) {
 	model := req.Model
 	if model == "" {
 		model = c.model
@@ -411,9 +411,9 @@ func (c *openAIClient) QueryStreamWithTools(ctx context.Context, req requests.Ol
 			_ = json.Unmarshal([]byte(rawArgs), &argsMap)
 		}
 
-		finalToolCalls = append(finalToolCalls, requests.OllamaToolCall{
+		finalToolCalls = append(finalToolCalls, requests.LLMToolCall{
 			ID: acc.id,
-			Function: requests.OllamaFunctionCall{
+			Function: requests.LLMFunctionCall{
 				Name:             acc.name,
 				Arguments:        argsMap,
 				ThoughtSignature: acc.thoughtSignature, // only set if genuinely received
@@ -421,7 +421,7 @@ func (c *openAIClient) QueryStreamWithTools(ctx context.Context, req requests.Ol
 		})
 	}
 
-	return &requests.OllamaMessage{
+	return &requests.LLMMessage{
 		Role:      "assistant",
 		Content:   fullContent.String(),
 		ToolCalls: finalToolCalls,

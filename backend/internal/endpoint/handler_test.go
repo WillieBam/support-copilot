@@ -18,18 +18,16 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/endpoint"
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
 	"github.com/WillieBam/support_copilot/backend/types"
-	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 	"github.com/labstack/echo/v5"
-
 )
 
 var _ = Describe("Handler", func() {
 	var (
-		e            *echo.Echo
-		mockAppSvc   *mocks.IAppService
-		mockAuthSvc  *mocks.IAuthService
-		h            *endpoint.Handler
+		e           *echo.Echo
+		mockAppSvc  *mocks.IAppService
+		mockAuthSvc *mocks.IAuthService
+		h           *endpoint.Handler
 	)
 
 	BeforeEach(func() {
@@ -262,55 +260,4 @@ var _ = Describe("Handler", func() {
 		})
 	})
 
-	Context("RetrieveAlert", func() {
-		BeforeEach(func() {
-			e.GET("/api/alerts/:id", h.RetrieveAlert)
-		})
-
-		It("should return 400 when alert ID is invalid uuid", func() {
-			req := httptest.NewRequest(http.MethodGet, "/api/alerts/invalid-uuid", nil)
-			rec := httptest.NewRecorder()
-
-			e.ServeHTTP(rec, req)
-			Expect(rec.Code).To(Equal(http.StatusBadRequest))
-		})
-
-		It("should return error when service RetrieveAlert fails", func() {
-			alertID := uuid.New()
-			req := httptest.NewRequest(http.MethodGet, "/api/alerts/"+alertID.String(), nil)
-			rec := httptest.NewRecorder()
-
-			mockAppSvc.On("RetrieveAlert", mock.Anything, alertID).
-				Return(nil, errors.New("alert not found"))
-
-			e.ServeHTTP(rec, req)
-			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
-		})
-
-		It("should return 200 and alert payload on success", func() {
-			alertID := uuid.New()
-			expectedAlert := &models.Alert{
-				ID:          alertID,
-				ServiceName: "api-gateway",
-				Severity:    "high",
-			}
-
-			req := httptest.NewRequest(http.MethodGet, "/api/alerts/"+alertID.String(), nil)
-			rec := httptest.NewRecorder()
-
-			mockAppSvc.On("RetrieveAlert", mock.Anything, alertID).
-				Return(expectedAlert, nil)
-
-			e.ServeHTTP(rec, req)
-			Expect(rec.Code).To(Equal(http.StatusOK))
-
-			var res models.Alert
-			err := json.Unmarshal(rec.Body.Bytes(), &res)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(res.ID).To(Equal(alertID))
-			Expect(res.ServiceName).To(Equal("api-gateway"))
-		})
-	})
 })
-
-

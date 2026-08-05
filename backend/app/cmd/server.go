@@ -50,7 +50,6 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 		apiGroup.Use(middlewares.AuthMiddleware(a.AuthService))
 		apiGroup.GET("/auth/me", h.Me)
 		apiGroup.POST("/alerts/ingest", h.IngestAlert)
-		apiGroup.GET("/alerts/:id", h.RetrieveAlert)
 
 		// team endpoints
 		apiGroup.POST("/teams", h.CreateTeam)

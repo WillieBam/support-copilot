@@ -19,7 +19,6 @@ import (
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type AppService struct {
@@ -80,7 +79,6 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 	}
 
 	return &AppService{
-		alertRepo:          alertRepo,
 		ollamaClient:       ollamaClient,
 		mcpClient:          mcpClient,
 		orchestrator:       orchestrator,
@@ -388,17 +386,6 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	}
 
 	return nil
-}
-
-func (s *AppService) RetrieveAlert(ctx context.Context, id uuid.UUID) (*models.Alert, error) {
-	alert, err := s.alertRepo.RetrieveAlertbyID(ctx, id)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("alert not found")
-		}
-		return nil, err
-	}
-	return alert, nil
 }
 
 // createconversation initializes a new conversation entry for team and user

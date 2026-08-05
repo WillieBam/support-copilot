@@ -27,7 +27,7 @@ func NewToolRegistry() *ToolRegistry {
 	}
 }
 
-func (r *ToolRegistry) Register(name string, tool requests.OllamaTool, handler ToolHandler) {
+func (r *ToolRegistry) Register(name string, tool requests.OllamaTool, handler func(ctx context.Context, rawArgs string) (string, error)) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tools[name] = ToolDefinition{
@@ -58,7 +58,7 @@ func (r *ToolRegistry) Execute(ctx context.Context, name string, rawArgs string)
 }
 
 // registerdefaulttools registers standard backend tools for anomaly validation and mcp2 knowledge base
-func RegisterDefaultTools(registry *ToolRegistry, orchestrator interfaces.IOrchestratorService) {
+func RegisterDefaultTools(registry interfaces.IToolRegistry, orchestrator interfaces.IOrchestratorService) {
 	registry.Register("validate_alert", requests.OllamaTool{
 		Type: "function",
 		Function: requests.OllamaFunction{

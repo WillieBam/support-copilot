@@ -23,7 +23,7 @@ type Handler struct {
 	apps        interfaces.IAppService
 	authService interfaces.IAuthService
 	teamService interfaces.ITeamService
-	userRepo    interfaces.IUserRepository
+	userService interfaces.IUserService
 }
 
 func NewHandler(a interfaces.IAppService, authService interfaces.IAuthService, opts ...interface{}) *Handler {
@@ -35,8 +35,8 @@ func NewHandler(a interfaces.IAppService, authService interfaces.IAuthService, o
 		if ts, ok := opt.(interfaces.ITeamService); ok {
 			h.teamService = ts
 		}
-		if ur, ok := opt.(interfaces.IUserRepository); ok {
-			h.userRepo = ur
+		if us, ok := opt.(interfaces.IUserService); ok {
+			h.userService = us
 		}
 	}
 	return h
@@ -130,9 +130,9 @@ func (h *Handler) Query(c *echo.Context) error {
 	var isFirstMessage bool
 	ctx := c.Request().Context()
 
-	// get database user record safely if userRepo is configured
-	if h.userRepo != nil {
-		dbUser, err := h.userRepo.GetUserByFirebaseUID(ctx, appUID)
+	// get database user record safely if userService is configured
+	if h.userService != nil {
+		dbUser, err := h.userService.GetUserByFirebaseUID(ctx, appUID)
 		if err == nil && dbUser != nil {
 			if req.ConversationID != nil && *req.ConversationID != uuid.Nil {
 				convID = *req.ConversationID
@@ -323,7 +323,7 @@ func (h *Handler) SearchUsers(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "search query must be at least 2 characters"})
 	}
 
-	users, err := h.userRepo.SearchUsers(c.Request().Context(), q, 10)
+	users, err := h.userService.SearchUsers(c.Request().Context(), q, 10)
 	if err != nil {
 		slog.Error("[user] Error searching users", "error", err, "query", q)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to search users"})
@@ -354,7 +354,11 @@ func (h *Handler) CreateConversation(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	dbUser, err := h.userRepo.GetUserByFirebaseUID(c.Request().Context(), appUID)
+	if h.userService == nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "user service unavailable"})
+	}
+
+	dbUser, err := h.userService.GetUserByFirebaseUID(c.Request().Context(), appUID)
 	if err != nil || dbUser == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "user not found"})
 	}

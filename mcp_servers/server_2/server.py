@@ -70,4 +70,13 @@ def get_incident(incident_id: str) -> dict:
 ))
 def list_incidents(team_id: str) -> list:
     _logger.info("tool=list_incidents team_id=%s", team_id)
-    return _client.list_incidents(team_id)
+    raw_incidents = _client.list_incidents(team_id)
+    return [
+        {
+            "id": inc.get("id"),
+            "title": inc.get("title"),
+            "status": inc.get("status"),
+            "created_at": inc.get("created_at") or inc.get("assigned_at"),
+        }
+        for inc in raw_incidents
+    ]

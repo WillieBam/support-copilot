@@ -247,7 +247,7 @@ func (h *Handler) GetIncidentContext(c *echo.Context) error {
 	existingRunbooks, _ := h.teamService.ListRunbooks(c.Request().Context(), inc.TeamID, "active")
 	summaries := make([]responses.RunbookSummary, 0)
 	for _, rb := range existingRunbooks {
-		if rb.IncidentID == inc.IncidentID {
+		if rb.IncidentID == inc.ID {
 			summaries = append(summaries, responses.RunbookSummary{
 				ID:     rb.ID.String(),
 				Title:  rb.Title,

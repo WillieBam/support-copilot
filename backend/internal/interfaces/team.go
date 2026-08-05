@@ -40,7 +40,7 @@ type ITeamService interface {
 	AddMember(ctx context.Context, requesterID, teamID, userID uuid.UUID) error
 	RemoveMember(ctx context.Context, requesterID, teamID, userID uuid.UUID) error
 	DeleteTeam(ctx context.Context, userScope string, teamID uuid.UUID) error
-	AssignIncident(ctx context.Context, requesterID, teamID, incidentID uuid.UUID, title, status, details string) (*models.TeamIncident, error)
+	AssignIncident(ctx context.Context, requesterID, teamID uuid.UUID, title, status, details string) (*models.TeamIncident, error)
 	ListIncidents(ctx context.Context, requesterID, teamID uuid.UUID) ([]models.TeamIncident, error)
 	ListMembers(ctx context.Context, requesterID, teamID uuid.UUID) ([]models.TeamMember, error)
 	GetIncident(ctx context.Context, requesterID, incidentID uuid.UUID) (*models.TeamIncident, error)

@@ -35,9 +35,9 @@ func (_m *ITeamService) AddMember(ctx context.Context, requesterID uuid.UUID, te
 	return r0
 }
 
-// AssignIncident provides a mock function with given fields: ctx, requesterID, teamID, incidentID, title, status, details
-func (_m *ITeamService) AssignIncident(ctx context.Context, requesterID uuid.UUID, teamID uuid.UUID, incidentID uuid.UUID, title string, status string, details string) (*models.TeamIncident, error) {
-	ret := _m.Called(ctx, requesterID, teamID, incidentID, title, status, details)
+// AssignIncident provides a mock function with given fields: ctx, requesterID, teamID, title, status, details
+func (_m *ITeamService) AssignIncident(ctx context.Context, requesterID uuid.UUID, teamID uuid.UUID, title string, status string, details string) (*models.TeamIncident, error) {
+	ret := _m.Called(ctx, requesterID, teamID, title, status, details)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AssignIncident")
@@ -45,19 +45,19 @@ func (_m *ITeamService) AssignIncident(ctx context.Context, requesterID uuid.UUI
 
 	var r0 *models.TeamIncident
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string, string) (*models.TeamIncident, error)); ok {
-		return rf(ctx, requesterID, teamID, incidentID, title, status, details)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string, string) (*models.TeamIncident, error)); ok {
+		return rf(ctx, requesterID, teamID, title, status, details)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string, string) *models.TeamIncident); ok {
-		r0 = rf(ctx, requesterID, teamID, incidentID, title, status, details)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string, string) *models.TeamIncident); ok {
+		r0 = rf(ctx, requesterID, teamID, title, status, details)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.TeamIncident)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string, string) error); ok {
-		r1 = rf(ctx, requesterID, teamID, incidentID, title, status, details)
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, string, string, string) error); ok {
+		r1 = rf(ctx, requesterID, teamID, title, status, details)
 	} else {
 		r1 = ret.Error(1)
 	}

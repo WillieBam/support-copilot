@@ -185,21 +185,19 @@ var _ = Describe("TeamService", func() {
 
 	Context("AssignIncident & ListIncidents", func() {
 		var (
-			teamID     uuid.UUID
-			userID     uuid.UUID
-			incidentID uuid.UUID
+			teamID uuid.UUID
+			userID uuid.UUID
 		)
 
 		BeforeEach(func() {
 			teamID = uuid.New()
 			userID = uuid.New()
-			incidentID = uuid.New()
 		})
 
 		It("should fail AssignIncident if user is not in team", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("", errors.New("not member"))
 
-			inc, err := teamSvc.AssignIncident(ctx, userID, teamID, incidentID, "High Latency", "OPEN", "Details")
+			inc, err := teamSvc.AssignIncident(ctx, userID, teamID, "High Latency", "OPEN", "Details")
 			Expect(err).To(Equal(service.ErrUnauthorizedTeamOp))
 			Expect(inc).To(BeNil())
 		})
@@ -207,10 +205,10 @@ var _ = Describe("TeamService", func() {
 		It("should succeed AssignIncident when user is in team", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("member", nil)
 			teamRepo.On("AssignTeamIncident", ctx, mock.MatchedBy(func(inc *models.TeamIncident) bool {
-				return inc.TeamID == teamID && inc.IncidentID == incidentID && inc.Title == "High Latency"
+				return inc.TeamID == teamID && inc.Title == "High Latency"
 			})).Return(nil)
 
-			inc, err := teamSvc.AssignIncident(ctx, userID, teamID, incidentID, "High Latency", "OPEN", "Details")
+			inc, err := teamSvc.AssignIncident(ctx, userID, teamID, "High Latency", "OPEN", "Details")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(inc).NotTo(BeNil())
 			Expect(inc.Title).To(Equal("High Latency"))

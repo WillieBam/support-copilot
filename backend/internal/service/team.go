@@ -156,8 +156,8 @@ func (s *teamService) DeleteTeam(ctx context.Context, userScope string, teamID u
 	return nil
 }
 
-func (s *teamService) AssignIncident(ctx context.Context, requesterID, teamID, incidentID uuid.UUID, title, status, details string) (*models.TeamIncident, error) {
-	slog.InfoContext(ctx, "[team-svc] AssignIncident: checking membership", "team_id", teamID, "requester_id", requesterID, "incident_id", incidentID)
+func (s *teamService) AssignIncident(ctx context.Context, requesterID, teamID uuid.UUID, title, status, details string) (*models.TeamIncident, error) {
+	slog.InfoContext(ctx, "[team-svc] AssignIncident: checking membership", "team_id", teamID, "requester_id", requesterID)
 	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] AssignIncident: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
@@ -169,25 +169,22 @@ func (s *teamService) AssignIncident(ctx context.Context, requesterID, teamID, i
 		return nil, err
 	}
 
-	if incidentID == uuid.Nil {
-		incidentID = uuid.New()
-	}
-
+	now := time.Now()
 	inc := &models.TeamIncident{
 		ID:         uuid.New(),
-		IncidentID: incidentID,
 		TeamID:     teamID,
 		AssignedBy: requesterID,
 		Title:      strings.TrimSpace(title),
 		Status:     validStatus,
 		Details:    details,
-		AssignedAt: time.Now(),
+		CreatedAt:  now,
+		AssignedAt: now,
 	}
 
-	slog.InfoContext(ctx, "[team-svc] AssignIncident: persisting", "team_incident_id", inc.ID, "team_id", teamID, "incident_id", incidentID)
+	slog.InfoContext(ctx, "[team-svc] AssignIncident: persisting", "team_incident_id", inc.ID, "team_id", teamID)
 	err = s.teamRepo.AssignTeamIncident(ctx, inc)
 	if err != nil {
-		slog.ErrorContext(ctx, "[team-svc] AssignIncident: failed", "team_id", teamID, "incident_id", incidentID, "error", err)
+		slog.ErrorContext(ctx, "[team-svc] AssignIncident: failed", "team_id", teamID, "error", err)
 		return nil, err
 	}
 	slog.InfoContext(ctx, "[team-svc] AssignIncident: success", "team_incident_id", inc.ID)

@@ -20,6 +20,7 @@ type App struct {
 	Service     interfaces.IAppService
 	AuthService interfaces.IAuthService
 	TeamService interfaces.ITeamService
+	UserService interfaces.IUserService
 }
 
 func NewApp() *App {
@@ -61,11 +62,13 @@ func NewApp() *App {
 
 	appService := service.NewAppService(appRepository.Alert, appRepository.LLM, mcpOneClient, mcpTwoClient, convRepo, appRepository.Team)
 	teamService := service.NewTeamService(appRepository.Team)
+	userService := service.NewUserService(appRepository.User)
 
 	return &App{
 		Repository:  appRepository,
 		Service:     appService,
 		AuthService: authService,
 		TeamService: teamService,
+		UserService: userService,
 	}
 }

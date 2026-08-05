@@ -28,7 +28,7 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 
 	a := app.NewApp()
-	h := endpoint.NewHandler(a.Service, a.AuthService, a.TeamService, a.Repository.User)
+	h := endpoint.NewHandler(a.Service, a.AuthService, a.TeamService, a.UserService)
 
 	s := utilserver.New(config.NewServerConfig("support-copilot"))
 

@@ -207,6 +207,13 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		}
 	}
 
+	if teamID == uuid.Nil && s.teamRepo != nil {
+		if incidents, err := s.teamRepo.ListTeamIncidents(ctx, uuid.Nil); err == nil && len(incidents) > 0 {
+			teamID = incidents[0].TeamID
+			slog.Info("[APP SERVICE] Resolved default team_id from team repository at service layer", "team_id", teamID)
+		}
+	}
+
 	res, err := s.Intercept(ctx, prompt)
 	if err != nil {
 		slog.Error("[APP SERVICE] Command interceptor error", "err", err)
@@ -331,10 +338,11 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		for _, toolCall := range assistantMsg.ToolCalls {
 			toolName := toolCall.Function.Name
 
-			// Auto-populate team_id if omitted or not a valid UUID (e.g. Groq generated "your_team_id")
+			// Auto-populate team_id if omitted, empty, uuid.Nil, or not a valid UUID (e.g. Groq generated "your_team_id")
 			if toolCall.Function.Arguments != nil && teamID != uuid.Nil {
 				current, _ := toolCall.Function.Arguments["team_id"].(string)
-				if _, err := uuid.Parse(strings.TrimSpace(current)); err != nil {
+				parsed, err := uuid.Parse(strings.TrimSpace(current))
+				if err != nil || parsed == uuid.Nil {
 					toolCall.Function.Arguments["team_id"] = teamID.String()
 					slog.Info("[APP SERVICE] Auto-populated team_id for tool call", "tool", toolName, "team_id", teamID.String())
 				}

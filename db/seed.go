@@ -25,10 +25,11 @@ func InitDatabase(db *gorm.DB) {
 		log.Fatalf("Failed to create UUID extension: %v", err)
 	}
 
+	db.Exec("ALTER TABLE team_incidents DROP COLUMN IF EXISTS incident_id")
+
 	err := db.AutoMigrate(
 		&models.User{},
 		&models.Alert{},
-		&models.Incident{},
 		&models.Team{},
 		&models.TeamMember{},
 		&models.TeamIncident{},
@@ -45,7 +46,6 @@ func InitDatabase(db *gorm.DB) {
 	log.Println("Database migration completed successfully!")
 
 	seedUsers(db)
-	seedIncidents(db)
 	seedTeamsAndMemberships(db)
 	seedAlerts(db)
 	seedTeamIncidents(db)
@@ -98,32 +98,7 @@ func seedUsers(db *gorm.DB) {
 	log.Println("User database seeding done!")
 }
 
-func seedIncidents(db *gorm.DB) {
-	mockIncidentID := uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d")
-	mockAlertID := uuid.MustParse("8c0ce31e-4c5d-4f3a-9e2a-1b0d7b3dcb6d")
 
-	incidents := []models.Incident{
-		{
-			ID:        mockIncidentID,
-			AlertID:   mockAlertID,
-			UserID:    realUserID,
-			CreatedAt: time.Now().Add(-2 * time.Hour),
-			Details:   "Production high CPU load on payment-gateway-service",
-			Status:    "OPEN",
-		},
-	}
-
-	err := db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}},
-		DoNothing: true,
-	}).Create(&incidents).Error
-
-	if err != nil {
-		log.Printf("Warning: Incident seeding failed: %v", err)
-	} else {
-		log.Println("Root Incident database seeding done!")
-	}
-}
 
 func seedTeamsAndMemberships(db *gorm.DB) {
 	teams := []models.Team{
@@ -235,92 +210,92 @@ func seedTeamIncidents(db *gorm.DB) {
 	mockIncidents := []models.TeamIncident{
 		{
 			ID:         uuid.MustParse("a1111111-1111-1111-1111-111111111111"),
-			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
 			TeamID:     teamDevOpsID,
 			AssignedBy: realUserID,
 			Title:      "Payment Gateway High CPU Spike",
 			Status:     "IN_PROGRESS",
 			Details:    "CPU spike observed on payment gateway pod #3.",
+			CreatedAt:  time.Now().Add(-2 * time.Hour),
 			AssignedAt: time.Now().Add(-2 * time.Hour),
 		},
 		{
 			ID:         uuid.MustParse("a2222222-2222-2222-2222-222222222222"),
-			IncidentID: uuid.New(),
 			TeamID:     teamDevOpsID,
 			AssignedBy: realUserID,
 			Title:      "Redis Session Cache Out of Memory",
 			Status:     "OPEN",
 			Details:    "Eviction policy maxmemory exceeded on cache-cluster-01.",
+			CreatedAt:  time.Now().Add(-45 * time.Minute),
 			AssignedAt: time.Now().Add(-45 * time.Minute),
 		},
 		{
 			ID:         uuid.MustParse("a3333333-3333-3333-3333-333333333333"),
-			IncidentID: uuid.New(),
 			TeamID:     teamDevOpsID,
 			AssignedBy: leadEngineerID,
 			Title:      "Cart Service DB Connection Pool Exhausted",
 			Status:     "IN_PROGRESS",
 			Details:    "Connection pool leak detected in cart-service v2.4.",
+			CreatedAt:  time.Now().Add(-3 * time.Hour),
 			AssignedAt: time.Now().Add(-3 * time.Hour),
 		},
 		{
 			ID:         uuid.MustParse("a4444444-4444-4444-4444-444444444444"),
-			IncidentID: uuid.New(),
 			TeamID:     teamDevOpsID,
 			AssignedBy: realUserID,
 			Title:      "Kafka Consumer Lag Spike on Orders Topic",
 			Status:     "OPEN",
 			Details:    "Lag count exceeded 50,000 unhandled messages.",
+			CreatedAt:  time.Now().Add(-15 * time.Minute),
 			AssignedAt: time.Now().Add(-15 * time.Minute),
 		},
 		{
 			ID:         uuid.MustParse("a5555555-5555-5555-5555-555555555555"),
-			IncidentID: uuid.New(),
 			TeamID:     teamDevOpsID,
 			AssignedBy: engineerID1,
 			Title:      "Search Index Synchronization Out of Sync",
 			Status:     "OPEN",
 			Details:    "Elasticsearch cluster node #2 rebalancing failure.",
+			CreatedAt:  time.Now().Add(-10 * time.Minute),
 			AssignedAt: time.Now().Add(-10 * time.Minute),
 		},
 		{
 			ID:         uuid.MustParse("a6666666-6666-6666-6666-666666666666"),
-			IncidentID: uuid.New(),
 			TeamID:     teamDevOpsID,
 			AssignedBy: superAdminID,
 			Title:      "Kubernetes Node Network Partition",
 			Status:     "RESOLVED",
 			Details:    "Node replaced and network overlay routing rules restored.",
+			CreatedAt:  time.Now().Add(-12 * time.Hour),
 			AssignedAt: time.Now().Add(-12 * time.Hour),
 		},
 		{
 			ID:         uuid.MustParse("a7777777-7777-7777-7777-777777777777"),
-			IncidentID: uuid.New(),
 			TeamID:     teamDevOpsID,
 			AssignedBy: realUserID,
 			Title:      "Ingress Controller SSL Certificate Expiry",
 			Status:     "CLOSED",
 			Details:    "Cert-manager automatically renewed wildcard TLS certificate.",
+			CreatedAt:  time.Now().Add(-24 * time.Hour),
 			AssignedAt: time.Now().Add(-24 * time.Hour),
 		},
 		{
 			ID:         uuid.MustParse("b2222222-2222-2222-2222-222222222222"),
-			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
 			TeamID:     teamPlatformID,
 			AssignedBy: leadEngineerID,
 			Title:      "Authentication Service Latency Degradation",
 			Status:     "IN_PROGRESS",
 			Details:    "gRPC server response latency exceeded SLA threshold.",
+			CreatedAt:  time.Now().Add(-30 * time.Minute),
 			AssignedAt: time.Now().Add(-30 * time.Minute),
 		},
 		{
 			ID:         uuid.MustParse("b3333333-3333-3333-3333-333333333333"),
-			IncidentID: uuid.New(),
 			TeamID:     teamPlatformID,
 			AssignedBy: realUserID,
 			Title:      "GraphQL Gateway Schema Stitching Failure",
 			Status:     "RESOLVED",
 			Details:    "Rolled back breaking change in catalog microservice deployment.",
+			CreatedAt:  time.Now().Add(-6 * time.Hour),
 			AssignedAt: time.Now().Add(-6 * time.Hour),
 		},
 	}

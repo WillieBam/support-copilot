@@ -79,7 +79,7 @@ func (m *mcp2Client) callTool(ctx context.Context, toolName string, args any) (s
 		return "", fmt.Errorf("mcp2 tool %q returned an error result: %s", toolName, errMsg)
 	}
 	if len(rpcResp.Result.Content) == 0 {
-		return "", fmt.Errorf("mcp2 tool %q returned empty content", toolName)
+		return "[]", nil
 	}
 	return rpcResp.Result.Content[0].Text, nil
 }

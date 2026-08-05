@@ -102,7 +102,7 @@ func (t *teamRepository) GetIncidentContext(ctx context.Context, teamIncidentID 
 
 	var alerts []models.Alert
 	if err := t.db.WithContext(ctx).
-		Where("incident_id = ?", incident.IncidentID).
+		Where("incident_id = ?", incident.ID).
 		Order("received_at DESC").
 		Find(&alerts).Error; err != nil {
 		return nil, nil, err

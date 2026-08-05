@@ -21,12 +21,12 @@ func (h *Handler) getAuthenticatedUser(c *echo.Context) (*models.User, error) {
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "unauthorized session")
 	}
 
-	if h.userRepo == nil {
-		slog.Error("[team] getAuthenticatedUser: user repository is nil")
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "user repository unavailable")
+	if h.userService == nil {
+		slog.Error("[team] getAuthenticatedUser: user service is nil")
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "user service unavailable")
 	}
 
-	user, err := h.userRepo.GetUserByFirebaseUID(c.Request().Context(), firebaseUID)
+	user, err := h.userService.GetUserByFirebaseUID(c.Request().Context(), firebaseUID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("[team] getAuthenticatedUser: no user record found", "firebase_uid", firebaseUID)
@@ -248,18 +248,18 @@ func (h *Handler) AssignTeamIncident(c *echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
 	}
 
-	slog.Info("[team] AssignTeamIncident: assigning incident", "team_id", teamID, "incident_id", req.IncidentID, "title", req.Title, "requester_id", user.ID)
-	inc, err := h.teamService.AssignIncident(c.Request().Context(), user.ID, teamID, req.IncidentID, req.Title, req.Status, req.Details)
+	slog.Info("[team] AssignTeamIncident: assigning incident", "team_id", teamID, "title", req.Title, "requester_id", user.ID)
+	inc, err := h.teamService.AssignIncident(c.Request().Context(), user.ID, teamID, req.Title, req.Status, req.Details)
 	if err != nil {
 		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] AssignTeamIncident: unauthorized", "team_id", teamID, "requester_id", user.ID, "error", err)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
-		slog.Error("[team] AssignTeamIncident: failed", "team_id", teamID, "incident_id", req.IncidentID, "error", err)
+		slog.Error("[team] AssignTeamIncident: failed", "team_id", teamID, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	slog.Info("[team] AssignTeamIncident: incident assigned successfully", "team_incident_id", inc.ID, "team_id", teamID, "incident_id", req.IncidentID)
+	slog.Info("[team] AssignTeamIncident: incident assigned successfully", "team_incident_id", inc.ID, "team_id", teamID)
 	return c.JSON(http.StatusCreated, inc)
 }
 

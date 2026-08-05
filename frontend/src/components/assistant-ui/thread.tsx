@@ -45,7 +45,7 @@ import {
   SquareIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { CommandPalette, type SlashCommand } from "@/components/assistant-ui/command-palette";
 
 export const Thread: FC = () => {
@@ -159,16 +159,40 @@ const ThreadSuggestionItem: FC = () => {
  * FYI, Composer is chat input component by assistant-ui.
  * 
  */
+const setNativeTextareaValue = (el: HTMLTextAreaElement, value: string) => {
+  const nativeValueSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLTextAreaElement.prototype,
+    "value"
+  )?.set;
+
+  if (nativeValueSetter) {
+    nativeValueSetter.call(el, value);
+  } else {
+    el.value = value;
+  }
+
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+};
+
 const Composer: FC = () => {
   // use useState to track input field
   const [inputValue, setInputValue] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSelect = useCallback((cmd: SlashCommand) => {
-    setInputValue(cmd.name + " ");
+    const text = cmd.name + " ";
+    setInputValue(text);
+    if (inputRef.current) {
+      setNativeTextareaValue(inputRef.current, text);
+      inputRef.current.focus();
+    }
   }, []);
 
   const handleDismiss = useCallback(() => {
     setInputValue("");
+    if (inputRef.current) {
+      setNativeTextareaValue(inputRef.current, "");
+    }
   }, []);
 
   return (
@@ -189,6 +213,7 @@ const Composer: FC = () => {
         >
           <ComposerAttachments />
           <ComposerPrimitive.Input
+            ref={inputRef}
             placeholder="Send a message... (type / for commands)"
             className="aui-composer-input max-h-32 min-h-10 w-full resize-none bg-transparent px-1.75 py-1 text-sm outline-none placeholder:text-muted-foreground/80"
             rows={1}

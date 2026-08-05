@@ -190,6 +190,9 @@ func (h *Handler) Query(c *echo.Context) error {
 	if teamID != uuid.Nil {
 		opts = append(opts, teamID)
 	}
+	if req.IncidentID != nil && *req.IncidentID != uuid.Nil {
+		opts = append(opts, *req.IncidentID)
+	}
 
 	go func() {
 		// pass the channel into the service so it can push events

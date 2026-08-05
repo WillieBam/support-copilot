@@ -167,6 +167,58 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 			mockInterceptor.AssertExpectations(GinkgoT())
 		})
 
+		It("should intercept /incident prompt and return result without calling LLM", func() {
+			mockInterceptor := &mocks.ICommandInterceptor{}
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockInterceptor)
+
+			mockInterceptor.On("Intercept", mock.Anything, "/incident redis").Return(&types.CommandResult{
+				Handled: true,
+				Message: "found matching incident for redis",
+			}, nil)
+
+			streamChan := make(chan types.StreamEvent, 10)
+			err := customAppSvc.QueryStreamWithTools(ctx, "/incident redis", nil, streamChan)
+			Expect(err).NotTo(HaveOccurred())
+			close(streamChan)
+
+			var events []types.StreamEvent
+			for ev := range streamChan {
+				events = append(events, ev)
+			}
+
+			Expect(len(events)).To(Equal(1))
+			Expect(events[0].Type).To(Equal("text"))
+			Expect(events[0].Content).To(Equal("found matching incident for redis"))
+			mockLLM.AssertNotCalled(GinkgoT(), "QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything)
+			mockInterceptor.AssertExpectations(GinkgoT())
+		})
+
+		It("should intercept /runbook prompt and return result without calling LLM", func() {
+			mockInterceptor := &mocks.ICommandInterceptor{}
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockInterceptor)
+
+			mockInterceptor.On("Intercept", mock.Anything, "/runbook database").Return(&types.CommandResult{
+				Handled: true,
+				Message: "found matching runbook for database",
+			}, nil)
+
+			streamChan := make(chan types.StreamEvent, 10)
+			err := customAppSvc.QueryStreamWithTools(ctx, "/runbook database", nil, streamChan)
+			Expect(err).NotTo(HaveOccurred())
+			close(streamChan)
+
+			var events []types.StreamEvent
+			for ev := range streamChan {
+				events = append(events, ev)
+			}
+
+			Expect(len(events)).To(Equal(1))
+			Expect(events[0].Type).To(Equal("text"))
+			Expect(events[0].Content).To(Equal("found matching runbook for database"))
+			mockLLM.AssertNotCalled(GinkgoT(), "QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything)
+			mockInterceptor.AssertExpectations(GinkgoT())
+		})
+
 		It("should withhold tools from Ollama when intent is conversational (ok byebye)", func() {
 			// Expect Ollama to be called with an empty tools slice
 			mockLLM.On("QueryStreamWithTools", mock.Anything,

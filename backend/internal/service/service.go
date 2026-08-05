@@ -23,7 +23,7 @@ import (
 
 type AppService struct {
 	alertRepo          interfaces.IAlertRepository
-	llmClient       interfaces.ILLMClient
+	llmClient          interfaces.ILLMClient
 	mcpClient          interfaces.IMCPClient
 	orchestrator       interfaces.IOrchestratorService
 	toolRegistry       interfaces.IToolRegistry
@@ -71,7 +71,7 @@ func NewAppService(alertRepo interfaces.IAlertRepository, llmClient interfaces.I
 	}
 
 	if cmdInterceptor == nil {
-		cmdInterceptor = command.NewCommandInterceptor()
+		cmdInterceptor = command.NewCommandInterceptor(orchestrator)
 	}
 
 	if intentCls == nil {
@@ -201,9 +201,14 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	slog.Info("[APP SERVICE] QueryStreamWithTools started", "prompt", prompt)
 
 	var teamID uuid.UUID
+	var activeIncidentID uuid.UUID
 	for _, opt := range opts {
-		if tid, ok := opt.(uuid.UUID); ok {
-			teamID = tid
+		if id, ok := opt.(uuid.UUID); ok && id != uuid.Nil {
+			if teamID == uuid.Nil {
+				teamID = id
+			} else {
+				activeIncidentID = id
+			}
 		}
 	}
 
@@ -212,6 +217,13 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 			teamID = incidents[0].TeamID
 			slog.Info("[APP SERVICE] Resolved default team_id from team repository at service layer", "team_id", teamID)
 		}
+	}
+
+	if teamID != uuid.Nil {
+		ctx = command.WithTeamID(ctx, teamID)
+	}
+	if activeIncidentID != uuid.Nil {
+		ctx = command.WithActiveIncidentID(ctx, activeIncidentID)
 	}
 
 	res, err := s.Intercept(ctx, prompt)
@@ -337,7 +349,7 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 			}
 			streamChan <- types.StreamEvent{
 				Type:    "reasoning",
-				Content: fmt.Sprintln("🔍 Accessing Database to get alert... "),
+				Content: fmt.Sprintln("🔍 Accessing Database to get data... "),
 			}
 
 			streamChan <- types.StreamEvent{

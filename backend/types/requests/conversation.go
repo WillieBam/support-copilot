@@ -16,4 +16,5 @@ type ChatQueryRequest struct {
 	History        []types.HistoryMessage `json:"history"`
 	ConversationID *uuid.UUID             `json:"conversation_id,omitempty"`
 	TeamID         *uuid.UUID             `json:"team_id,omitempty"`
+	IncidentID     *uuid.UUID             `json:"incident_id,omitempty"`
 }

@@ -18,6 +18,16 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Stop LLM processing immediately",
     usage: "/quit",
   },
+  {
+    name: "/incident",
+    description: "Show active incident or search team incidents by title/summary",
+    usage: "/incident [query]",
+  },
+  {
+    name: "/runbook",
+    description: "List active team runbooks or search by title/content",
+    usage: "/runbook [query]",
+  },
 ];
 
 interface CommandPaletteProps {
@@ -33,6 +43,11 @@ export const CommandPalette: FC<CommandPaletteProps> = ({ query, onSelect }) => 
   // only show when query starts with "/"
   const trimmed = query.trim().toLowerCase();
   if (!trimmed.startsWith("/")) return null;
+
+  // hide palette if user has already selected/typed a command name followed by space
+  if (SLASH_COMMANDS.some((cmd) => query.startsWith(cmd.name + " "))) {
+    return null;
+  }
 
   const matches = SLASH_COMMANDS.filter(
     (cmd) =>

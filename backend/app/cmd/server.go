@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"github.com/WillieBam/support_copilot/backend/app"
 	"github.com/WillieBam/support_copilot/backend/app/config"
@@ -10,6 +11,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/middlewares"
 	utilserver "github.com/WillieBam/support_copilot/backend/utils/server"
 	"github.com/labstack/echo/v5"
+	echoMiddleware "github.com/labstack/echo/v5/middleware"
 	"github.com/spf13/cobra"
 )
 
@@ -33,8 +35,13 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 	s := utilserver.New(config.NewServerConfig("support-copilot"))
 
 	if err := s.Start(ctx, func(e *echo.Echo) {
-		e.Use(middlewares.RecoveryMiddleware())
-		e.Use(middlewares.CORSMiddleware())
+		e.Use(echoMiddleware.Recover())
+		e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
+			AllowOrigins:     []string{"http://localhost:3000"},
+			AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
+			AllowHeaders:     []string{echo.HeaderContentType, echo.HeaderAuthorization},
+			AllowCredentials: true,
+		}))
 
 		e.POST("/auth/exchange", h.TokenExchangeHandler)
 

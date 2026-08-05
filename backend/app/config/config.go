@@ -131,23 +131,16 @@ func newConfig() IConfig {
 	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	cfg.AutomaticEnv()
 
-	// Optionally load .env if present
-	envCfg := viper.New()
-	envCfg.SetConfigFile(".env")
-	if err := envCfg.ReadInConfig(); err == nil {
-		for _, k := range envCfg.AllKeys() {
-			if !cfg.IsSet(k) || cfg.GetString(k) == "" {
-				cfg.Set(k, envCfg.Get(k))
-			}
-		}
-	}
+	// load .env if present
+	cfg.SetConfigFile(".env")
+	_ = cfg.ReadInConfig()
 
 	cfg.SetConfigName("config")
 	cfg.SetConfigType("yaml")
 	cfg.AddConfigPath(".")
 	cfg.AddConfigPath("./config")
 
-	if err := cfg.ReadInConfig(); err != nil {
+	if err := cfg.MergeInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			slog.Error("Failed to read config", "err", err)
 		}

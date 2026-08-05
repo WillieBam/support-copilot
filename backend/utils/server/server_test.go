@@ -31,26 +31,14 @@ func (m *MockServerConfig) GetShutdownTimeOutDuration() time.Duration {
 var _ = Describe("Server Utils", func() {
 	Context("ServerConfig Options & Behavior", func() {
 		It("should return correct Name, Port, and ShutdownTimeout when non-zero values are supplied", func() {
-			opts := server.ServerConfigOptions{
-				Name: "TestApp",
-				PortGetter: func() int { return 9090 },
-				ShutDownTimeOutGetter: func() time.Duration { return 5 * time.Second },
-			}
-
-			cfg := server.NewServerConfig(opts)
+			cfg := server.NewServerConfig("TestApp", 9090, 5*time.Second)
 			Expect(cfg.Name()).To(Equal("TestApp"))
 			Expect(cfg.Port()).To(Equal("9090"))
 			Expect(cfg.GetShutdownTimeOutDuration()).To(Equal(5 * time.Second))
 		})
 
 		It("should fall back to defaults when zero values are supplied", func() {
-			opts := server.ServerConfigOptions{
-				Name: "DefaultApp",
-				PortGetter: func() int { return 0 },
-				ShutDownTimeOutGetter: func() time.Duration { return 0 },
-			}
-
-			cfg := server.NewServerConfig(opts)
+			cfg := server.NewServerConfig("DefaultApp", 0, 0)
 			Expect(cfg.Name()).To(Equal("DefaultApp"))
 			Expect(cfg.Port()).To(Equal("8080"))
 			Expect(cfg.GetShutdownTimeOutDuration()).To(Equal(10 * time.Second))

@@ -12,42 +12,34 @@ type IServer interface {
 }
 
 type ServerConfig struct {
-	name                  string
-	portGetter            func() int
-	shutDownTimeOutGetter func() time.Duration
+	ConfigName              string
+	ServerPort              int
+	ShutdownTimeoutDuration time.Duration
 }
 
-type ServerConfigOptions struct {
-	Name                  string
-	PortGetter            func() int
-	ShutDownTimeOutGetter func() time.Duration
-}
-
-func NewServerConfig(opts ServerConfigOptions) *ServerConfig {
+func NewServerConfig(name string, port int, shutdownTimeout time.Duration) *ServerConfig {
 	return &ServerConfig{
-		name:                  opts.Name,
-		portGetter:            opts.PortGetter,
-		shutDownTimeOutGetter: opts.ShutDownTimeOutGetter,
+		ConfigName:              name,
+		ServerPort:              port,
+		ShutdownTimeoutDuration: shutdownTimeout,
 	}
 }
 
 func (c *ServerConfig) Name() string {
-	return c.name
+	return c.ConfigName
 }
 
 func (c *ServerConfig) Port() string {
-	p := c.portGetter()
-	if p == 0 {
+	if c.ServerPort == 0 {
 		return "8080"
 	}
 
-	return strconv.Itoa(p)
+	return strconv.Itoa(c.ServerPort)
 }
 
 func (c *ServerConfig) GetShutdownTimeOutDuration() time.Duration {
-	d := c.shutDownTimeOutGetter()
-	if d == 0 {
+	if c.ShutdownTimeoutDuration == 0 {
 		return 10 * time.Second
 	}
-	return d
+	return c.ShutdownTimeoutDuration
 }

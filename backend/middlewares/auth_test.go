@@ -140,18 +140,4 @@ var _ = Describe("Middlewares", func() {
 			Expect(c.Get("user_email")).To(Equal("user@example.com"))
 		})
 	})
-
-	Context("CORS Middleware", func() {
-		It("should return an Echo MiddlewareFunc", func() {
-			mw := middlewares.CORSMiddleware()
-			Expect(mw).NotTo(BeNil())
-		})
-	})
-
-	Context("Recovery Middleware", func() {
-		It("should return an Echo MiddlewareFunc", func() {
-			mw := middlewares.RecoveryMiddleware()
-			Expect(mw).NotTo(BeNil())
-		})
-	})
 })

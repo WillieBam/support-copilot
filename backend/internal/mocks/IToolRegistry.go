@@ -63,6 +63,11 @@ func (_m *IToolRegistry) GetTools() []requests.OllamaTool {
 	return r0
 }
 
+// Register provides a mock function with given fields: name, tool, handler
+func (_m *IToolRegistry) Register(name string, tool requests.OllamaTool, handler func(context.Context, string) (string, error)) {
+	_m.Called(name, tool, handler)
+}
+
 // NewIToolRegistry creates a new instance of IToolRegistry. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewIToolRegistry(t interface {

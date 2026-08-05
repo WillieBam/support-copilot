@@ -82,7 +82,7 @@ export const ManageInstructionModal: React.FC<ManageInstructionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-card border border-border rounded-[20px] shadow-2xl p-6 transition-all my-8 max-h-[90vh] flex flex-col">
         <button
           onClick={onClose}
@@ -131,9 +131,9 @@ export const ManageInstructionModal: React.FC<ManageInstructionModalProps> = ({
                 <textarea
                   value={details}
                   onChange={(e) => setDetails(e.target.value)}
-                  rows={6}
+                  rows={12}
                   placeholder="e.g. Always prioritize payment-gateway-service alerts. Provide concise container diagnostic steps and recommended kubectl remediation commands."
-                  className="w-full bg-background border border-border rounded-xl p-4 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none leading-relaxed"
+                  className="w-full min-h-[280px] bg-background border border-border rounded-xl p-4 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-y leading-relaxed"
                   disabled={isSubmitting}
                 />
               </div>

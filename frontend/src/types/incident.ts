@@ -11,12 +11,12 @@ export interface IncidentStatusHistory {
 
 export interface TeamIncident {
     id: string;
-    incident_id: string;
     team_id: string;
     assigned_by: string;
     title: string;
     status: string;
     details: string;
+    created_at: string;
     assigned_at: string;
     history?: IncidentStatusHistory[];
 }
@@ -25,7 +25,6 @@ export interface CreateIncidentPayload {
     title: string;
     status?: string;
     details?: string;
-    incident_id?: string;
 }
 
 export interface UpdateIncidentPayload {

@@ -23,7 +23,7 @@ import (
 
 type AppService struct {
 	alertRepo          interfaces.IAlertRepository
-	ollamaClient       interfaces.IOllamaClient
+	llmClient       interfaces.ILLMClient
 	mcpClient          interfaces.IMCPClient
 	orchestrator       interfaces.IOrchestratorService
 	toolRegistry       interfaces.IToolRegistry
@@ -33,7 +33,7 @@ type AppService struct {
 	teamRepo           interfaces.ITeamRepository
 }
 
-func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interfaces.IOllamaClient, mcpClient interfaces.IMCPClient, opts ...interface{}) interfaces.IAppService {
+func NewAppService(alertRepo interfaces.IAlertRepository, llmClient interfaces.ILLMClient, mcpClient interfaces.IMCPClient, opts ...interface{}) interfaces.IAppService {
 	var registry interfaces.IToolRegistry
 	var cmdInterceptor interfaces.ICommandInterceptor
 	var intentCls interfaces.IIntentClassifier
@@ -79,7 +79,8 @@ func NewAppService(alertRepo interfaces.IAlertRepository, ollamaClient interface
 	}
 
 	return &AppService{
-		ollamaClient:       ollamaClient,
+		alertRepo:          alertRepo,
+		llmClient:          llmClient,
 		mcpClient:          mcpClient,
 		orchestrator:       orchestrator,
 		toolRegistry:       registry,
@@ -248,18 +249,18 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	// build the full multi-turn messages array:
 	//   [system] + [history turns...] + [current user message]
 	// this is to remain LLM full conversation context so it can remember context of a conversation
-	messages := []requests.OllamaMessage{
+	messages := []requests.LLMMessage{
 		{Role: "system", Content: systemPrompt},
 	}
 	for _, h := range history {
 		if h.Role == "user" || h.Role == "assistant" {
-			messages = append(messages, requests.OllamaMessage{
+			messages = append(messages, requests.LLMMessage{
 				Role:    h.Role,
 				Content: h.Content,
 			})
 		}
 	}
-	messages = append(messages, requests.OllamaMessage{Role: "user", Content: prompt})
+	messages = append(messages, requests.LLMMessage{Role: "user", Content: prompt})
 
 	// classify the user's intent to decide whether to expose tool
 	// For conversational prompts the tool list is withheld entirely so the LLM
@@ -267,20 +268,20 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	intent := s.intentClassifier.ClassifyWithHistory(prompt, history)
 	slog.Info("[APP SERVICE] Intent classified", "intent", intent, "prompt", prompt)
 
-	var availableTools []requests.OllamaTool
+	var availableTools []requests.LLMTool
 	if intent == classifier.IntentTask {
 		availableTools = s.toolRegistry.GetTools()
 	} else {
 		slog.Info("[APP SERVICE] Conversational intent detected — withholding tools from LLM request")
 	}
 
-	req := requests.OllamaChatRequest{
+	req := requests.LLMChatRequest{
 		Messages: messages,
 		Tools:    availableTools,
 	}
 
 	// Call Ollama streaming with tool declarations dynamically provided by ToolRegistry
-	assistantMsg, err := s.ollamaClient.QueryStreamWithTools(ctx, req, streamChan)
+	assistantMsg, err := s.llmClient.QueryStreamWithTools(ctx, req, streamChan)
 	if err != nil {
 		slog.Error("[APP SERVICE] First pass QueryStreamWithTools failed", "err", err)
 		return err
@@ -296,8 +297,8 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		} else {
 			slog.Warn("[APP SERVICE] Failed to parse embedded JSON tool call, suppressing and falling back", "err", parseErr)
 			streamChan <- types.StreamEvent{Type: "drain", Content: ""}
-			fallbackReq := requests.OllamaChatRequest{Messages: messages}
-			_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
+			fallbackReq := requests.LLMChatRequest{Messages: messages}
+			_, fallbackErr := s.llmClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
 			return fallbackErr
 		}
 	}
@@ -326,10 +327,10 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 
 				if strings.TrimSpace(assistantMsg.Content) == "" {
 					slog.Info("[APP SERVICE] Falling back to direct text response without tools")
-					fallbackReq := requests.OllamaChatRequest{
+					fallbackReq := requests.LLMChatRequest{
 						Messages: messages,
 					}
-					_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
+					_, fallbackErr := s.llmClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
 					return fallbackErr
 				}
 				continue
@@ -353,10 +354,10 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 				// fall back to a conversational text stream without tools to avoid sending raw error noise to user
 				if strings.TrimSpace(assistantMsg.Content) == "" {
 					slog.Info("[APP SERVICE] Falling back to direct text response without tools")
-					fallbackReq := requests.OllamaChatRequest{
+					fallbackReq := requests.LLMChatRequest{
 						Messages: messages,
 					}
-					_, fallbackErr := s.ollamaClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
+					_, fallbackErr := s.llmClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
 					return fallbackErr
 				}
 				toolResult = fmt.Sprintf(`{"error": "%s"}`, err.Error())
@@ -365,17 +366,17 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 			slog.Info("[APP SERVICE] Tool result retrieved", "tool", toolName, "resultLen", len(toolResult))
 
 			messages = append(messages, *assistantMsg)
-			messages = append(messages, requests.OllamaMessage{
+			messages = append(messages, requests.LLMMessage{
 				Role:    "tool",
 				Content: toolResult,
 			})
 
 			// 2nd Pass: Stream LLM's final synthesis based on the tool result
 			slog.Info("[APP SERVICE] Starting Pass 2 synthesis with LLM...")
-			secondReq := requests.OllamaChatRequest{
+			secondReq := requests.LLMChatRequest{
 				Messages: messages,
 			}
-			_, err = s.ollamaClient.QueryStreamWithTools(ctx, secondReq, streamChan)
+			_, err = s.llmClient.QueryStreamWithTools(ctx, secondReq, streamChan)
 			if err != nil {
 				slog.Error("[APP SERVICE] Pass 2 synthesis failed", "err", err)
 			} else {
@@ -467,8 +468,8 @@ func (s *AppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID,
 		}
 	}()
 
-	msg, err := s.ollamaClient.QueryStreamWithTools(ctx, requests.OllamaChatRequest{
-		Messages: []requests.OllamaMessage{
+	msg, err := s.llmClient.QueryStreamWithTools(ctx, requests.LLMChatRequest{
+		Messages: []requests.LLMMessage{
 			{Role: "system", Content: "You generate concise conversation titles. Output only the title text."},
 			{Role: "user", Content: titlePrompt},
 		},

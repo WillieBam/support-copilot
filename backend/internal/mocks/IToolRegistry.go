@@ -44,19 +44,19 @@ func (_m *IToolRegistry) Execute(ctx context.Context, name string, rawArgs strin
 }
 
 // GetTools provides a mock function with no fields
-func (_m *IToolRegistry) GetTools() []requests.OllamaTool {
+func (_m *IToolRegistry) GetTools() []requests.LLMTool {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTools")
 	}
 
-	var r0 []requests.OllamaTool
-	if rf, ok := ret.Get(0).(func() []requests.OllamaTool); ok {
+	var r0 []requests.LLMTool
+	if rf, ok := ret.Get(0).(func() []requests.LLMTool); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]requests.OllamaTool)
+			r0 = ret.Get(0).([]requests.LLMTool)
 		}
 	}
 
@@ -64,7 +64,7 @@ func (_m *IToolRegistry) GetTools() []requests.OllamaTool {
 }
 
 // Register provides a mock function with given fields: name, tool, handler
-func (_m *IToolRegistry) Register(name string, tool requests.OllamaTool, handler func(context.Context, string) (string, error)) {
+func (_m *IToolRegistry) Register(name string, tool requests.LLMTool, handler func(context.Context, string) (string, error)) {
 	_m.Called(name, tool, handler)
 }
 

@@ -24,7 +24,7 @@ type ollamaClient struct {
 	numCtx     int
 }
 
-func NewOllamaClient(cfg *config.Config) interfaces.IOllamaClient {
+func NewOllamaClient(cfg *config.Config) interfaces.ILLMClient {
 	baseUrl := strings.TrimRight(cfg.LLM.BaseURL, "/")
 
 	model := strings.TrimSpace(cfg.LLM.Model)
@@ -44,7 +44,7 @@ func NewOllamaClient(cfg *config.Config) interfaces.IOllamaClient {
 	}
 }
 
-func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.OllamaChatRequest, streamChan chan<- types.StreamEvent) (*requests.OllamaMessage, error) {
+func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.LLMChatRequest, streamChan chan<- types.StreamEvent) (*requests.LLMMessage, error) {
 	if req.Model == "" {
 		req.Model = c.model
 	}
@@ -52,7 +52,7 @@ func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.Ol
 		req.KeepAlive = c.keepAlive
 	}
 	if req.Options == nil && c.numCtx > 0 {
-		req.Options = &requests.OllamaOptions{NumCtx: c.numCtx}
+		req.Options = &requests.LLMOptions{NumCtx: c.numCtx}
 	}
 	req.Stream = true
 
@@ -83,15 +83,15 @@ func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.Ol
 	}
 
 	decoder := json.NewDecoder(resp.Body)
-	var accumulatedToolCalls []requests.OllamaToolCall
+	var accumulatedToolCalls []requests.LLMToolCall
 	var fullContent strings.Builder
 
 	for {
 		var chunk struct {
 			Message struct {
-				Role      string                    `json:"role"`
-				Content   string                    `json:"content"`
-				ToolCalls []requests.OllamaToolCall `json:"tool_calls"`
+				Role      string                 `json:"role"`
+				Content   string                 `json:"content"`
+				ToolCalls []requests.LLMToolCall `json:"tool_calls"`
 			} `json:"message"`
 			Done  bool   `json:"done"`
 			Error string `json:"error"`
@@ -124,7 +124,7 @@ func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.Ol
 		}
 	}
 
-	return &requests.OllamaMessage{
+	return &requests.LLMMessage{
 		Role:      "assistant",
 		Content:   fullContent.String(),
 		ToolCalls: accumulatedToolCalls,

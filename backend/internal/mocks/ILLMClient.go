@@ -18,27 +18,27 @@ type ILLMClient struct {
 }
 
 // QueryStreamWithTools provides a mock function with given fields: ctx, req, streamChan
-func (_m *ILLMClient) QueryStreamWithTools(ctx context.Context, req requests.OllamaChatRequest, streamChan chan<- types.StreamEvent) (*requests.OllamaMessage, error) {
+func (_m *ILLMClient) QueryStreamWithTools(ctx context.Context, req requests.LLMChatRequest, streamChan chan<- types.StreamEvent) (*requests.LLMMessage, error) {
 	ret := _m.Called(ctx, req, streamChan)
 
 	if len(ret) == 0 {
 		panic("no return value specified for QueryStreamWithTools")
 	}
 
-	var r0 *requests.OllamaMessage
+	var r0 *requests.LLMMessage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, requests.OllamaChatRequest, chan<- types.StreamEvent) (*requests.OllamaMessage, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, requests.LLMChatRequest, chan<- types.StreamEvent) (*requests.LLMMessage, error)); ok {
 		return rf(ctx, req, streamChan)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, requests.OllamaChatRequest, chan<- types.StreamEvent) *requests.OllamaMessage); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, requests.LLMChatRequest, chan<- types.StreamEvent) *requests.LLMMessage); ok {
 		r0 = rf(ctx, req, streamChan)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*requests.OllamaMessage)
+			r0 = ret.Get(0).(*requests.LLMMessage)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, requests.OllamaChatRequest, chan<- types.StreamEvent) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, requests.LLMChatRequest, chan<- types.StreamEvent) error); ok {
 		r1 = rf(ctx, req, streamChan)
 	} else {
 		r1 = ret.Error(1)

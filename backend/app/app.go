@@ -16,11 +16,12 @@ import (
 )
 
 type App struct {
-	Repository  *AppRepository
-	Service     interfaces.IAppService
-	AuthService interfaces.IAuthService
-	TeamService interfaces.ITeamService
-	UserService interfaces.IUserService
+	Repository       *AppRepository
+	Service          interfaces.IAppService
+	AuthService      interfaces.IAuthService
+	TeamService      interfaces.ITeamService
+	UserService      interfaces.IUserService
+	DashboardService interfaces.IDashboardService
 }
 
 func NewApp() *App {
@@ -63,12 +64,15 @@ func NewApp() *App {
 	appService := service.NewAppService(appRepository.Alert, appRepository.LLM, mcpOneClient, mcpTwoClient, convRepo, appRepository.Team)
 	teamService := service.NewTeamService(appRepository.Team)
 	userService := service.NewUserService(appRepository.User)
+	dashboardRepo := postgresRepo.NewDashboardRepository(gormDB)
+	dashboardService := service.NewDashboardService(dashboardRepo, appRepository.Team)
 
 	return &App{
-		Repository:  appRepository,
-		Service:     appService,
-		AuthService: authService,
-		TeamService: teamService,
-		UserService: userService,
+		Repository:       appRepository,
+		Service:          appService,
+		AuthService:      authService,
+		TeamService:      teamService,
+		UserService:      userService,
+		DashboardService: dashboardService,
 	}
 }

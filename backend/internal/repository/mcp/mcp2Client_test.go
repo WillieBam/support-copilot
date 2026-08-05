@@ -220,6 +220,33 @@ var _ = Describe("McpTwoClient", func() {
 			Expect(res).To(ContainSubstring("inc-1"))
 		})
 
+		It("should return [] when list_incidents returns empty content", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      "1",
+					"result": map[string]any{
+						"content": []any{},
+						"isError": false,
+					},
+				})
+			}))
+			defer mockServer.Close()
+
+			u, _ := url.Parse(mockServer.URL)
+			cfg := &config.Config{}
+			cfg.MCP2.Host = u.Hostname()
+			cfg.MCP2.Port = u.Port()
+
+			client := mcp.NewMcpTwoClient(cfg)
+			res, err := client.ListIncidents(context.Background(), requests.MCP2ListIncidentsArgs{
+				TeamID: "team-1",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(Equal("[]"))
+		})
+
 		It("should handle rpc error from mcp2 server", func() {
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")

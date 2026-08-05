@@ -11,23 +11,27 @@ interface ChatHistoryPanelProps {
 }
 
 function formatDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if(isNaN(d.getTime())) return dateStr;
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  } catch {
-    return dateStr;
-  }
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+
+  // handler future timestamp or slight clock skew
+  if (diffMs <0) return 'Just now';
+
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
 }
 
 export function ChatHistoryPanel({
@@ -67,7 +71,7 @@ export function ChatHistoryPanel({
         </button>
       </div>
 
-      {/* List of maximum 10 recent conversations */}
+      {/* list of maximum 15 recent conversations */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {isLoading ? (
           <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">
@@ -78,7 +82,7 @@ export function ChatHistoryPanel({
             No past conversations yet
           </div>
         ) : (
-          conversations.slice(0, 10).map((conv) => {
+          conversations.slice(0, 15).map((conv) => {
             const isSelected = conv.id === selectedConvId;
             const userName = conv.user?.display_name || conv.user?.email || 'User';
 

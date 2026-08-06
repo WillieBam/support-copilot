@@ -11,7 +11,7 @@ import { useAppRouter } from './hooks/useAppRouter';
 import { useWorkspaceState } from './hooks/useWorkspaceState';
 import { useConversationState } from './hooks/useConversationState';
 import { useState, useEffect } from 'react';
-import { Brain, FileText, LogOut, PanelLeftClose, PanelLeftOpen, Sun, Moon, MessageSquare, AlertTriangle, BookOpen } from 'lucide-react';
+import { Brain, FileText, LogOut, PanelLeftClose, PanelLeftOpen, Sun, Moon, MessageSquare, AlertTriangle, BookOpen, BarChart2 } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
 import { TeamProvider, useTeam } from './context/TeamContext';
 import { TeamSelector } from './components/team/TeamSelector';
@@ -22,6 +22,7 @@ import { IncidentPanel } from './components/incident/IncidentPanel';
 import { RunbookPanel } from './components/runbook/RunbookPanel';
 import { RunbookThreadView } from './components/runbook/RunbookThreadView';
 import { IncidentThreadView } from './components/incident/IncidentThreadView';
+import { AnalyticsDashboardView } from './components/analytics/AnalyticsDashboardView';
 
 import { ManageInstructionModal } from './components/instruction/ManageInstructionModal';
 
@@ -41,7 +42,15 @@ function LoadingScreen() {
   );
 }
 
-function GlobalHeader({ auth, onOpenInstructionModal }: { auth: AuthState; onOpenInstructionModal: () => void }) {
+function GlobalHeader({
+  auth,
+  onOpenInstructionModal,
+  onOpenAnalyticsDashboard,
+}: {
+  auth: AuthState;
+  onOpenInstructionModal: () => void;
+  onOpenAnalyticsDashboard: () => void;
+}) {
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -68,6 +77,12 @@ function GlobalHeader({ auth, onOpenInstructionModal }: { auth: AuthState; onOpe
               <FileText className="w-4 h-4 text-muted-foreground" /> Manage Instruction
             </button>
             <button
+              onClick={onOpenAnalyticsDashboard}
+              className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-foreground hover:bg-muted transition-colors text-sm cursor-pointer"
+            >
+              <BarChart2 className="w-4 h-4 text-emerald-500" /> Analytics
+            </button>
+            <button
               onClick={() => void auth.signOut()}
               disabled={auth.isBusy}
               className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-red-500 hover:bg-muted transition-colors text-sm ml-2 disabled:opacity-50 cursor-pointer"
@@ -85,10 +100,14 @@ function MainApp({
   auth,
   isInstructionModalOpen,
   onCloseInstructionModal,
+  isAnalyticsOpen,
+  onCloseAnalytics,
 }: {
   auth: AuthState;
   isInstructionModalOpen: boolean;
   onCloseInstructionModal: () => void;
+  isAnalyticsOpen: boolean;
+  onCloseAnalytics: () => void;
 }) {
   const { isSidebarOpen, toggleSidebar } = useWorkspaceState();
   const { activeTeamId } = useTeam();
@@ -268,6 +287,14 @@ function MainApp({
           onClose={onCloseInstructionModal}
         />
       )}
+
+      {/* Full-Screen Analytics Dashboard */}
+      {isAnalyticsOpen && (
+        <AnalyticsDashboardView
+          teamId={activeTeamId}
+          onClose={onCloseAnalytics}
+        />
+      )}
     </div>
   );
 }
@@ -275,6 +302,7 @@ function MainApp({
 function App() {
   const auth = useFirebaseTotpAuth();
   const [isInstructionModalOpen, setIsInstructionModalOpen] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   // App routing logic has been decoupled into this hook
   useAppRouter(auth);
@@ -284,7 +312,11 @@ function App() {
   return (
     <TeamProvider isSignedIn={auth.isSignedIn}>
       <div className="flex flex-col h-screen max-h-screen bg-transparent text-foreground w-full overflow-hidden transition-colors duration-350">
-        <GlobalHeader auth={auth} onOpenInstructionModal={() => setIsInstructionModalOpen(true)} />
+        <GlobalHeader
+          auth={auth}
+          onOpenInstructionModal={() => setIsInstructionModalOpen(true)}
+          onOpenAnalyticsDashboard={() => setIsAnalyticsOpen(true)}
+        />
         <Routes>
           <Route path="/" element={<Navigate to={auth.isSignedIn ? '/chat' : '/login'} replace />} />
 
@@ -303,6 +335,8 @@ function App() {
                   auth={auth}
                   isInstructionModalOpen={isInstructionModalOpen}
                   onCloseInstructionModal={() => setIsInstructionModalOpen(false)}
+                  isAnalyticsOpen={isAnalyticsOpen}
+                  onCloseAnalytics={() => setIsAnalyticsOpen(false)}
                 />
               ) : (
                 <Navigate to="/login" replace />

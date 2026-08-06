@@ -1,0 +1,118 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import type { IncidentTrendPoint, MTTRResult, BreachedIncident } from '@/types/analytics';
+import { fetchIncidentTrend, fetchMTTR, fetchBreachedIncidents } from '@/service/analytics/analyticsService';
+
+export type Timeframe = 'day' | 'month' | 'year';
+export type SLAFilterOption = 0 | 15 | 30 | 60;
+
+export interface PivotedTrendPoint {
+  time_bucket: string;
+  OPEN: number;
+  IN_PROGRESS: number;
+  RESOLVED: number;
+  CLOSED: number;
+  [key: string]: string | number;
+}
+
+// useAnalyticsState manages data fetching, timeframe, sla filtering, and trend data transformation
+export function useAnalyticsState(teamId?: string | null) {
+  const [timeframe, setTimeframe] = useState<Timeframe>('month');
+  const [slaTarget, setSlaTarget] = useState<SLAFilterOption>(30);
+  const [rawTrend, setRawTrend] = useState<IncidentTrendPoint[]>([]);
+  const [mttr, setMttr] = useState<MTTRResult | null>(null);
+  const [breached, setBreached] = useState<BreachedIncident[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    if (!teamId) {
+      setRawTrend([]);
+      setMttr(null);
+      setBreached([]);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [trendData, mttrData, breachedData] = await Promise.all([
+        fetchIncidentTrend(teamId, timeframe),
+        fetchMTTR(teamId, slaTarget === 0 ? 30 : slaTarget),
+        fetchBreachedIncidents(teamId, slaTarget),
+      ]);
+      setRawTrend(trendData || []);
+      setMttr(mttrData || null);
+      setBreached(breachedData || []);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to fetch analytics data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [teamId, timeframe, slaTarget]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // formatBucketLabel formats raw postgres timestamp string according to selected timeframe
+  const formatBucketLabel = (timeBucket: string, tf: Timeframe): string => {
+    if (!timeBucket) return '';
+    const datePart = timeBucket.split('T')[0].split(' ')[0];
+    const parts = datePart.split('-');
+    if (parts.length < 3) return datePart;
+
+    const [year, month, day] = parts;
+    if (tf === 'year') {
+      return year;
+    }
+    if (tf === 'month') {
+      return `${year}-${month}`;
+    }
+    return `${year}-${month}-${day}`;
+  };
+
+  // pivotedTrend transforms flat incident trend rows into stacked recharts series
+  const pivotedTrend = useMemo<PivotedTrendPoint[]>(() => {
+    if (!rawTrend.length) return [];
+    
+    const bucketsMap: Record<string, PivotedTrendPoint> = {};
+
+    rawTrend.forEach((item) => {
+      const label = formatBucketLabel(item.time_bucket, timeframe);
+      if (!bucketsMap[label]) {
+        bucketsMap[label] = {
+          time_bucket: label,
+          OPEN: 0,
+          IN_PROGRESS: 0,
+          RESOLVED: 0,
+          CLOSED: 0,
+        };
+      }
+      const statusUpper = item.status ? item.status.toUpperCase() : '';
+      if (statusUpper === 'OPEN') {
+        bucketsMap[label].OPEN += item.count;
+      } else if (statusUpper === 'IN_PROGRESS' || statusUpper === 'IN PRORESS') {
+        bucketsMap[label].IN_PROGRESS += item.count;
+      } else if (statusUpper === 'RESOLVED') {
+        bucketsMap[label].RESOLVED += item.count;
+      } else if (statusUpper === 'CLOSED') {
+        bucketsMap[label].CLOSED += item.count;
+      }
+    });
+
+    return Object.values(bucketsMap).sort((a, b) => a.time_bucket.localeCompare(b.time_bucket));
+  }, [rawTrend, timeframe]);
+
+  return {
+    teamId,
+    timeframe,
+    setTimeframe,
+    slaTarget,
+    setSlaTarget,
+    pivotedTrend,
+    mttr,
+    breached,
+    isLoading,
+    error,
+    refreshAnalytics: loadData,
+  };
+}

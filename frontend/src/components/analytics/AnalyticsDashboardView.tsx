@@ -1,0 +1,112 @@
+import { useAnalyticsState } from './useAnalyticsState';
+import { KPICards } from './KPICards';
+import { IncidentTrendChart } from './IncidentTrendChart';
+import { SLAScatterPlot } from './SLAScatterPlot';
+import { ArrowLeft, BarChart3, RefreshCw, AlertCircle } from 'lucide-react';
+import { TeamSelector } from '../team/TeamSelector';
+
+interface AnalyticsDashboardViewProps {
+  teamId?: string | null;
+  onClose: () => void;
+}
+
+// AnalyticsDashboardView renders a full-screen view overlay for incident analytics and sla metrics
+export function AnalyticsDashboardView({ teamId, onClose }: AnalyticsDashboardViewProps) {
+  const {
+    timeframe,
+    setTimeframe,
+    slaTarget,
+    setSlaTarget,
+    pivotedTrend,
+    mttr,
+    breached,
+    isLoading,
+    error,
+    refreshAnalytics,
+  } = useAnalyticsState(teamId);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background text-foreground flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      {/* Dashboard Fullscreen Top Bar */}
+      <header className="flex items-center justify-between px-6 h-[73px] bg-card border-b border-border shrink-0 z-10 sticky top-0 shadow-sm">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onClose}
+            className="flex items-center gap-2 bg-muted/50 hover:bg-muted border border-border rounded-xl px-3.5 py-1.5 text-foreground text-xs font-semibold transition-all cursor-pointer group"
+          >
+            <ArrowLeft className="w-4 h-4 text-muted-foreground group-hover:-translate-x-0.5 transition-transform" />
+            <span>Back to Workspace</span>
+          </button>
+
+          <div className="h-5 w-px bg-border hidden sm:block" />
+
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+              <BarChart3 className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <h1 className="text-base font-extrabold text-foreground tracking-tight leading-none">
+                Incident Analytics & SLA
+              </h1>
+              <p className="text-[11px] text-muted-foreground mt-0.5 hidden md:block">
+                Real-time MTTR, incident volume trends, and SLA breach metrics
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Control Action Bar */}
+        <div className="flex items-center gap-3">
+          <TeamSelector />
+
+          <button
+            onClick={refreshAnalytics}
+            disabled={isLoading}
+            className="flex items-center justify-center w-9 h-9 bg-transparent border border-border rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 cursor-pointer"
+            title="Refresh analytics data"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-emerald-500' : ''}`} />
+          </button>
+        </div>
+      </header>
+
+      {/* Main Fullscreen Dashboard Content */}
+      <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 w-full max-w-7xl mx-auto">
+        {/* Error Alert */}
+        {error && (
+          <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-center justify-between text-rose-500 text-xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={refreshAnalytics}
+              className="underline font-semibold hover:text-rose-400 cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* KPI Cards Row */}
+        <KPICards mttr={mttr} isLoading={isLoading} />
+
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+          <IncidentTrendChart
+            data={pivotedTrend}
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
+            isLoading={isLoading}
+          />
+          <SLAScatterPlot
+            data={breached}
+            slaTarget={slaTarget}
+            onSlaTargetChange={setSlaTarget}
+            isLoading={isLoading}
+          />
+        </div>
+      </main>
+    </div>
+  );
+}

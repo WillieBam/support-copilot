@@ -30,7 +30,7 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 
 	a := app.NewApp()
-	h := endpoint.NewHandler(a.Service, a.AuthService, a.TeamService, a.UserService)
+	h := endpoint.NewHandler(a.Service, a.AuthService, a.TeamService, a.UserService, a.DashboardService)
 
 	s := utilserver.New(config.NewServerConfig("support-copilot"))
 
@@ -78,6 +78,11 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 		apiGroup.POST("/conversations", h.CreateConversation)
 		apiGroup.GET("/teams/:team_id/conversations", h.ListTeamConversations)
 		apiGroup.GET("/conversations/:id/messages", h.GetConversationMessages)
+
+		// dashboard analytics endpoints
+		apiGroup.GET("/dashboard/incidents/trend", h.GetIncidentTrend)
+		apiGroup.GET("/dashboard/mttr", h.GetMTTR)
+		apiGroup.GET("/dashboard/incidents/breached", h.GetBreachedIncidents)
 
 		// '/query' group endpoints
 		g := e.Group("/query")

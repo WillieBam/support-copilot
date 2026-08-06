@@ -137,11 +137,16 @@ func (t *teamRepository) GetTeamIncidentByID(ctx context.Context, incidentID uui
 
 func (t *teamRepository) UpdateTeamIncidentStatus(ctx context.Context, history *models.IncidentStatusHistory, updatedInc *models.TeamIncident) error {
 	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(updatedInc).Updates(map[string]interface{}{
+		updates := map[string]interface{}{
 			"status":  updatedInc.Status,
 			"title":   updatedInc.Title,
 			"details": updatedInc.Details,
-		}).Error; err != nil {
+		}
+		// persist resolved_at when set by the service
+		if updatedInc.ResolvedAt != nil {
+			updates["resolved_at"] = updatedInc.ResolvedAt
+		}
+		if err := tx.Model(updatedInc).Updates(updates).Error; err != nil {
 			return err
 		}
 		return tx.Create(history).Error

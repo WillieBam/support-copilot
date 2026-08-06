@@ -15,5 +15,7 @@ type TeamIncident struct {
 	Details    string                  `gorm:"type:text" json:"details"`
 	CreatedAt  time.Time               `gorm:"type:timestamp(3);default:CURRENT_TIMESTAMP" json:"created_at"`
 	AssignedAt time.Time               `gorm:"type:timestamp(3);default:CURRENT_TIMESTAMP" json:"assigned_at"`
+	// resolved_at is only set when an incident transitions to RESOLVED status
+	ResolvedAt *time.Time              `gorm:"type:timestamp(3)" json:"resolved_at,omitempty"`
 	History    []IncidentStatusHistory `gorm:"foreignKey:TeamIncidentID" json:"history,omitempty"`
 }

@@ -20,10 +20,11 @@ import (
 )
 
 type Handler struct {
-	apps        interfaces.IAppService
-	authService interfaces.IAuthService
-	teamService interfaces.ITeamService
-	userService interfaces.IUserService
+	apps             interfaces.IAppService
+	authService      interfaces.IAuthService
+	teamService      interfaces.ITeamService
+	userService      interfaces.IUserService
+	dashboardService interfaces.IDashboardService
 }
 
 func NewHandler(a interfaces.IAppService, authService interfaces.IAuthService, opts ...interface{}) *Handler {
@@ -37,6 +38,9 @@ func NewHandler(a interfaces.IAppService, authService interfaces.IAuthService, o
 		}
 		if us, ok := opt.(interfaces.IUserService); ok {
 			h.userService = us
+		}
+		if ds, ok := opt.(interfaces.IDashboardService); ok {
+			h.dashboardService = ds
 		}
 	}
 	return h

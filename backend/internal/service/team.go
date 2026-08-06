@@ -273,6 +273,11 @@ func (s *teamService) UpdateIncidentStatus(ctx context.Context, requesterID, inc
 	if details != "" {
 		inc.Details = details
 	}
+	// only capture resolved_at on the first transition to RESOLVED
+	if validStatus == "RESOLVED" && inc.ResolvedAt == nil {
+		now := time.Now()
+		inc.ResolvedAt = &now
+	}
 
 	history := &models.IncidentStatusHistory{
 		ID:             uuid.New(),

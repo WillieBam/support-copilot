@@ -234,6 +234,36 @@ func (_m *ITeamRepository) GetRunbookByID(ctx context.Context, runbookID uuid.UU
 	return r0, r1
 }
 
+// GetRunbookLogs provides a mock function with given fields: ctx, runbookID
+func (_m *ITeamRepository) GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error) {
+	ret := _m.Called(ctx, runbookID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetRunbookLogs")
+	}
+
+	var r0 []models.RunbookLog
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]models.RunbookLog, error)); ok {
+		return rf(ctx, runbookID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []models.RunbookLog); ok {
+		r0 = rf(ctx, runbookID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.RunbookLog)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, runbookID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetRunbooksByIncidentID provides a mock function with given fields: ctx, incidentID
 func (_m *ITeamRepository) GetRunbooksByIncidentID(ctx context.Context, incidentID uuid.UUID) ([]models.Runbook, error) {
 	ret := _m.Called(ctx, incidentID)
@@ -519,9 +549,9 @@ func (_m *ITeamRepository) SaveTeamInstruction(ctx context.Context, instruction 
 	return r0
 }
 
-// UpdateRunbook provides a mock function with given fields: ctx, runbookID, title, content
-func (_m *ITeamRepository) UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title string, content string) (*models.Runbook, error) {
-	ret := _m.Called(ctx, runbookID, title, content)
+// UpdateRunbook provides a mock function with given fields: ctx, runbookID, title, content, log
+func (_m *ITeamRepository) UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title string, content string, log *models.RunbookLog) (*models.Runbook, error) {
+	ret := _m.Called(ctx, runbookID, title, content, log)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateRunbook")
@@ -529,19 +559,19 @@ func (_m *ITeamRepository) UpdateRunbook(ctx context.Context, runbookID uuid.UUI
 
 	var r0 *models.Runbook
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string) (*models.Runbook, error)); ok {
-		return rf(ctx, runbookID, title, content)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string, *models.RunbookLog) (*models.Runbook, error)); ok {
+		return rf(ctx, runbookID, title, content, log)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string) *models.Runbook); ok {
-		r0 = rf(ctx, runbookID, title, content)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string, *models.RunbookLog) *models.Runbook); ok {
+		r0 = rf(ctx, runbookID, title, content, log)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Runbook)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, string) error); ok {
-		r1 = rf(ctx, runbookID, title, content)
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, string, *models.RunbookLog) error); ok {
+		r1 = rf(ctx, runbookID, title, content, log)
 	} else {
 		r1 = ret.Error(1)
 	}

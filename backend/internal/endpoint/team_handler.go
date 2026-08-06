@@ -482,6 +482,10 @@ func (h *Handler) SaveTeamInstruction(c *echo.Context) error {
 	slog.Info("[team] SaveTeamInstruction: saving instruction", "team_id", teamID, "requester_id", user.ID)
 	inst, err := h.teamService.SaveTeamInstruction(c.Request().Context(), user.ID, teamID, req.InstructionDetails)
 	if err != nil {
+		if errors.Is(err, service.ErrInstructionTooShort) {
+			slog.Warn("[team] SaveTeamInstruction: instruction details too short", "team_id", teamID, "error", err)
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
 		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] SaveTeamInstruction: unauthorized", "team_id", teamID, "requester_id", user.ID)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})

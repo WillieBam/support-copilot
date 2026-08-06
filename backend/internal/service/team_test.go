@@ -307,4 +307,47 @@ var _ = Describe("TeamService", func() {
 			Expect(inc.History[0].NewStatus).To(Equal("IN_PROGRESS"))
 		})
 	})
+
+	Context("SaveTeamInstruction validation", func() {
+		var (
+			teamID uuid.UUID
+			userID uuid.UUID
+		)
+
+		BeforeEach(func() {
+			teamID = uuid.New()
+			userID = uuid.New()
+		})
+
+		It("should fail SaveTeamInstruction when instruction details are under 30 characters", func() {
+			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("owner", nil)
+
+			// short instruction details under 30 characters
+			shortDetails := "too short details"
+			inst, err := teamSvc.SaveTeamInstruction(ctx, userID, teamID, shortDetails)
+			Expect(err).To(Equal(service.ErrInstructionTooShort))
+			Expect(inst).To(BeNil())
+		})
+
+		It("should succeed SaveTeamInstruction when instruction details meet 30 characters threshold", func() {
+			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("owner", nil)
+			teamRepo.On("GetTeamInstruction", ctx, teamID).Return((*models.Instruction)(nil), ([]models.InstructionLog)(nil), nil).Once()
+
+			validDetails := "this is a valid team instruction string that has more than 30 characters"
+			teamRepo.On("SaveTeamInstruction", ctx, mock.Anything, mock.Anything).Return(nil)
+
+			expectedInst := &models.Instruction{
+				ID:                 uuid.New(),
+				TeamID:             teamID,
+				CreatedBy:          userID,
+				InstructionDetails: validDetails,
+			}
+			teamRepo.On("GetTeamInstruction", ctx, teamID).Return(expectedInst, ([]models.InstructionLog)(nil), nil).Once()
+
+			inst, err := teamSvc.SaveTeamInstruction(ctx, userID, teamID, validDetails)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(inst).NotTo(BeNil())
+			Expect(inst.InstructionDetails).To(Equal(validDetails))
+		})
+	})
 })

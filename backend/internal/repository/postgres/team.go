@@ -101,7 +101,7 @@ func (t *teamRepository) AssignTeamIncident(ctx context.Context, incident *model
 		initialHistory := models.IncidentStatusHistory{
 			ID:             uuid.New(),
 			TeamIncidentID: incident.ID,
-			UpdatedBy:      incident.AssignedBy,
+			UpdatedBy:      incident.CreatedBy,
 			Title:          incident.Title,
 			NewStatus:      incident.Status,
 			PreviousStatus: "",

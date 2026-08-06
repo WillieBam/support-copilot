@@ -65,9 +65,9 @@ func (_m *ITeamService) AssignIncident(ctx context.Context, requesterID uuid.UUI
 	return r0, r1
 }
 
-// CreateRunbook provides a mock function with given fields: ctx, teamID, incidentID, title, content
-func (_m *ITeamService) CreateRunbook(ctx context.Context, teamID uuid.UUID, incidentID uuid.UUID, title string, content string) (*models.Runbook, error) {
-	ret := _m.Called(ctx, teamID, incidentID, title, content)
+// CreateRunbook provides a mock function with given fields: ctx, creatorID, teamID, incidentID, title, content
+func (_m *ITeamService) CreateRunbook(ctx context.Context, creatorID uuid.UUID, teamID uuid.UUID, incidentID uuid.UUID, title string, content string) (*models.Runbook, error) {
+	ret := _m.Called(ctx, creatorID, teamID, incidentID, title, content)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateRunbook")
@@ -75,19 +75,19 @@ func (_m *ITeamService) CreateRunbook(ctx context.Context, teamID uuid.UUID, inc
 
 	var r0 *models.Runbook
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string) (*models.Runbook, error)); ok {
-		return rf(ctx, teamID, incidentID, title, content)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string) (*models.Runbook, error)); ok {
+		return rf(ctx, creatorID, teamID, incidentID, title, content)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string) *models.Runbook); ok {
-		r0 = rf(ctx, teamID, incidentID, title, content)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string) *models.Runbook); ok {
+		r0 = rf(ctx, creatorID, teamID, incidentID, title, content)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Runbook)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, string, string) error); ok {
-		r1 = rf(ctx, teamID, incidentID, title, content)
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string) error); ok {
+		r1 = rf(ctx, creatorID, teamID, incidentID, title, content)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -260,6 +260,36 @@ func (_m *ITeamService) GetRunbook(ctx context.Context, runbookID uuid.UUID) (*m
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Runbook)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, runbookID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetRunbookLogs provides a mock function with given fields: ctx, runbookID
+func (_m *ITeamService) GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error) {
+	ret := _m.Called(ctx, runbookID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetRunbookLogs")
+	}
+
+	var r0 []models.RunbookLog
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]models.RunbookLog, error)); ok {
+		return rf(ctx, runbookID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []models.RunbookLog); ok {
+		r0 = rf(ctx, runbookID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.RunbookLog)
 		}
 	}
 
@@ -569,9 +599,9 @@ func (_m *ITeamService) UpdateIncidentStatus(ctx context.Context, requesterID uu
 	return r0, r1
 }
 
-// UpdateRunbook provides a mock function with given fields: ctx, runbookID, title, content
-func (_m *ITeamService) UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title string, content string) (*models.Runbook, error) {
-	ret := _m.Called(ctx, runbookID, title, content)
+// UpdateRunbook provides a mock function with given fields: ctx, updaterID, runbookID, title, content
+func (_m *ITeamService) UpdateRunbook(ctx context.Context, updaterID uuid.UUID, runbookID uuid.UUID, title string, content string) (*models.Runbook, error) {
+	ret := _m.Called(ctx, updaterID, runbookID, title, content)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateRunbook")
@@ -579,19 +609,19 @@ func (_m *ITeamService) UpdateRunbook(ctx context.Context, runbookID uuid.UUID, 
 
 	var r0 *models.Runbook
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string) (*models.Runbook, error)); ok {
-		return rf(ctx, runbookID, title, content)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string) (*models.Runbook, error)); ok {
+		return rf(ctx, updaterID, runbookID, title, content)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, string) *models.Runbook); ok {
-		r0 = rf(ctx, runbookID, title, content)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string) *models.Runbook); ok {
+		r0 = rf(ctx, updaterID, runbookID, title, content)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Runbook)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, string) error); ok {
-		r1 = rf(ctx, runbookID, title, content)
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, string, string) error); ok {
+		r1 = rf(ctx, updaterID, runbookID, title, content)
 	} else {
 		r1 = ret.Error(1)
 	}

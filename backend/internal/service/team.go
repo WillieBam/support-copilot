@@ -20,6 +20,7 @@ var (
 	ErrUserNotInTeam         = errors.New("user is not a member of this team")
 	ErrInvalidIncidentStatus = errors.New("invalid incident status: must be OPEN, IN_PROGRESS, RESOLVED, or CLOSED")
 	ErrIncidentNotFound      = errors.New("incident not found")
+	ErrInstructionTooShort   = errors.New("instruction details must be at least 30 characters long")
 )
 
 func normalizeIncidentStatus(status string) (string, error) {
@@ -173,7 +174,7 @@ func (s *teamService) AssignIncident(ctx context.Context, requesterID, teamID uu
 	inc := &models.TeamIncident{
 		ID:         uuid.New(),
 		TeamID:     teamID,
-		AssignedBy: requesterID,
+		CreatedBy:  requesterID,
 		Title:      strings.TrimSpace(title),
 		Status:     validStatus,
 		Details:    details,
@@ -324,6 +325,13 @@ func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, team
 		return nil, ErrUnauthorizedTeamOp
 	}
 
+	// validate instruction details minimum length requirement of 30 characters
+	trimmed := strings.TrimSpace(details)
+	if len(trimmed) < 30 {
+		slog.WarnContext(ctx, "[team-svc] SaveTeamInstruction: instruction details too short", "team_id", teamID, "length", len(trimmed))
+		return nil, ErrInstructionTooShort
+	}
+
 	existingInst, existingLogs, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
 	if err != nil {
 		slog.ErrorContext(ctx, "[team-svc] SaveTeamInstruction: failed to check existing", "team_id", teamID, "error", err)
@@ -361,12 +369,13 @@ func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, team
 	return updatedInst, err
 }
 
-func (s *teamService) CreateRunbook(ctx context.Context, teamID, incidentID uuid.UUID, title, content string) (*models.Runbook, error) {
-	slog.InfoContext(ctx, "[team-svc] CreateRunbook: persisting", "team_id", teamID, "incident_id", incidentID)
+func (s *teamService) CreateRunbook(ctx context.Context, creatorID, teamID, incidentID uuid.UUID, title, content string) (*models.Runbook, error) {
+	slog.InfoContext(ctx, "[team-svc] CreateRunbook: persisting", "team_id", teamID, "incident_id", incidentID, "creator_id", creatorID)
 	rb := &models.Runbook{
 		ID:         uuid.New(),
 		TeamID:     teamID,
 		IncidentID: incidentID,
+		CreatedBy:  creatorID,
 		Title:      strings.TrimSpace(title),
 		Status:     "active",
 		Content:    content,
@@ -381,9 +390,27 @@ func (s *teamService) CreateRunbook(ctx context.Context, teamID, incidentID uuid
 	return rb, nil
 }
 
-func (s *teamService) UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title, content string) (*models.Runbook, error) {
-	slog.InfoContext(ctx, "[team-svc] UpdateRunbook: updating", "runbook_id", runbookID)
-	rb, err := s.teamRepo.UpdateRunbook(ctx, runbookID, strings.TrimSpace(title), content)
+func (s *teamService) UpdateRunbook(ctx context.Context, updaterID, runbookID uuid.UUID, title, content string) (*models.Runbook, error) {
+	slog.InfoContext(ctx, "[team-svc] UpdateRunbook: updating", "runbook_id", runbookID, "updater_id", updaterID)
+	existingLogs, _ := s.teamRepo.GetRunbookLogs(ctx, runbookID)
+	existingRb, _ := s.teamRepo.GetRunbookByID(ctx, runbookID)
+
+	var logEntry *models.RunbookLog
+	if existingRb != nil {
+		logEntry = &models.RunbookLog{
+			ID:           uuid.New(),
+			RunbookID:    runbookID,
+			IncidentID:   existingRb.IncidentID,
+			TeamID:       existingRb.TeamID,
+			UpdatedBy:    updaterID,
+			OlderTitle:   existingRb.Title,
+			OlderContent: existingRb.Content,
+			Version:      len(existingLogs) + 1,
+			UpdatedAt:    time.Now(),
+		}
+	}
+
+	rb, err := s.teamRepo.UpdateRunbook(ctx, runbookID, strings.TrimSpace(title), content, logEntry)
 	if err != nil {
 		slog.ErrorContext(ctx, "[team-svc] UpdateRunbook: failed", "runbook_id", runbookID, "error", err)
 		return nil, err
@@ -414,6 +441,11 @@ func (s *teamService) ListRunbooks(ctx context.Context, teamID uuid.UUID, status
 	}
 	slog.InfoContext(ctx, "[team-svc] ListRunbooks: listing", "team_id", teamID, "status", status)
 	return s.teamRepo.ListRunbooks(ctx, teamID, status)
+}
+
+func (s *teamService) GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error) {
+	slog.InfoContext(ctx, "[team-svc] GetRunbookLogs: fetching logs", "runbook_id", runbookID)
+	return s.teamRepo.GetRunbookLogs(ctx, runbookID)
 }
 
 func (s *teamService) GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error) {

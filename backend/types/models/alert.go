@@ -13,4 +13,5 @@ type Alert struct {
 	ServiceName string     `gorm:"type:varchar(255);not null"`
 	Severity    string     `gorm:"type:varchar(20)"`
 	Metrics     string     `gorm:"type:text"`
+	Incident *TeamIncident `gorm:"foreignKey:IncidentID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"-"`
 }

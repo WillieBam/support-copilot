@@ -13,4 +13,6 @@ type InstructionLog struct {
 	OlderInstruction string    `gorm:"type:text" json:"older_instruction"`
 	Version          int       `gorm:"type:integer" json:"version"`
 	UpdatedAt        time.Time `gorm:"type:timestamp(0);default:CURRENT_TIMESTAMP" json:"updated_at"`
+	Instruction Instruction `gorm:"foreignKey:InstructionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+	User        User        `gorm:"foreignKey:UpdatedBy;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 }

@@ -445,7 +445,6 @@ func (s *AppService) SaveMessage(ctx context.Context, convID uuid.UUID, sender, 
 		ConversationID: convID,
 		Sender:         sender,
 		Content:        content,
-		ReasoningSteps: reasoning,
 		CreatedAt:      time.Now(),
 	}
 	if err := s.convRepo.CreateMessage(ctx, msg); err != nil {

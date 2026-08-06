@@ -350,4 +350,89 @@ var _ = Describe("TeamService", func() {
 			Expect(inst.InstructionDetails).To(Equal(validDetails))
 		})
 	})
+
+	Context("Runbook Service Operations", func() {
+		var (
+			teamID     uuid.UUID
+			userID     uuid.UUID
+			incidentID uuid.UUID
+			runbookID  uuid.UUID
+		)
+
+		BeforeEach(func() {
+			teamID = uuid.New()
+			userID = uuid.New()
+			incidentID = uuid.New()
+			runbookID = uuid.New()
+		})
+
+		It("should CreateRunbook successfully", func() {
+			teamRepo.On("CreateRunbook", ctx, mock.MatchedBy(func(rb *models.Runbook) bool {
+				return rb.TeamID == teamID && rb.CreatedBy == userID && rb.Title == "Pod Restart Guide"
+			})).Return(nil)
+
+			rb, err := teamSvc.CreateRunbook(ctx, userID, teamID, incidentID, "Pod Restart Guide", "kubectl rollout restart")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rb).NotTo(BeNil())
+			Expect(rb.Title).To(Equal("Pod Restart Guide"))
+		})
+
+		It("should UpdateRunbook and generate version log entry", func() {
+			existingRb := &models.Runbook{
+				ID:         runbookID,
+				TeamID:     teamID,
+				IncidentID: incidentID,
+				Title:      "Original Title",
+				Content:    "Original Content",
+			}
+			existingLogs := []models.RunbookLog{}
+
+			teamRepo.On("GetRunbookLogs", ctx, runbookID).Return(existingLogs, nil)
+			teamRepo.On("GetRunbookByID", ctx, runbookID).Return(existingRb, nil)
+
+			updatedRb := &models.Runbook{
+				ID:      runbookID,
+				Title:   "Updated Title",
+				Content: "Updated Content",
+			}
+			teamRepo.On("UpdateRunbook", ctx, runbookID, "Updated Title", "Updated Content", mock.MatchedBy(func(l *models.RunbookLog) bool {
+				return l.RunbookID == runbookID && l.Version == 1 && l.OlderTitle == "Original Title"
+			})).Return(updatedRb, nil)
+
+			rb, err := teamSvc.UpdateRunbook(ctx, userID, runbookID, "Updated Title", "Updated Content")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rb).NotTo(BeNil())
+			Expect(rb.Title).To(Equal("Updated Title"))
+		})
+
+		It("should GetRunbookLogs successfully", func() {
+			logs := []models.RunbookLog{{ID: uuid.New(), RunbookID: runbookID, Version: 1}}
+			teamRepo.On("GetRunbookLogs", ctx, runbookID).Return(logs, nil)
+
+			res, err := teamSvc.GetRunbookLogs(ctx, runbookID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(Equal(logs))
+		})
+
+		It("should DeprecateRunbook successfully", func() {
+			deprecatedRb := &models.Runbook{ID: runbookID, Status: "deprecated"}
+			teamRepo.On("DeprecateRunbook", ctx, runbookID).Return(deprecatedRb, nil)
+
+			rb, err := teamSvc.DeprecateRunbook(ctx, runbookID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rb.Status).To(Equal("deprecated"))
+		})
+
+		It("should GetIncidentContext successfully", func() {
+			inc := &models.TeamIncident{ID: incidentID, Title: "Redis Failure"}
+			alerts := []models.Alert{{ServiceName: "redis-service"}}
+
+			teamRepo.On("GetIncidentContext", ctx, incidentID).Return(inc, alerts, nil)
+
+			resInc, resAlerts, err := teamSvc.GetIncidentContext(ctx, incidentID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resInc.Title).To(Equal("Redis Failure"))
+			Expect(len(resAlerts)).To(Equal(1))
+		})
+	})
 })

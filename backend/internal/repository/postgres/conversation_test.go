@@ -80,4 +80,55 @@ var _ = Describe("ConversationRepository", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
+
+	Context("CreateMessage & ListMessagesByConversation", func() {
+		It("should insert a message successfully", func() {
+			msg := &models.Message{
+				ID:             uuid.New(),
+				ConversationID: uuid.New(),
+				Sender:         "user",
+				Content:        "Hello, copilot!",
+				CreatedAt:      time.Now(),
+			}
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`INSERT INTO "messages"`).
+				WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(msg.ID))
+			mock.ExpectCommit()
+
+			err := convRepo.CreateMessage(ctx, msg)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should list messages by conversation ID", func() {
+			convID := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "conversation_id", "sender_type", "content"}).
+				AddRow(uuid.New(), convID, "user", "Hello")
+
+			mock.ExpectQuery(`SELECT \* FROM "messages" WHERE conversation_id = \$1 ORDER BY created_at ASC`).
+				WithArgs(convID).
+				WillReturnRows(rows)
+
+			msgs, err := convRepo.ListMessagesByConversation(ctx, convID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(msgs)).To(Equal(1))
+		})
+	})
+
+	Context("ListTeamConversations", func() {
+		It("should list conversations by team ID with limit", func() {
+			teamID := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "team_id", "title"}).
+				AddRow(uuid.New(), teamID, "Chat 1")
+
+			mock.ExpectQuery(`SELECT \* FROM "conversations" WHERE team_id = \$1 ORDER BY created_at DESC LIMIT \$2`).
+				WithArgs(teamID, 10).
+				WillReturnRows(rows)
+
+			convs, err := convRepo.ListTeamConversations(ctx, teamID, 10)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(convs)).To(Equal(1))
+		})
+	})
 })

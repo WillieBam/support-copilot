@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WillieBam/support_copilot/backend/types/models"
+
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -181,6 +183,75 @@ var _ = Describe("Handler", func() {
 			bodyStr := rec.Body.String()
 			Expect(bodyStr).To(ContainSubstring(`data: {"type":"reasoning","content":"thinking"}`))
 			Expect(bodyStr).To(ContainSubstring(`data: {"type":"text","content":"AI is..."}`))
+		})
+	})
+
+	Context("Conversation helpers", func() {
+		It("should create a conversation when user and team context are valid", func() {
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
+			teamID := uuid.New()
+			userID := uuid.New()
+			conv := &models.Conversation{ID: uuid.New(), TeamID: teamID, UserID: userID}
+
+			body, _ := json.Marshal(map[string]any{"team_id": teamID.String()})
+			req := httptest.NewRequest(http.MethodPost, "/api/conversations", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "uid-123")
+
+			userSvc.On("GetUserByFirebaseUID", mock.Anything, "uid-123").Return(&models.User{ID: userID}, nil)
+			mockAppSvc.On("CreateConversation", mock.Anything, teamID, userID).Return(conv, nil)
+
+			err := hWithUser.CreateConversation(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should list team conversations with a parsed limit", func() {
+			teamID := uuid.New()
+			body := []models.Conversation{{ID: uuid.New(), TeamID: teamID}}
+			mockAppSvc.On("ListTeamConversations", mock.Anything, teamID, 3).Return(body, nil)
+
+			e.GET("/api/teams/:team_id/conversations", func(c *echo.Context) error {
+				return h.ListTeamConversations(c)
+			})
+			req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID.String()+"/conversations?limit=3", nil)
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return conversation messages when the conversation id is valid", func() {
+			convID := uuid.New()
+			msgList := []models.Message{{ID: uuid.New(), ConversationID: convID, Sender: "user"}}
+			mockAppSvc.On("ListMessagesByConversation", mock.Anything, convID).Return(msgList, nil)
+
+			e.GET("/api/conversations/:id/messages", func(c *echo.Context) error {
+				return h.GetConversationMessages(c)
+			})
+			req := httptest.NewRequest(http.MethodGet, "/api/conversations/"+convID.String()+"/messages", nil)
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should search users when query is long enough", func() {
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
+			userSvc.On("SearchUsers", mock.Anything, "ada", 10).Return([]models.User{{ID: uuid.New(), Email: "ada@example.com", DisplayName: "Ada"}}, nil)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/users/search?q=ada", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "uid-123")
+
+			err := hWithUser.SearchUsers(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
 

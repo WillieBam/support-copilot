@@ -2,12 +2,15 @@ package command_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/WillieBam/support_copilot/backend/internal/command"
+	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/google/uuid"
@@ -15,8 +18,8 @@ import (
 
 var _ = Describe("CommandInterceptor", func() {
 	var (
-		mockInterceptor  *mocks.ICommandInterceptor
 		mockOrchestrator *mocks.IOrchestratorService
+		ci               interfaces.ICommandInterceptor
 		ctx              context.Context
 		teamID           uuid.UUID
 		incidentID       uuid.UUID
@@ -27,22 +30,16 @@ var _ = Describe("CommandInterceptor", func() {
 		teamID = uuid.New()
 		incidentID = uuid.New()
 		mockOrchestrator = &mocks.IOrchestratorService{}
-		mockInterceptor = &mocks.ICommandInterceptor{}
+		ci = command.NewCommandInterceptor(mockOrchestrator)
 	})
 
 	AfterEach(func() {
-		mockInterceptor.AssertExpectations(GinkgoT())
 		mockOrchestrator.AssertExpectations(GinkgoT())
 	})
 
 	Context("Intercept /quit", func() {
 		It("should intercept prompt starting with /quit", func() {
-			mockInterceptor.On("Intercept", mock.Anything, "/quit").Return(&types.CommandResult{
-				Handled: true,
-				Message: "stopped by /quit command",
-			}, nil)
-
-			res, err := mockInterceptor.Intercept(ctx, "/quit")
+			res, err := ci.Intercept(ctx, "/quit")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res).NotTo(BeNil())
 			Expect(res.Handled).To(BeTrue())
@@ -50,24 +47,15 @@ var _ = Describe("CommandInterceptor", func() {
 		})
 
 		It("should intercept prompt with /quit and additional whitespace or text", func() {
-			mockInterceptor.On("Intercept", mock.Anything, "  /QUIT now  ").Return(&types.CommandResult{
-				Handled: true,
-				Message: "stopped by /quit command",
-			}, nil)
-
-			res, err := mockInterceptor.Intercept(ctx, "  /QUIT now  ")
+			res, err := ci.Intercept(ctx, "  /QUIT now  ")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res).NotTo(BeNil())
 			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(ContainSubstring("stopped by /quit command"))
 		})
 
 		It("should not intercept normal prompt", func() {
-			mockInterceptor.On("Intercept", mock.Anything, "What is the system status?").Return(&types.CommandResult{
-				Handled: false,
-				Message: "",
-			}, nil)
-
-			res, err := mockInterceptor.Intercept(ctx, "What is the system status?")
+			res, err := ci.Intercept(ctx, "What is the system status?")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res).NotTo(BeNil())
 			Expect(res.Handled).To(BeFalse())
@@ -76,113 +64,221 @@ var _ = Describe("CommandInterceptor", func() {
 	})
 
 	Context("Intercept /incident", func() {
-		It("should fetch active incident details when no argument provided and active incident exists", func() {
-			incCtx := command.WithActiveIncidentID(ctx, incidentID)
-			mockInterceptor.On("Intercept", mock.Anything, "/incident").Return(&types.CommandResult{
-				Handled: true,
-				Message: "Redis latency spike",
-			}, nil)
-
-			res, err := mockInterceptor.Intercept(incCtx, "/incident")
+		It("should return error message when orchestrator is nil", func() {
+			nilCi := command.NewCommandInterceptor()
+			res, err := nilCi.Intercept(ctx, "/incident")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
-			Expect(res.Message).To(ContainSubstring("Redis latency spike"))
+			Expect(res.Message).To(Equal("orchestrator service is unavailable"))
 		})
 
-		It("should return message when no argument provided and no active incident exists", func() {
-			mockInterceptor.On("Intercept", mock.Anything, "/incident").Return(&types.CommandResult{
-				Handled: true,
-				Message: "no active incident found in session context",
-			}, nil)
+		It("should fetch active incident details when active incident exists in context", func() {
+			incCtx := command.WithActiveIncidentID(ctx, incidentID)
+			rawArgs := fmt.Sprintf(`{"incident_id": "%s"}`, incidentID.String())
+			mockOrchestrator.On("ExecuteGetIncidentRaw", mock.Anything, rawArgs).Return("Incident: Redis Memory Spike", nil)
 
-			res, err := mockInterceptor.Intercept(ctx, "/incident")
+			res, err := ci.Intercept(incCtx, "/incident")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("Incident: Redis Memory Spike"))
+		})
+
+		It("should return message when no argument provided and no active incident in context", func() {
+			res, err := ci.Intercept(ctx, "/incident")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
 			Expect(res.Message).To(ContainSubstring("no active incident found in session context"))
 		})
 
-		It("should search team incidents when argument provided and team context exists", func() {
-			teamCtx := command.WithTeamID(ctx, teamID)
-			mockInterceptor.On("Intercept", mock.Anything, "/incident redis").Return(&types.CommandResult{
-				Handled: true,
-				Message: "Redis latency",
-			}, nil)
+		It("should return error message when ExecuteGetIncidentRaw fails", func() {
+			incCtx := command.WithActiveIncidentID(ctx, incidentID)
+			rawArgs := fmt.Sprintf(`{"incident_id": "%s"}`, incidentID.String())
+			mockOrchestrator.On("ExecuteGetIncidentRaw", mock.Anything, rawArgs).Return("", errors.New("db error"))
 
-			res, err := mockInterceptor.Intercept(teamCtx, "/incident redis")
+			res, err := ci.Intercept(incCtx, "/incident")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
-			Expect(res.Message).To(ContainSubstring("Redis latency"))
+			Expect(res.Message).To(ContainSubstring("failed to fetch incident"))
 		})
 
-		It("should return message when argument provided but team context missing", func() {
-			mockInterceptor.On("Intercept", mock.Anything, "/incident redis").Return(&types.CommandResult{
-				Handled: true,
-				Message: "no active team context",
-			}, nil)
-
-			res, err := mockInterceptor.Intercept(ctx, "/incident redis")
+		It("should return message when search query provided but team context is missing", func() {
+			res, err := ci.Intercept(ctx, "/incident redis")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
-			Expect(res.Message).To(ContainSubstring("no active team context"))
+			Expect(res.Message).To(Equal("no active team context associated with session"))
+		})
+
+		It("should search team incidents when query provided and team context exists", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s"}`, teamID.String())
+			incidentsJSON := fmt.Sprintf(`[{"id":"%s","title":"Redis Latency","summary":"High latency on redis","status":"OPEN"}]`, incidentID.String())
+			mockOrchestrator.On("ExecuteListIncidentsRaw", mock.Anything, rawArgs).Return(incidentsJSON, nil)
+
+			res, err := ci.Intercept(teamCtx, "/incident redis")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(ContainSubstring("found 1 matching incident(s)"))
+		})
+
+		It("should return no match message when query does not match any team incidents", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s"}`, teamID.String())
+			incidentsJSON := fmt.Sprintf(`[{"id":"%s","title":"Postgres Latency","summary":"High latency on postgres","status":"OPEN"}]`, incidentID.String())
+			mockOrchestrator.On("ExecuteListIncidentsRaw", mock.Anything, rawArgs).Return(incidentsJSON, nil)
+
+			res, err := ci.Intercept(teamCtx, "/incident redis")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("no incidents matched query: 'redis'"))
+		})
+
+		It("should return error message when ExecuteListIncidentsRaw fails", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s"}`, teamID.String())
+			mockOrchestrator.On("ExecuteListIncidentsRaw", mock.Anything, rawArgs).Return("", errors.New("db list error"))
+
+			res, err := ci.Intercept(teamCtx, "/incident redis")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(ContainSubstring("failed to list incidents"))
+		})
+
+		It("should fallback to raw string when /incident response is invalid JSON", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s"}`, teamID.String())
+			mockOrchestrator.On("ExecuteListIncidentsRaw", mock.Anything, rawArgs).Return("raw text output", nil)
+
+			res, err := ci.Intercept(teamCtx, "/incident redis")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("raw text output"))
 		})
 	})
 
 	Context("Intercept /runbook", func() {
-		It("should list active runbooks when no argument provided", func() {
-			teamCtx := command.WithTeamID(ctx, teamID)
-			mockInterceptor.On("Intercept", mock.Anything, "/runbook").Return(&types.CommandResult{
-				Handled: true,
-				Message: "DB Failover",
-			}, nil)
-
-			res, err := mockInterceptor.Intercept(teamCtx, "/runbook")
+		It("should return error message when orchestrator is nil", func() {
+			nilCi := command.NewCommandInterceptor()
+			res, err := nilCi.Intercept(ctx, "/runbook")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
-			Expect(res.Message).To(ContainSubstring("DB Failover"))
+			Expect(res.Message).To(Equal("Orchestrator service is unavailable."))
 		})
 
-		It("should filter runbooks when query argument provided", func() {
-			teamCtx := command.WithTeamID(ctx, teamID)
-			mockInterceptor.On("Intercept", mock.Anything, "/runbook database").Return(&types.CommandResult{
-				Handled: true,
-				Message: "Database Connection Guide",
-			}, nil)
-
-			res, err := mockInterceptor.Intercept(teamCtx, "/runbook database")
+		It("should return message when team context is missing", func() {
+			res, err := ci.Intercept(ctx, "/runbook")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
-			Expect(res.Message).To(ContainSubstring("Database Connection Guide"))
+			Expect(res.Message).To(Equal("No active team context associated with this session."))
 		})
 
-		It("should return no match message when no runbooks match query", func() {
+		It("should format runbook list when no argument provided and team context exists", func() {
 			teamCtx := command.WithTeamID(ctx, teamID)
-			mockInterceptor.On("Intercept", mock.Anything, "/runbook database").Return(&types.CommandResult{
-				Handled: true,
-				Message: "no runbooks matched query",
-			}, nil)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s", "status": "active"}`, teamID.String())
+			runbooksJSON := `[{"title":"Database Recovery","status":"active"}]`
+			mockOrchestrator.On("ExecuteListRunbooksRaw", mock.Anything, rawArgs).Return(runbooksJSON, nil)
 
-			res, err := mockInterceptor.Intercept(teamCtx, "/runbook database")
+			res, err := ci.Intercept(teamCtx, "/runbook")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
-			Expect(res.Message).To(ContainSubstring("no runbooks matched query"))
+			Expect(res.Message).To(ContainSubstring("found 1 active runbook(s)"))
+		})
+
+		It("should return message when active runbook list is empty", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s", "status": "active"}`, teamID.String())
+			mockOrchestrator.On("ExecuteListRunbooksRaw", mock.Anything, rawArgs).Return("[]", nil)
+
+			res, err := ci.Intercept(teamCtx, "/runbook")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("no active runbooks found for team"))
+		})
+
+		It("should return error message when ExecuteListRunbooksRaw fails", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s", "status": "active"}`, teamID.String())
+			mockOrchestrator.On("ExecuteListRunbooksRaw", mock.Anything, rawArgs).Return("", errors.New("mcp error"))
+
+			res, err := ci.Intercept(teamCtx, "/runbook")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(ContainSubstring("Failed to list runbooks"))
+		})
+
+		It("should fallback to raw string when /runbook response is invalid JSON", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s", "status": "active"}`, teamID.String())
+			mockOrchestrator.On("ExecuteListRunbooksRaw", mock.Anything, rawArgs).Return("raw runbook string", nil)
+
+			res, err := ci.Intercept(teamCtx, "/runbook")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("raw runbook string"))
+		})
+
+		It("should search runbooks with keyword query matching title or content", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s", "status": "active"}`, teamID.String())
+			runbooksJSON := `[{"title":"Database Failover Guide","content":"Steps for postgres failover","status":"active"}]`
+			mockOrchestrator.On("ExecuteListRunbooksRaw", mock.Anything, rawArgs).Return(runbooksJSON, nil)
+
+			res, err := ci.Intercept(teamCtx, "/runbook postgres failover")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(ContainSubstring("found 1 matching runbook(s)"))
+		})
+
+		It("should return no match message when query does not match any runbooks", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			rawArgs := fmt.Sprintf(`{"team_id": "%s", "status": "active"}`, teamID.String())
+			runbooksJSON := `[{"title":"Database Failover Guide","content":"Steps for postgres failover","status":"active"}]`
+			mockOrchestrator.On("ExecuteListRunbooksRaw", mock.Anything, rawArgs).Return(runbooksJSON, nil)
+
+			res, err := ci.Intercept(teamCtx, "/runbook redis")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("no runbooks matched query: 'redis'"))
 		})
 	})
 
 	Context("Register custom command", func() {
 		It("should allow registering custom slash command handlers", func() {
-			// use concrete type to access registercommand
-			ci := command.NewCommandInterceptor().(*command.CommandInterceptor)
-			ci.RegisterCommand("/ping", func(ctx context.Context, prompt string) (*types.CommandResult, error) {
+			realCi := command.NewCommandInterceptor().(*command.CommandInterceptor)
+			realCi.RegisterCommand("/ping", func(ctx context.Context, prompt string) (*types.CommandResult, error) {
 				return &types.CommandResult{
 					Handled: true,
 					Message: "pong",
 				}, nil
 			})
 
-			res, err := ci.Intercept(ctx, "/ping")
+			res, err := realCi.Intercept(ctx, "/ping")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
 			Expect(res.Message).To(Equal("pong"))
+		})
+	})
+
+	Context("CommandContextHelpers", func() {
+		It("should inject and retrieve TeamID from context", func() {
+			teamCtx := command.WithTeamID(ctx, teamID)
+			retrieved, ok := command.GetTeamID(teamCtx)
+			Expect(ok).To(BeTrue())
+			Expect(retrieved).To(Equal(teamID))
+
+			emptyID, ok := command.GetTeamID(ctx)
+			Expect(ok).To(BeFalse())
+			Expect(emptyID).To(Equal(uuid.Nil))
+		})
+
+		It("should inject and retrieve ActiveIncidentID from context", func() {
+			incCtx := command.WithActiveIncidentID(ctx, incidentID)
+			retrieved, ok := command.GetActiveIncidentID(incCtx)
+			Expect(ok).To(BeTrue())
+			Expect(retrieved).To(Equal(incidentID))
+
+			emptyID, ok := command.GetActiveIncidentID(ctx)
+			Expect(ok).To(BeFalse())
+			Expect(emptyID).To(Equal(uuid.Nil))
 		})
 	})
 })

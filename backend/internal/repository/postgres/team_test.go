@@ -123,4 +123,88 @@ var _ = Describe("TeamRepository", func() {
 			Expect(user.ID).To(Equal(userID))
 		})
 	})
+
+	Context("RemoveTeamMember & DeleteTeam", func() {
+		It("should remove team member", func() {
+			teamID := uuid.New()
+			userID := uuid.New()
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`DELETE FROM "team_members" WHERE team_id = \$1 AND user_id = \$2`).
+				WithArgs(teamID, userID).
+				WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectCommit()
+
+			err := teamRepo.RemoveTeamMember(ctx, teamID, userID)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should delete team", func() {
+			teamID := uuid.New()
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`DELETE FROM "teams" WHERE id = \$1`).
+				WithArgs(teamID).
+				WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectCommit()
+
+			err := teamRepo.DeleteTeam(ctx, teamID)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("GetMemberRole & ListTeamMembers", func() {
+		It("should get member role", func() {
+			teamID := uuid.New()
+			userID := uuid.New()
+
+			rows := sqlmock.NewRows([]string{"id", "team_id", "user_id", "role"}).
+				AddRow(uuid.New(), teamID, userID, "owner")
+
+			mock.ExpectQuery(`SELECT \* FROM "team_members" WHERE team_id = \$1 AND user_id = \$2 ORDER BY "team_members"\."id" LIMIT \$3`).
+				WithArgs(teamID, userID, 1).
+				WillReturnRows(rows)
+
+			role, err := teamRepo.GetMemberRole(ctx, teamID, userID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(role).To(Equal("owner"))
+		})
+
+		It("should list team members", func() {
+			teamID := uuid.New()
+			userID := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "team_id", "user_id", "role"}).
+				AddRow(uuid.New(), teamID, userID, "member")
+
+			mock.ExpectQuery(`SELECT \* FROM "team_members" WHERE team_id = \$1`).
+				WithArgs(teamID).
+				WillReturnRows(rows)
+
+			userRows := sqlmock.NewRows([]string{"id", "email"}).
+				AddRow(userID, "user@test.com")
+
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE "users"\."id" = \$1`).
+				WithArgs(userID).
+				WillReturnRows(userRows)
+
+			members, err := teamRepo.ListTeamMembers(ctx, teamID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(members)).To(Equal(1))
+		})
+	})
+
+	Context("GetTeamInstruction", func() {
+		It("should return empty instruction list when record not found", func() {
+			teamID := uuid.New()
+
+			mock.ExpectQuery(`SELECT \* FROM "instructions" WHERE team_id = \$1 ORDER BY "instructions"\."id" LIMIT \$2`).
+				WithArgs(teamID, 1).
+				WillReturnError(gorm.ErrRecordNotFound)
+
+			inst, logs, err := teamRepo.GetTeamInstruction(ctx, teamID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(inst).To(BeNil())
+			Expect(len(logs)).To(Equal(0))
+		})
+	})
 })

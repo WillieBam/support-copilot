@@ -130,3 +130,33 @@ var _ = Describe("LooksLikeEmbeddedToolCall", func() {
 	)
 })
 
+var _ = Describe("ParseEmbeddedToolCall", func() {
+	It("should parse embedded tool call with name and parameters", func() {
+		content := `{"name": "validate_alert", "parameters": {"alert_id": "550e8400-e29b-41d4-a716-446655440000"}}`
+		toolCall, err := classifier.ParseEmbeddedToolCall(content)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(toolCall).NotTo(BeNil())
+		Expect(toolCall.Function.Name).To(Equal("validate_alert"))
+	})
+
+	It("should parse embedded tool call with function and arguments", func() {
+		content := `{"function": "search_runbooks", "arguments": {"query": "redis"}}`
+		toolCall, err := classifier.ParseEmbeddedToolCall(content)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(toolCall).NotTo(BeNil())
+		Expect(toolCall.Function.Name).To(Equal("search_runbooks"))
+	})
+
+	It("should fail when content does not contain JSON braces", func() {
+		_, err := classifier.ParseEmbeddedToolCall("plain text with no json")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no json object found"))
+	})
+
+	It("should fail when embedded tool call has no tool name", func() {
+		_, err := classifier.ParseEmbeddedToolCall(`{"parameters": {"key": "val"}}`)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("embedded tool call missing tool name"))
+	})
+})
+

@@ -2,6 +2,7 @@ package firebase
 
 import (
 	"context"
+	"errors"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
@@ -37,6 +38,10 @@ func NewFirebaseRepository(cfg *config.Config) (interfaces.IFirebaseRepository, 
 
 // VerifyIDToken contacts Firebase to decode and validate the incoming JWT token
 func (r *FirebaseRepository) VerifyIDToken(ctx context.Context, idToken string) (*auth.Token, error) {
+	if r == nil || r.authClient == nil {
+		return nil, errors.New("firebase auth client is not initialized")
+	}
+
 	token, err := r.authClient.VerifyIDToken(ctx, idToken)
 	if err != nil {
 		return nil, err

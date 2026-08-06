@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -21,7 +22,7 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 	var (
 		appSvc        interfaces.IAppService
 		mockAlertRepo *mocks.IAlertRepository
-		mockLLM *mocks.ILLMClient
+		mockLLM       *mocks.ILLMClient
 		mockMcpOne    *mocks.IMCPClient
 		ctx           context.Context
 	)
@@ -270,6 +271,50 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 		})
 	})
 
+	Context("Conversation helpers", func() {
+		It("should create a conversation when the repository is configured", func() {
+			mockConvRepo := &mocks.IConversationRepository{}
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockConvRepo)
+			teamID := uuid.New()
+			userID := uuid.New()
+
+			mockConvRepo.On("CreateConversation", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+				conv := args.Get(1).(*models.Conversation)
+				Expect(conv.TeamID).To(Equal(teamID))
+				Expect(conv.UserID).To(Equal(userID))
+			})
+
+			conv, err := customAppSvc.CreateConversation(ctx, teamID, userID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(conv).NotTo(BeNil())
+			Expect(conv.Title).To(Equal("New Conversation"))
+		})
+
+		It("should return an error when conversation repository is not configured", func() {
+			conv, err := appSvc.CreateConversation(ctx, uuid.New(), uuid.New())
+			Expect(err).To(HaveOccurred())
+			Expect(conv).To(BeNil())
+		})
+
+		It("should save messages and generate a title when the repository and LLM are available", func() {
+			mockConvRepo := &mocks.IConversationRepository{}
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockConvRepo)
+			convID := uuid.New()
+
+			mockConvRepo.On("CreateMessage", mock.Anything, mock.Anything).Return(nil)
+			mockConvRepo.On("UpdateConversationTitle", mock.Anything, convID, "Summarized topic").Return(nil)
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(&requests.OllamaMessage{Role: "assistant", Content: "Summarized topic"}, nil)
+
+			msg, err := customAppSvc.SaveMessage(ctx, convID, "assistant", "hello", "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(msg).NotTo(BeNil())
+
+			title, err := customAppSvc.GenerateAndSaveTitle(ctx, convID, "hello", "hi")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(title).To(Equal("Summarized topic"))
+		})
+	})
+
 	Context("IngestAlert", func() {
 		It("should successfully store alert in repository", func() {
 			incidentID := uuid.New()
@@ -291,5 +336,4 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 		})
 	})
 
-	
 })

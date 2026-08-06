@@ -218,7 +218,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                   {incident.history.map((item) => (
                     <div key={item.id} className="relative group">
                       {/* Timeline dot */}
-                      <div className="absolute -left-[27px] top-3.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
+                      <div className="absolute left-[27px] top-3.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
 
                       <div className="bg-background border border-border p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-3">

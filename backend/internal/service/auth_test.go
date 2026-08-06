@@ -204,4 +204,26 @@ var _ = Describe("AuthService", func() {
 			Expect(parsedClaims.Email).To(Equal("user@test.com"))
 		})
 	})
+
+	Context("ValidatePasswordComplexity", func() {
+		It("should fail if password length is less than 6 characters", func() {
+			err := service.ValidatePasswordComplexity("P!12")
+			Expect(err).To(Equal(service.ErrInvalidPasswordComplexity))
+		})
+
+		It("should fail if password length is greater than 8 characters", func() {
+			err := service.ValidatePasswordComplexity("LongPass!1")
+			Expect(err).To(Equal(service.ErrInvalidPasswordComplexity))
+		})
+
+		It("should fail if password lacks special character", func() {
+			err := service.ValidatePasswordComplexity("Pass1234")
+			Expect(err).To(Equal(service.ErrInvalidPasswordComplexity))
+		})
+
+		It("should succeed when password satisfies 6-8 chars and special char requirement", func() {
+			err := service.ValidatePasswordComplexity("Pass!12")
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
 })

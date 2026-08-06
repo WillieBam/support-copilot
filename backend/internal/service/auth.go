@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"regexp"
 	"time"
 
 	"log/slog"
@@ -14,6 +15,24 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
+
+var (
+	// ErrInvalidPasswordComplexity enforces nfr01 password policy
+	ErrInvalidPasswordComplexity = errors.New("password must be between 6 and 8 characters long and contain at least one special character")
+)
+
+var specialCharRegex = regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`)
+
+// ValidatePasswordComplexity validates that password satisfies nfr01 complexity policy
+func ValidatePasswordComplexity(password string) error {
+	if len(password) < 6 || len(password) > 8 {
+		return ErrInvalidPasswordComplexity
+	}
+	if !specialCharRegex.MatchString(password) {
+		return ErrInvalidPasswordComplexity
+	}
+	return nil
+}
 
 type authService struct {
 	userRepo     interfaces.IUserRepository

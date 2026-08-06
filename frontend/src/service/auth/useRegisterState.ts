@@ -29,11 +29,16 @@ export const useRegisterState = (auth: ReturnType<typeof useFirebaseTotpAuth>) =
       hasError = true
     }
 
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(auth.password);
+
     if (!auth.password) {
       setPasswordError('Password is required')
       hasError = true
-    } else if (auth.password.length < 6) {
-      setPasswordError('Password must be at least 6 characters')
+    } else if (auth.password.length < 6 || auth.password.length > 8) {
+      setPasswordError('Password must be between 6 and 8 characters long')
+      hasError = true
+    } else if (!hasSpecialChar) {
+      setPasswordError('Password must contain at least one special character (!@#$%^&*)')
       hasError = true
     }
 

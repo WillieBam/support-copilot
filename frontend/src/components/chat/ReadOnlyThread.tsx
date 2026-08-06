@@ -1,5 +1,5 @@
 import type { ConversationMessage } from '@/types/conversation';
-import { ArrowLeft, Eye, Bot, User, Brain } from 'lucide-react';
+import { ArrowLeft, Eye, Bot, User } from 'lucide-react';
 
 interface ReadOnlyThreadProps {
   messages: ConversationMessage[];
@@ -57,16 +57,6 @@ export function ReadOnlyThread({ messages, isLoading, onBack }: ReadOnlyThreadPr
 
                 {/* Message Bubble */}
                 <div className="flex flex-col gap-2">
-                  {/* Optional Reasoning Steps */}
-                  {msg.reasoning_steps && (
-                    <div className="p-3 bg-muted/30 border border-border/60 rounded-[14px] text-xs text-muted-foreground font-mono space-y-1">
-                      <div className="flex items-center gap-1.5 font-sans font-semibold text-emerald-500">
-                        <Brain className="w-3.5 h-3.5" /> Reasoning Steps
-                      </div>
-                      <p className="whitespace-pre-wrap">{msg.reasoning_steps}</p>
-                    </div>
-                  )}
-
                   {/* Message Content */}
                   <div
                     className={`p-4 rounded-[16px] text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${

@@ -116,7 +116,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                   <div>
                     <h1 className="text-xl font-bold text-foreground tracking-tight">{incident.title}</h1>
                     <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                      <User className="w-3.5 h-3.5" /> Assigned to: <span className="text-foreground font-medium">{getUserDisplayName(incident.assigned_by)}</span>
+                      <User className="w-3.5 h-3.5" /> Created by: <span className="text-foreground font-medium">{getUserDisplayName(incident.created_by)}</span>
                     </p>
                   </div>
                 </div>

@@ -33,7 +33,12 @@ func (h *Handler) CreateRunbook(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "content is required"})
 	}
 
-	rb, err := h.teamService.CreateRunbook(c.Request().Context(), teamID, req.IncidentID, req.Title, req.Content)
+	var creatorID uuid.UUID
+	if user, userErr := h.getAuthenticatedUser(c); userErr == nil && user != nil {
+		creatorID = user.ID
+	}
+
+	rb, err := h.teamService.CreateRunbook(c.Request().Context(), creatorID, teamID, req.IncidentID, req.Title, req.Content)
 	if err != nil {
 		slog.Error("[runbook] CreateRunbook failed", "team_id", teamID, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -53,7 +58,12 @@ func (h *Handler) UpdateRunbook(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	rb, err := h.teamService.UpdateRunbook(c.Request().Context(), runbookID, req.Title, req.Content)
+	var updaterID uuid.UUID
+	if user, userErr := h.getAuthenticatedUser(c); userErr == nil && user != nil {
+		updaterID = user.ID
+	}
+
+	rb, err := h.teamService.UpdateRunbook(c.Request().Context(), updaterID, runbookID, req.Title, req.Content)
 	if err != nil {
 		slog.Error("[runbook] UpdateRunbook failed", "runbook_id", runbookID, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -88,6 +98,21 @@ func (h *Handler) GetRunbook(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "runbook not found"})
 	}
 	return c.JSON(http.StatusOK, rb)
+}
+
+// GetRunbookLogs handles get /internal/runbooks/:id/logs
+func (h *Handler) GetRunbookLogs(c *echo.Context) error {
+	runbookID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid runbook id"})
+	}
+
+	logs, err := h.teamService.GetRunbookLogs(c.Request().Context(), runbookID)
+	if err != nil {
+		slog.Error("[runbook] GetRunbookLogs failed", "runbook_id", runbookID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, logs)
 }
 
 // ListRunbooks handles get /internal/teams/:team_id/runbooks?status=active

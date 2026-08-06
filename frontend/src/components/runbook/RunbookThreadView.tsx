@@ -1,6 +1,7 @@
-import React from 'react';
-import { ArrowLeft, BookOpen, Bot, FileText, Check, Edit3, Trash2, Calendar, Hash, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, BookOpen, Bot, FileText, Check, Edit3, Trash2, Calendar, Hash, ShieldAlert, History, User, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRunbookThreadState } from './useRunbookThreadState';
+import { useTeam } from '@/context/TeamContext';
 
 interface RunbookThreadViewProps {
   runbookId: string;
@@ -17,6 +18,7 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
 }) => {
   const {
     runbook,
+    runbookLogs,
     isLoading,
     authError,
     isEditing,
@@ -29,6 +31,15 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
     handleSave,
     handleDeprecate,
   } = useRunbookThreadState(runbookId, activeTeamId, onBack, onRunbookUpdated);
+
+  const { teamMembers } = useTeam();
+  const [showHistory, setShowHistory] = useState(false);
+
+  const getUserDisplayName = (userId?: string) => {
+    if (!userId) return 'System';
+    const member = teamMembers.find((m) => m.user_id === userId);
+    return member?.user?.display_name || member?.user?.email || userId;
+  };
 
   const formatDate = (isoString?: string) => {
     if (!isoString) return '';
@@ -102,13 +113,18 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
 
               <div className="flex flex-col gap-2 w-full">
                 <div className="p-4 rounded-[16px] bg-card border border-border text-foreground rounded-tl-none space-y-2 shadow-sm">
-                  <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <div className="flex items-center justify-between border-b border-border/60 pb-2 flex-wrap gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5" /> Operational Runbook
                     </span>
-                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Calendar className="w-3 h-3" /> {formatDate(runbook.created_at)}
-                    </span>
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <User className="w-3 h-3 text-emerald-500" /> Created by: <strong className="text-foreground font-medium">{getUserDisplayName(runbook.created_by)}</strong>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> {formatDate(runbook.created_at)}
+                      </span>
+                    </div>
                   </div>
 
                   {isEditing ? (
@@ -133,7 +149,7 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
               </div>
             </div>
 
-            {/* Assistant Runbook Content Bubble */}
+            {/* Runbook Content Bubble */}
             <div className="flex gap-3 mr-auto flex-row">
               <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border text-xs font-bold bg-muted text-muted-foreground border-border">
                 <Bot className="w-4 h-4" />
@@ -156,6 +172,44 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Version History Accordion / Section */}
+            {runbookLogs && runbookLogs.length > 0 && (
+              <div className="border border-border bg-card/60 rounded-2xl p-4 space-y-3 backdrop-blur-md">
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="flex items-center justify-between w-full text-xs font-bold text-foreground hover:text-emerald-500 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-emerald-500" />
+                    <span>Version History ({runbookLogs.length} past revision{runbookLogs.length > 1 ? 's' : ''})</span>
+                  </div>
+                  {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {showHistory && (
+                  <div className="space-y-3 pt-2 border-t border-border/60">
+                    {runbookLogs.map((log) => (
+                      <div key={log.id} className="bg-background/80 border border-border/80 rounded-xl p-3.5 space-y-2 text-xs">
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span className="font-semibold text-emerald-500">Version #{log.version}</span>
+                          <div className="flex items-center gap-3 text-[11px]">
+                            <span>Edited by: <strong className="text-foreground">{getUserDisplayName(log.updated_by)}</strong></span>
+                            <span>{formatDate(log.updated_at)}</span>
+                          </div>
+                        </div>
+                        {log.older_title && (
+                          <p className="font-bold text-foreground truncate">Previous Title: {log.older_title}</p>
+                        )}
+                        <div className="p-2.5 bg-muted/40 rounded-lg text-muted-foreground whitespace-pre-wrap font-mono text-[11px] max-h-40 overflow-y-auto">
+                          {log.older_content}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

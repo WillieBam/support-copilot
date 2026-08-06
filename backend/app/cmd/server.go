@@ -71,6 +71,7 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 		apiGroup.POST("/teams/:team_id/runbooks", h.CreateRunbook)
 		apiGroup.GET("/teams/:team_id/runbooks", h.ListRunbooks)
 		apiGroup.GET("/runbooks/:id", h.GetRunbook)
+		apiGroup.GET("/runbooks/:id/logs", h.GetRunbookLogs)
 		apiGroup.PATCH("/runbooks/:id", h.UpdateRunbook)
 		apiGroup.PATCH("/runbooks/:id/deprecate", h.DeprecateRunbook)
 
@@ -95,6 +96,7 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 		internalGroup.PATCH("/runbooks/:id", h.UpdateRunbook)
 		internalGroup.PATCH("/runbooks/:id/deprecate", h.DeprecateRunbook)
 		internalGroup.GET("/runbooks/:id", h.GetRunbook)
+		internalGroup.GET("/runbooks/:id/logs", h.GetRunbookLogs)
 		internalGroup.GET("/teams/:team_id/runbooks", h.ListRunbooks)
 		internalGroup.GET("/teams/:team_id/incidents", h.ListIncidentsInternal)
 		internalGroup.GET("/incidents/:id/context", h.GetIncidentContext)

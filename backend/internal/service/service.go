@@ -292,7 +292,7 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		Tools:    availableTools,
 	}
 
-	// Call Ollama streaming with tool declarations dynamically provided by ToolRegistry
+	// Call LLM streaming with tool declarations dynamically provided by ToolRegistry
 	assistantMsg, err := s.llmClient.QueryStreamWithTools(ctx, req, streamChan)
 	if err != nil {
 		slog.Error("[APP SERVICE] First pass QueryStreamWithTools failed", "err", err)

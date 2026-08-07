@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
+	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 	"github.com/WillieBam/support_copilot/backend/types/responses"
@@ -38,6 +40,37 @@ func NewOrchestratorService(
 		}
 	}
 	return svc
+}
+
+// ExecuteListAlertsRaw returns a list of alerts from the backend.
+func (s *orchestratorService) ExecuteListAlertsRaw(ctx context.Context) (string, error) {
+	slog.Info("[ORCHESTRATOR] ExecuteListAlertsRaw triggered")
+	alerts, err := s.alertRepo.ListAlerts(ctx, 20)
+	if err != nil {
+		slog.Error("[ORCHESTRATOR] Failed to list alerts", "err", err)
+		return "", fmt.Errorf("failed to list alerts: %w", err)
+	}
+
+	items := make([]types.AlertListItem, 0, len(alerts))
+	for _, a := range alerts {
+		item := types.AlertListItem{
+			ID:          a.ID.String(),
+			ServiceName: a.ServiceName,
+			Severity:    a.Severity,
+			ReceivedAt:  a.ReceivedAt.Format(time.RFC3339),
+		}
+		if a.IncidentID != nil {
+			item.IncidentID = a.IncidentID.String()
+		}
+		items = append(items, item)
+	}
+
+	out, err := json.Marshal(items)
+	if err != nil {
+		slog.Error("[ORCHESTRATOR] Failed to marshal alerts", "err", err)
+		return "", fmt.Errorf("failed to marshal alerts: %w", err)
+	}
+	return string(out), nil
 }
 
 // ExecuteValidateAlert fetches alert metrics from Postgres and predicts anomalies via Python MCP.

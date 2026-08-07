@@ -1,5 +1,16 @@
 package types
 
+// AlertListItem is a JSON-serialisable DTO used when listing alerts.
+// models.Alert relies on GORM struct tags and has no json tags, so mapping
+// to this DTO guarantees the snake_case field names that AlertRecord expects.
+type AlertListItem struct {
+	ID          string `json:"id"`
+	ServiceName string `json:"service_name"`
+	Severity    string `json:"severity"`
+	ReceivedAt  string `json:"received_at"`
+	IncidentID  string `json:"incident_id,omitempty"`
+}
+
 type AlertMetrics struct {
 	CPUUsage            float64 `json:"cpu_usage"`
 	MemoryUsage         float64 `json:"memory_usage"`

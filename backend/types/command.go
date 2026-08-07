@@ -27,3 +27,11 @@ type RunbookRecord struct {
 	Content   string `json:"content,omitempty"`
 	UpdatedAt string `json:"updated_at,omitempty"`
 }
+
+type AlertRecord struct {
+	ID          string `json:"id"`
+	ServiceName string `json:"service_name"`
+	Severity    string `json:"severity"`
+	ReceivedAt  string `json:"received_at"`
+	IncidentID  string `json:"incident_id,omitempty"`
+}

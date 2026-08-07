@@ -112,7 +112,6 @@ func newConfig() IConfig {
 	cfg.SetDefault("llm.keep_alive", "30m")
 	cfg.SetDefault("llm.timeout", 5*time.Minute)
 	cfg.SetDefault("llm.num_ctx", 2048)
-	cfg.SetDefault("llm.tls_skip_verify", false)
 	cfg.SetDefault("mcp1.host", "localhost")
 	cfg.SetDefault("mcp1.port", 9000)
 	cfg.SetDefault("mcp2.host", "localhost")

@@ -18,8 +18,6 @@ type CommandInterceptor struct {
 	orchestrator interfaces.IOrchestratorService
 }
 
-
-
 func NewCommandInterceptor(orchestrator ...interfaces.IOrchestratorService) interfaces.ICommandInterceptor {
 	ci := &CommandInterceptor{
 		handlers: make(map[string]CommandHandler),
@@ -30,6 +28,7 @@ func NewCommandInterceptor(orchestrator ...interfaces.IOrchestratorService) inte
 	ci.RegisterCommand("/quit", handleQuitCommand) // register command here, add on when needed
 	ci.RegisterCommand("/incident", ci.handleIncidentCommand)
 	ci.RegisterCommand("/runbook", ci.handleRunbookCommand)
+	ci.RegisterCommand("/alert", ci.handleAlertCommand)
 	return ci
 }
 
@@ -138,6 +137,30 @@ func (ci *CommandInterceptor) handleRunbookCommand(ctx context.Context, prompt s
 	return &types.CommandResult{Handled: true, Message: filtered}, nil
 }
 
+func (ci *CommandInterceptor) handleAlertCommand(ctx context.Context, prompt string) (*types.CommandResult,
+	error) {
+	if ci.orchestrator == nil {
+		return &types.CommandResult{
+			Handled: true,
+			Message: "Orchestrator service is unavailable.",
+		}, nil
+	}
+
+	alertJSON, err := ci.orchestrator.ExecuteListAlertsRaw(ctx)
+	if err != nil {
+		return &types.CommandResult{
+			Handled: true,
+			Message: fmt.Sprintf("Failed to list alerts: %v", err),
+		}, nil
+	}
+
+	return &types.CommandResult{
+		Handled: true,
+		Message: formatAlertList(alertJSON),
+	}, nil
+
+}
+
 func formatRunbookList(jsonStr string) string {
 	var runbooks []types.RunbookRecord
 	if err := json.Unmarshal([]byte(jsonStr), &runbooks); err != nil {
@@ -152,6 +175,29 @@ func formatRunbookList(jsonStr string) string {
 	sb.WriteString(fmt.Sprintf("found %d active runbook(s) for your team:\n\n", len(runbooks)))
 	for _, rb := range runbooks {
 		sb.WriteString(fmt.Sprintf("- **%s** (status: %s)\n", rb.Title, rb.Status))
+	}
+	return sb.String()
+}
+
+func formatAlertList(jsonStr string) string {
+	var alerts []types.AlertRecord
+
+	if err := json.Unmarshal([]byte(jsonStr), &alerts); err != nil {
+		return jsonStr
+	}
+
+	if len(alerts) == 0 {
+		return "no alerts found"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("found %d alert(s):\n\n", len(alerts)))
+	for _, a := range alerts {
+		link := "unlinked"
+		if a.IncidentID != "" {
+			link = fmt.Sprintf("linked to incident `%s`", a.IncidentID)
+		}
+		sb.WriteString(fmt.Sprintf("- **%s** [%s] %s — `%s`\n", a.ServiceName, a.Severity, link, a.ID))
 	}
 	return sb.String()
 }

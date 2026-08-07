@@ -44,3 +44,9 @@ func (a *alertRepository) UpdateAlertIncidentID(ctx context.Context, alertID, in
 		Where("id = ?", alertID).
 		Update("incident_id", incidentID).Error
 }
+
+func (a *alertRepository) ListAlerts(ctx context.Context, limit int) ([]*models.Alert, error) {
+	var alerts []*models.Alert
+	err := a.db.WithContext(ctx).Order("received_at DESC").Limit(limit).Find(&alerts).Error
+	return alerts, err
+}

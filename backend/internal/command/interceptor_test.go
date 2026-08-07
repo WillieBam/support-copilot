@@ -241,6 +241,56 @@ var _ = Describe("CommandInterceptor", func() {
 		})
 	})
 
+	Context("Intercept /alert", func() {
+		It("should return error message when orchestrator is nil", func() {
+			nilCi := command.NewCommandInterceptor()
+			res, err := nilCi.Intercept(ctx, "/alert")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("Orchestrator service is unavailable."))
+		})
+
+		It("should format alert list when alerts exist", func() {
+			alertID := uuid.New()
+			alertsJSON := `[{"id":"` + alertID.String() + `","service_name":"auth-service","severity":"CRITICAL","received_at":"2026-08-07T10:00:00Z"}]`
+			mockOrchestrator.On("ExecuteListAlertsRaw", mock.Anything).Return(alertsJSON, nil)
+
+			res, err := ci.Intercept(ctx, "/alert")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(ContainSubstring("found 1 alert(s)"))
+			Expect(res.Message).To(ContainSubstring("auth-service"))
+			Expect(res.Message).To(ContainSubstring("CRITICAL"))
+		})
+
+		It("should return no alerts found message when alert list is empty", func() {
+			mockOrchestrator.On("ExecuteListAlertsRaw", mock.Anything).Return("[]", nil)
+
+			res, err := ci.Intercept(ctx, "/alert")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("no alerts found"))
+		})
+
+		It("should return error message when ExecuteListAlertsRaw fails", func() {
+			mockOrchestrator.On("ExecuteListAlertsRaw", mock.Anything).Return("", errors.New("db query error"))
+
+			res, err := ci.Intercept(ctx, "/alert")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(ContainSubstring("Failed to list alerts"))
+		})
+
+		It("should fallback to raw string when /alert response is invalid JSON", func() {
+			mockOrchestrator.On("ExecuteListAlertsRaw", mock.Anything).Return("raw alert string", nil)
+
+			res, err := ci.Intercept(ctx, "/alert")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("raw alert string"))
+		})
+	})
+
 	Context("Register custom command", func() {
 		It("should allow registering custom slash command handlers", func() {
 			realCi := command.NewCommandInterceptor().(*command.CommandInterceptor)

@@ -2,10 +2,10 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/WillieBam/support_copilot/backend/internal/domain/data"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
 )
@@ -162,8 +162,8 @@ func (ci *CommandInterceptor) handleAlertCommand(ctx context.Context, prompt str
 }
 
 func formatRunbookList(jsonStr string) string {
-	var runbooks []types.RunbookRecord
-	if err := json.Unmarshal([]byte(jsonStr), &runbooks); err != nil {
+	runbooks, err := data.UnmarshalRunbooks(jsonStr)
+	if err != nil {
 		return jsonStr
 	}
 
@@ -180,9 +180,8 @@ func formatRunbookList(jsonStr string) string {
 }
 
 func formatAlertList(jsonStr string) string {
-	var alerts []types.AlertRecord
-
-	if err := json.Unmarshal([]byte(jsonStr), &alerts); err != nil {
+	alerts, err := data.UnmarshalAlerts(jsonStr)
+	if err != nil {
 		return jsonStr
 	}
 
@@ -203,8 +202,8 @@ func formatAlertList(jsonStr string) string {
 }
 
 func filterIncidentsByQuery(jsonStr string, query string) string {
-	var incidents []types.IncidentRecord
-	if err := json.Unmarshal([]byte(jsonStr), &incidents); err != nil {
+	incidents, err := data.UnmarshalIncidents(jsonStr)
+	if err != nil {
 		return jsonStr // return raw fallback if parsing fails
 	}
 
@@ -237,8 +236,8 @@ func filterIncidentsByQuery(jsonStr string, query string) string {
 }
 
 func filterRunbooksByQuery(jsonStr string, query string) string {
-	var runbooks []types.RunbookRecord
-	if err := json.Unmarshal([]byte(jsonStr), &runbooks); err != nil {
+	runbooks, err := data.UnmarshalRunbooks(jsonStr)
+	if err != nil {
 		return jsonStr
 	}
 
@@ -269,3 +268,4 @@ func filterRunbooksByQuery(jsonStr string, query string) string {
 	}
 	return sb.String()
 }
+

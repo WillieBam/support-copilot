@@ -255,4 +255,106 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			Expect(res).To(ContainSubstring(incidentID.String()))
 		})
 	})
+
+	Context("ExecuteListAlertsRaw", func() {
+		It("should return json formatted list of alerts", func() {
+			alerts := []*models.Alert{
+				testAlert,
+			}
+			mockAlertRepo.On("ListAlerts", mock.Anything, 20).Return(alerts, nil)
+
+			res, err := orchestratorSvc.ExecuteListAlertsRaw(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("payment-service"))
+		})
+
+		It("should return error when alertRepo ListAlerts fails", func() {
+			mockAlertRepo.On("ListAlerts", mock.Anything, 20).Return(nil, errors.New("db error"))
+
+			_, err := orchestratorSvc.ExecuteListAlertsRaw(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to list alerts"))
+		})
+	})
+
+	Context("Raw Tools Argument Validation and Errors", func() {
+		It("should return error on empty or dummy alert_id in ExecuteValidateAlertRaw", func() {
+			_, err := orchestratorSvc.ExecuteValidateAlertRaw(ctx, `{"alert_id": "null"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no valid alert_id provided"))
+		})
+
+		It("should return error on missing incident_id in ExecuteGetIncidentRaw", func() {
+			_, err := orchestratorSvc.ExecuteGetIncidentRaw(ctx, `{"incident_id": ""}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("incident_id is required"))
+		})
+
+		It("should return error on invalid json in ExecuteGetIncidentRaw", func() {
+			_, err := orchestratorSvc.ExecuteGetIncidentRaw(ctx, `invalid json`)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should return error on missing team_id in ExecuteListIncidentsRaw", func() {
+			_, err := orchestratorSvc.ExecuteListIncidentsRaw(ctx, `{"team_id": ""}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("team_id is required"))
+		})
+
+		It("should return error on missing required fields in ExecuteCreateRunbookRaw", func() {
+			_, err := orchestratorSvc.ExecuteCreateRunbookRaw(ctx, `{"title": "Title"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("team_id, incident_id, title, and content are required"))
+		})
+
+		It("should return error on missing runbook_id in ExecuteUpdateRunbookRaw", func() {
+			_, err := orchestratorSvc.ExecuteUpdateRunbookRaw(ctx, `{"title": "Title"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("runbook_id is required"))
+		})
+
+		It("should return error on missing runbook_id in ExecuteDeprecateRunbookRaw", func() {
+			_, err := orchestratorSvc.ExecuteDeprecateRunbookRaw(ctx, `{}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("runbook_id is required"))
+		})
+
+		It("should return error on missing runbook_id in ExecuteGetRunbookRaw", func() {
+			_, err := orchestratorSvc.ExecuteGetRunbookRaw(ctx, `{}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("runbook_id is required"))
+		})
+
+		It("should return error on missing team_id in ExecuteListRunbooksRaw", func() {
+			_, err := orchestratorSvc.ExecuteListRunbooksRaw(ctx, `{}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("team_id is required"))
+		})
+
+		It("should return error on invalid alert_id in ExecuteLinkAlertToIncidentRaw", func() {
+			_, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `{"alert_id": "invalid"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid alert_id"))
+		})
+
+		It("should return error when incident title cannot be resolved in ExecuteLinkAlertToIncidentRaw", func() {
+			alertID := uuid.New()
+			mockTeamRepo.On("ListTeamIncidents", mock.Anything, uuid.Nil).Return([]models.TeamIncident{}, nil)
+
+			_, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `{"alert_id": "`+alertID.String()+`", "incident_title": "NonExistent"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not resolve valid incident UUID"))
+		})
+
+		It("should return error when UpdateAlertIncidentID fails in ExecuteLinkAlertToIncidentRaw", func() {
+			alertID := uuid.New()
+			incidentID := uuid.New()
+			mockAlertRepo.On("UpdateAlertIncidentID", mock.Anything, alertID, incidentID).Return(errors.New("db error"))
+
+			_, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `{"alert_id": "`+alertID.String()+`", "incident_id": "`+incidentID.String()+`"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to link alert to incident"))
+		})
+	})
 })
+

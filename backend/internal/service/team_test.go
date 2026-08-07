@@ -14,6 +14,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
 	"github.com/WillieBam/support_copilot/backend/internal/service"
 	"github.com/WillieBam/support_copilot/backend/types/models"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 )
 
 var _ = Describe("TeamService", func() {
@@ -36,14 +37,14 @@ var _ = Describe("TeamService", func() {
 	Context("CreateTeam", func() {
 		It("should fail if team name is empty", func() {
 			team, err := teamSvc.CreateTeam(ctx, "   ", uuid.New())
-			Expect(err).To(Equal(service.ErrTeamNameRequired))
+			Expect(err).To(Equal(customErrors.ErrTeamNameRequired))
 			Expect(team).To(BeNil())
 		})
 
 		It("should fail if team name is longer than 20 characters", func() {
 			longName := "ThisTeamNameIsWayTooLongForConstraint"
 			team, err := teamSvc.CreateTeam(ctx, longName, uuid.New())
-			Expect(err).To(Equal(service.ErrTeamNameTooLong))
+			Expect(err).To(Equal(customErrors.ErrTeamNameTooLong))
 			Expect(team).To(BeNil())
 		})
 
@@ -109,7 +110,7 @@ var _ = Describe("TeamService", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, requesterID).Return("member", nil)
 
 			err := teamSvc.AddMember(ctx, requesterID, teamID, targetID)
-			Expect(err).To(Equal(service.ErrUnauthorizedTeamOp))
+			Expect(err).To(Equal(customErrors.ErrUnauthorizedTeamOp))
 		})
 
 		It("should succeed and assign member role when requester is team owner", func() {
@@ -142,7 +143,7 @@ var _ = Describe("TeamService", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, memberID).Return("member", nil)
 
 			err := teamSvc.RemoveMember(ctx, memberID, teamID, uuid.New())
-			Expect(err).To(Equal(service.ErrUnauthorizedTeamOp))
+			Expect(err).To(Equal(customErrors.ErrUnauthorizedTeamOp))
 		})
 
 		It("should fail if target user is not in team", func() {
@@ -150,7 +151,7 @@ var _ = Describe("TeamService", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, nonMemberID).Return("", gorm.ErrRecordNotFound)
 
 			err := teamSvc.RemoveMember(ctx, ownerID, teamID, nonMemberID)
-			Expect(err).To(Equal(service.ErrUserNotInTeam))
+			Expect(err).To(Equal(customErrors.ErrUserNotInTeam))
 		})
 
 		It("should succeed when owner removes a member", func() {
@@ -172,7 +173,7 @@ var _ = Describe("TeamService", func() {
 
 		It("should fail if user scope is not super_admin", func() {
 			err := teamSvc.DeleteTeam(ctx, "engineer", teamID)
-			Expect(err).To(Equal(service.ErrSuperAdminRequired))
+			Expect(err).To(Equal(customErrors.ErrSuperAdminRequired))
 		})
 
 		It("should succeed if user scope is super_admin", func() {
@@ -198,7 +199,7 @@ var _ = Describe("TeamService", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("", errors.New("not member"))
 
 			inc, err := teamSvc.AssignIncident(ctx, userID, teamID, "High Latency", "OPEN", "Details")
-			Expect(err).To(Equal(service.ErrUnauthorizedTeamOp))
+			Expect(err).To(Equal(customErrors.ErrUnauthorizedTeamOp))
 			Expect(inc).To(BeNil())
 		})
 
@@ -246,7 +247,7 @@ var _ = Describe("TeamService", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("", errors.New("not member"))
 
 			inc, err := teamSvc.GetIncident(ctx, userID, incidentID)
-			Expect(err).To(Equal(service.ErrUnauthorizedTeamOp))
+			Expect(err).To(Equal(customErrors.ErrUnauthorizedTeamOp))
 			Expect(inc).To(BeNil())
 		})
 
@@ -262,7 +263,7 @@ var _ = Describe("TeamService", func() {
 
 		It("should fail UpdateIncidentStatus when status is invalid", func() {
 			inc, err := teamSvc.UpdateIncidentStatus(ctx, userID, incidentID, "INVALID_STATUS", "Title", "Details")
-			Expect(err).To(Equal(service.ErrInvalidIncidentStatus))
+			Expect(err).To(Equal(customErrors.ErrInvalidIncidentStatus))
 			Expect(inc).To(BeNil())
 		})
 
@@ -325,7 +326,7 @@ var _ = Describe("TeamService", func() {
 			// short instruction details under 30 characters
 			shortDetails := "too short details"
 			inst, err := teamSvc.SaveTeamInstruction(ctx, userID, teamID, shortDetails)
-			Expect(err).To(Equal(service.ErrInstructionTooShort))
+			Expect(err).To(Equal(customErrors.ErrInstructionTooShort))
 			Expect(inst).To(BeNil())
 		})
 

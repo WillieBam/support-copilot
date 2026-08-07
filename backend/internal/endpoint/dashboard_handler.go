@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/WillieBam/support_copilot/backend/internal/service"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 )
@@ -47,10 +47,10 @@ func (h *Handler) GetIncidentTrend(c *echo.Context) error {
 	slog.Info("[dashboard] GetIncidentTrend", "team_id", teamID, "timeframe", timeframe, "requester_id", user.ID)
 	results, err := h.dashboardService.GetIncidentTrend(c.Request().Context(), user.ID, teamID, user.Scope, timeframe)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidTimeframe) {
+		if errors.Is(err, customErrors.ErrInvalidTimeframe) {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
-		if errors.Is(err, service.ErrDashboardUnauthorized) {
+		if errors.Is(err, customErrors.ErrDashboardUnauthorized) {
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
 		slog.Error("[dashboard] GetIncidentTrend failed", "error", err)
@@ -80,10 +80,10 @@ func (h *Handler) GetMTTR(c *echo.Context) error {
 	slog.Info("[dashboard] GetMTTR", "team_id", teamID, "sla_target_minutes", slaTarget, "requester_id", user.ID)
 	result, err := h.dashboardService.GetMTTR(c.Request().Context(), user.ID, teamID, user.Scope, slaTarget)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidSLATarget) {
+		if errors.Is(err, customErrors.ErrInvalidSLATarget) {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
-		if errors.Is(err, service.ErrDashboardUnauthorized) {
+		if errors.Is(err, customErrors.ErrDashboardUnauthorized) {
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
 		slog.Error("[dashboard] GetMTTR failed", "error", err)
@@ -127,10 +127,10 @@ func (h *Handler) GetBreachedIncidents(c *echo.Context) error {
 	slog.Info("[dashboard] GetBreachedIncidents", "team_id", teamID, "sla_target_minutes", slaTarget, "requester_id", user.ID)
 	results, err := h.dashboardService.GetBreachedIncidents(c.Request().Context(), user.ID, teamID, user.Scope, slaTarget, limit, offset)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidSLATarget) {
+		if errors.Is(err, customErrors.ErrInvalidSLATarget) {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
-		if errors.Is(err, service.ErrDashboardUnauthorized) {
+		if errors.Is(err, customErrors.ErrDashboardUnauthorized) {
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
 		slog.Error("[dashboard] GetBreachedIncidents failed", "error", err)

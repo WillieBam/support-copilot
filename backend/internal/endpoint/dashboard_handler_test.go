@@ -7,9 +7,9 @@ import (
 
 	"github.com/WillieBam/support_copilot/backend/internal/endpoint"
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
-	"github.com/WillieBam/support_copilot/backend/internal/service"
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/models"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	. "github.com/onsi/ginkgo/v2"
@@ -77,7 +77,7 @@ var _ = Describe("DashboardHandler", func() {
 
 			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(testUser, nil)
 			mockDashSvc.On("GetIncidentTrend", mock.Anything, userID, teamID, "engineer", "invalid").
-				Return(nil, service.ErrInvalidTimeframe)
+				Return(nil, customErrors.ErrInvalidTimeframe)
 
 			err := h.GetIncidentTrend(c)
 			Expect(err).NotTo(HaveOccurred())

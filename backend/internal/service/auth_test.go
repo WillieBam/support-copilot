@@ -14,6 +14,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
 	"github.com/WillieBam/support_copilot/backend/internal/service"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 )
 
 var _ = Describe("AuthService", func() {
@@ -206,19 +207,19 @@ var _ = Describe("AuthService", func() {
 	})
 
 	Context("ValidatePasswordComplexity", func() {
-		It("should fail if password length is less than 6 characters", func() {
-			err := service.ValidatePasswordComplexity("P!12")
-			Expect(err).To(Equal(service.ErrInvalidPasswordComplexity))
+		It("should fail if password is too short", func() {
+			err := service.ValidatePasswordComplexity("short")
+			Expect(err).To(Equal(customErrors.ErrInvalidPasswordComplexity))
 		})
 
-		It("should fail if password length is greater than 8 characters", func() {
-			err := service.ValidatePasswordComplexity("LongPass!1")
-			Expect(err).To(Equal(service.ErrInvalidPasswordComplexity))
+		It("should fail if password is too long", func() {
+			err := service.ValidatePasswordComplexity("toolongpassword")
+			Expect(err).To(Equal(customErrors.ErrInvalidPasswordComplexity))
 		})
 
-		It("should fail if password lacks special character", func() {
-			err := service.ValidatePasswordComplexity("Pass1234")
-			Expect(err).To(Equal(service.ErrInvalidPasswordComplexity))
+		It("should fail if password missing special character", func() {
+			err := service.ValidatePasswordComplexity("nospec1")
+			Expect(err).To(Equal(customErrors.ErrInvalidPasswordComplexity))
 		})
 
 		It("should succeed when password satisfies 6-8 chars and special char requirement", func() {

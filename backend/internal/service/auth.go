@@ -12,13 +12,9 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/models"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
-)
-
-var (
-	// ErrInvalidPasswordComplexity enforces nfr01 password policy
-	ErrInvalidPasswordComplexity = errors.New("password must be between 6 and 8 characters long and contain at least one special character")
 )
 
 var specialCharRegex = regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`)
@@ -26,10 +22,10 @@ var specialCharRegex = regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`)
 // ValidatePasswordComplexity validates that password satisfies nfr01 complexity policy
 func ValidatePasswordComplexity(password string) error {
 	if len(password) < 6 || len(password) > 8 {
-		return ErrInvalidPasswordComplexity
+		return customErrors.ErrInvalidPasswordComplexity
 	}
 	if !specialCharRegex.MatchString(password) {
-		return ErrInvalidPasswordComplexity
+		return customErrors.ErrInvalidPasswordComplexity
 	}
 	return nil
 }

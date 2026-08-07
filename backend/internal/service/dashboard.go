@@ -2,18 +2,12 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
-)
-
-var (
-	ErrInvalidTimeframe      = errors.New("invalid timeframe: must be day, month, or year")
-	ErrInvalidSLATarget      = errors.New("sla_target_minutes must be a positive integer")
-	ErrDashboardUnauthorized = errors.New("unauthorized: must be a team member to access dashboard analytics")
 )
 
 type dashboardService struct {
@@ -41,7 +35,7 @@ func (s *dashboardService) validateAccess(ctx context.Context, requesterID, team
 	}
 	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil {
-		return ErrDashboardUnauthorized
+		return customErrors.ErrDashboardUnauthorized
 	}
 	return nil
 }
@@ -51,7 +45,7 @@ func (s *dashboardService) GetIncidentTrend(ctx context.Context, requesterID, te
 	switch timeframe {
 	case "day", "month", "year":
 	default:
-		return nil, ErrInvalidTimeframe
+		return nil, customErrors.ErrInvalidTimeframe
 	}
 	if err := s.validateAccess(ctx, requesterID, teamID, userScope); err != nil {
 		return nil, err
@@ -68,7 +62,7 @@ func (s *dashboardService) GetIncidentTrend(ctx context.Context, requesterID, te
 // GetMTTR validates membership then computes mttr and sla compliance metrics
 func (s *dashboardService) GetMTTR(ctx context.Context, requesterID, teamID uuid.UUID, userScope string, slaTargetMinutes int) (*types.MTTRResult, error) {
 	if slaTargetMinutes <= 0 {
-		return nil, ErrInvalidSLATarget
+		return nil, customErrors.ErrInvalidSLATarget
 	}
 	if err := s.validateAccess(ctx, requesterID, teamID, userScope); err != nil {
 		return nil, err
@@ -104,7 +98,7 @@ func (s *dashboardService) GetMTTR(ctx context.Context, requesterID, teamID uuid
 // GetBreachedIncidents validates membership then returns sla-breached incidents with pagination
 func (s *dashboardService) GetBreachedIncidents(ctx context.Context, requesterID, teamID uuid.UUID, userScope string, slaTargetMinutes, limit, offset int) ([]types.BreachedIncident, error) {
 	if slaTargetMinutes < 0 {
-		return nil, ErrInvalidSLATarget
+		return nil, customErrors.ErrInvalidSLATarget
 	}
 	if limit <= 0 {
 		limit = 50

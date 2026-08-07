@@ -9,9 +9,9 @@ import (
 
 	"github.com/WillieBam/support_copilot/backend/internal/endpoint"
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
-	"github.com/WillieBam/support_copilot/backend/internal/service"
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	. "github.com/onsi/ginkgo/v2"
@@ -96,7 +96,7 @@ var _ = Describe("TeamHandler", func() {
 			c.Set("user_uid", "fb-uid-123")
 
 			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(testUser, nil)
-			mockTeamSvc.On("CreateTeam", mock.Anything, "", userID).Return(nil, service.ErrTeamNameRequired)
+			mockTeamSvc.On("CreateTeam", mock.Anything, "", userID).Return(nil, customErrors.ErrTeamNameRequired)
 
 			err := h.CreateTeam(c)
 			Expect(err).NotTo(HaveOccurred())

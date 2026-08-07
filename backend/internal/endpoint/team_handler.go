@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/WillieBam/support_copilot/backend/internal/service"
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
@@ -60,7 +60,7 @@ func (h *Handler) CreateTeam(c *echo.Context) error {
 	slog.Info("[team] CreateTeam: creating team", "user_id", user.ID, "team_name", req.TeamName)
 	team, err := h.teamService.CreateTeam(c.Request().Context(), req.TeamName, user.ID)
 	if err != nil {
-		if errors.Is(err, service.ErrTeamNameRequired) || errors.Is(err, service.ErrTeamNameTooLong) {
+		if errors.Is(err, customErrors.ErrTeamNameRequired) || errors.Is(err, customErrors.ErrTeamNameTooLong) {
 			slog.Warn("[team] CreateTeam: validation failed", "user_id", user.ID, "error", err)
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
@@ -132,7 +132,7 @@ func (h *Handler) AddTeamMember(c *echo.Context) error {
 	slog.Info("[team] AddTeamMember: adding member", "team_id", teamID, "target_user_id", req.UserID, "requester_id", user.ID)
 	err = h.teamService.AddMember(c.Request().Context(), user.ID, teamID, req.UserID)
 	if err != nil {
-		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+		if errors.Is(err, customErrors.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] AddTeamMember: unauthorized", "team_id", teamID, "requester_id", user.ID, "error", err)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
@@ -171,11 +171,11 @@ func (h *Handler) RemoveTeamMember(c *echo.Context) error {
 	slog.Info("[team] RemoveTeamMember: removing member", "team_id", teamID, "target_user_id", targetUserID, "requester_id", user.ID)
 	err = h.teamService.RemoveMember(c.Request().Context(), user.ID, teamID, targetUserID)
 	if err != nil {
-		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+		if errors.Is(err, customErrors.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] RemoveTeamMember: unauthorized", "team_id", teamID, "requester_id", user.ID, "error", err)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
-		if errors.Is(err, service.ErrUserNotInTeam) || errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, customErrors.ErrUserNotInTeam) || errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("[team] RemoveTeamMember: member not found", "team_id", teamID, "target_user_id", targetUserID)
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "member not found in team"})
 		}
@@ -208,7 +208,7 @@ func (h *Handler) DeleteTeam(c *echo.Context) error {
 	slog.Info("[team] DeleteTeam: attempting delete", "team_id", teamID, "requester_id", user.ID, "scope", user.Scope)
 	err = h.teamService.DeleteTeam(c.Request().Context(), user.Scope, teamID)
 	if err != nil {
-		if errors.Is(err, service.ErrSuperAdminRequired) {
+		if errors.Is(err, customErrors.ErrSuperAdminRequired) {
 			slog.Warn("[team] DeleteTeam: forbidden - not super_admin", "team_id", teamID, "requester_id", user.ID, "scope", user.Scope)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
@@ -251,7 +251,7 @@ func (h *Handler) AssignTeamIncident(c *echo.Context) error {
 	slog.Info("[team] AssignTeamIncident: assigning incident", "team_id", teamID, "title", req.Title, "requester_id", user.ID)
 	inc, err := h.teamService.AssignIncident(c.Request().Context(), user.ID, teamID, req.Title, req.Status, req.Details)
 	if err != nil {
-		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+		if errors.Is(err, customErrors.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] AssignTeamIncident: unauthorized", "team_id", teamID, "requester_id", user.ID, "error", err)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
@@ -284,7 +284,7 @@ func (h *Handler) GetTeamIncidents(c *echo.Context) error {
 	slog.Info("[team] GetTeamIncidents: fetching incidents", "team_id", teamID, "requester_id", user.ID)
 	incidents, err := h.teamService.ListIncidents(c.Request().Context(), user.ID, teamID)
 	if err != nil {
-		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+		if errors.Is(err, customErrors.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] GetTeamIncidents: unauthorized", "team_id", teamID, "requester_id", user.ID, "error", err)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
@@ -317,7 +317,7 @@ func (h *Handler) GetTeamMembers(c *echo.Context) error {
 	slog.Info("[team] GetTeamMembers: fetching members", "team_id", teamID, "requester_id", user.ID)
 	members, err := h.teamService.ListMembers(c.Request().Context(), user.ID, teamID)
 	if err != nil {
-		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+		if errors.Is(err, customErrors.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] GetTeamMembers: unauthorized", "team_id", teamID, "requester_id", user.ID, "error", err)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
@@ -350,7 +350,7 @@ func (h *Handler) GetTeamIncident(c *echo.Context) error {
 	slog.Info("[team] GetTeamIncident: fetching incident", "incident_id", incID, "requester_id", user.ID)
 	inc, err := h.teamService.GetIncident(c.Request().Context(), user.ID, incID)
 	if err != nil {
-		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+		if errors.Is(err, customErrors.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] GetTeamIncident: unauthorized", "incident_id", incID, "requester_id", user.ID, "error", err)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
@@ -392,11 +392,11 @@ func (h *Handler) UpdateTeamIncidentStatus(c *echo.Context) error {
 	slog.Info("[team] UpdateTeamIncidentStatus: updating status", "incident_id", incID, "status", req.Status, "requester_id", user.ID)
 	inc, err := h.teamService.UpdateIncidentStatus(c.Request().Context(), user.ID, incID, req.Status, req.Title, req.Details)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidIncidentStatus) {
+		if errors.Is(err, customErrors.ErrInvalidIncidentStatus) {
 			slog.Warn("[team] UpdateTeamIncidentStatus: invalid status", "incident_id", incID, "status", req.Status, "error", err)
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
-		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+		if errors.Is(err, customErrors.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] UpdateTeamIncidentStatus: unauthorized", "incident_id", incID, "requester_id", user.ID, "error", err)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
@@ -437,7 +437,7 @@ func (h *Handler) GetTeamInstruction(c *echo.Context) error {
 	slog.Info("[team] GetTeamInstruction: fetching instruction", "team_id", teamID, "requester_id", user.ID)
 	inst, logs, err := h.teamService.GetTeamInstruction(c.Request().Context(), user.ID, teamID)
 	if err != nil {
-		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+		if errors.Is(err, customErrors.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] GetTeamInstruction: unauthorized", "team_id", teamID, "requester_id", user.ID)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
@@ -482,11 +482,11 @@ func (h *Handler) SaveTeamInstruction(c *echo.Context) error {
 	slog.Info("[team] SaveTeamInstruction: saving instruction", "team_id", teamID, "requester_id", user.ID)
 	inst, err := h.teamService.SaveTeamInstruction(c.Request().Context(), user.ID, teamID, req.InstructionDetails)
 	if err != nil {
-		if errors.Is(err, service.ErrInstructionTooShort) {
-			slog.Warn("[team] SaveTeamInstruction: instruction details too short", "team_id", teamID, "error", err)
+		if errors.Is(err, customErrors.ErrInstructionTooShort) {
+			slog.Warn("[team] SaveTeamInstruction: instruction too short", "team_id", teamID, "error", err)
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
-		if errors.Is(err, service.ErrUnauthorizedTeamOp) {
+		if errors.Is(err, customErrors.ErrUnauthorizedTeamOp) {
 			slog.Warn("[team] SaveTeamInstruction: unauthorized", "team_id", teamID, "requester_id", user.ID)
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
@@ -496,5 +496,3 @@ func (h *Handler) SaveTeamInstruction(c *echo.Context) error {
 
 	return c.JSON(http.StatusOK, inst)
 }
-
-

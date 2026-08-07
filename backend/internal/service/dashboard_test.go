@@ -12,6 +12,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
 	"github.com/WillieBam/support_copilot/backend/internal/service"
 	"github.com/WillieBam/support_copilot/backend/types"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 )
 
 var _ = Describe("DashboardService", func() {
@@ -41,7 +42,7 @@ var _ = Describe("DashboardService", func() {
 	Context("GetIncidentTrend", func() {
 		It("should return ErrInvalidTimeframe for an unsupported timeframe", func() {
 			result, err := dashSvc.GetIncidentTrend(ctx, requesterID, teamID, "engineer", "week")
-			Expect(err).To(Equal(service.ErrInvalidTimeframe))
+			Expect(err).To(Equal(customErrors.ErrInvalidTimeframe))
 			Expect(result).To(BeNil())
 		})
 
@@ -49,7 +50,7 @@ var _ = Describe("DashboardService", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, requesterID).Return("", gorm.ErrRecordNotFound)
 
 			result, err := dashSvc.GetIncidentTrend(ctx, requesterID, teamID, "engineer", "month")
-			Expect(err).To(Equal(service.ErrDashboardUnauthorized))
+			Expect(err).To(Equal(customErrors.ErrDashboardUnauthorized))
 			Expect(result).To(BeNil())
 		})
 
@@ -82,7 +83,7 @@ var _ = Describe("DashboardService", func() {
 	Context("GetMTTR", func() {
 		It("should return ErrInvalidSLATarget when sla_target_minutes is zero", func() {
 			result, err := dashSvc.GetMTTR(ctx, requesterID, teamID, "engineer", 0)
-			Expect(err).To(Equal(service.ErrInvalidSLATarget))
+			Expect(err).To(Equal(customErrors.ErrInvalidSLATarget))
 			Expect(result).To(BeNil())
 		})
 
@@ -90,7 +91,7 @@ var _ = Describe("DashboardService", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, requesterID).Return("", gorm.ErrRecordNotFound)
 
 			result, err := dashSvc.GetMTTR(ctx, requesterID, teamID, "engineer", 30)
-			Expect(err).To(Equal(service.ErrDashboardUnauthorized))
+			Expect(err).To(Equal(customErrors.ErrDashboardUnauthorized))
 			Expect(result).To(BeNil())
 		})
 
@@ -123,7 +124,7 @@ var _ = Describe("DashboardService", func() {
 	Context("GetBreachedIncidents", func() {
 		It("should return ErrInvalidSLATarget for a negative sla target", func() {
 			result, err := dashSvc.GetBreachedIncidents(ctx, requesterID, teamID, "engineer", -1, 50, 0)
-			Expect(err).To(Equal(service.ErrInvalidSLATarget))
+			Expect(err).To(Equal(customErrors.ErrInvalidSLATarget))
 			Expect(result).To(BeNil())
 		})
 
@@ -149,7 +150,7 @@ var _ = Describe("DashboardService", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, requesterID).Return("", gorm.ErrRecordNotFound)
 
 			result, err := dashSvc.GetBreachedIncidents(ctx, requesterID, teamID, "engineer", 30, 50, 0)
-			Expect(err).To(Equal(service.ErrDashboardUnauthorized))
+			Expect(err).To(Equal(customErrors.ErrDashboardUnauthorized))
 			Expect(result).To(BeNil())
 		})
 

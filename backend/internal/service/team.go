@@ -2,25 +2,14 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types/models"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
-)
-
-var (
-	ErrTeamNameRequired      = errors.New("team name is required")
-	ErrTeamNameTooLong       = errors.New("team name must be 20 characters or less")
-	ErrUnauthorizedTeamOp    = errors.New("unauthorized team operation: owner permission required")
-	ErrSuperAdminRequired    = errors.New("unauthorized operation: super_admin scope required to delete a team")
-	ErrUserNotInTeam         = errors.New("user is not a member of this team")
-	ErrInvalidIncidentStatus = errors.New("invalid incident status: must be OPEN, IN_PROGRESS, RESOLVED, or CLOSED")
-	ErrIncidentNotFound      = errors.New("incident not found")
-	ErrInstructionTooShort   = errors.New("instruction details must be at least 30 characters long")
 )
 
 func normalizeIncidentStatus(status string) (string, error) {
@@ -38,7 +27,7 @@ func normalizeIncidentStatus(status string) (string, error) {
 	case "CLOSED":
 		return "CLOSED", nil
 	default:
-		return "", ErrInvalidIncidentStatus
+		return "", customErrors.ErrInvalidIncidentStatus
 	}
 }
 
@@ -53,10 +42,10 @@ func NewTeamService(teamRepo interfaces.ITeamRepository) interfaces.ITeamService
 func (s *teamService) CreateTeam(ctx context.Context, teamName string, creatorID uuid.UUID) (*models.Team, error) {
 	name := strings.TrimSpace(teamName)
 	if name == "" {
-		return nil, ErrTeamNameRequired
+		return nil, customErrors.ErrTeamNameRequired
 	}
 	if len(name) > 20 {
-		return nil, ErrTeamNameTooLong
+		return nil, customErrors.ErrTeamNameTooLong
 	}
 
 	team := &models.Team{
@@ -102,7 +91,7 @@ func (s *teamService) AddMember(ctx context.Context, requesterID, teamID, userID
 	reqRole, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil || reqRole != "owner" {
 		slog.WarnContext(ctx, "[team-svc] AddMember: requester is not owner", "team_id", teamID, "requester_id", requesterID, "role", reqRole, "error", err)
-		return ErrUnauthorizedTeamOp
+		return customErrors.ErrUnauthorizedTeamOp
 	}
 
 	member := &models.TeamMember{
@@ -125,13 +114,13 @@ func (s *teamService) RemoveMember(ctx context.Context, requesterID, teamID, use
 	reqRole, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil || reqRole != "owner" {
 		slog.WarnContext(ctx, "[team-svc] RemoveMember: requester is not owner", "team_id", teamID, "requester_id", requesterID, "role", reqRole, "error", err)
-		return ErrUnauthorizedTeamOp
+		return customErrors.ErrUnauthorizedTeamOp
 	}
 
 	_, err = s.teamRepo.GetMemberRole(ctx, teamID, userID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] RemoveMember: target user not in team", "team_id", teamID, "target_user_id", userID, "error", err)
-		return ErrUserNotInTeam
+		return customErrors.ErrUserNotInTeam
 	}
 
 	slog.InfoContext(ctx, "[team-svc] RemoveMember: removing", "team_id", teamID, "target_user_id", userID)
@@ -146,7 +135,7 @@ func (s *teamService) RemoveMember(ctx context.Context, requesterID, teamID, use
 func (s *teamService) DeleteTeam(ctx context.Context, userScope string, teamID uuid.UUID) error {
 	if userScope != "super_admin" {
 		slog.WarnContext(ctx, "[team-svc] DeleteTeam: forbidden - not super_admin", "team_id", teamID, "scope", userScope)
-		return ErrSuperAdminRequired
+		return customErrors.ErrSuperAdminRequired
 	}
 	slog.InfoContext(ctx, "[team-svc] DeleteTeam: deleting team", "team_id", teamID, "scope", userScope)
 	if err := s.teamRepo.DeleteTeam(ctx, teamID); err != nil {
@@ -162,7 +151,7 @@ func (s *teamService) AssignIncident(ctx context.Context, requesterID, teamID uu
 	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] AssignIncident: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 
 	validStatus, err := normalizeIncidentStatus(status)
@@ -197,7 +186,7 @@ func (s *teamService) ListIncidents(ctx context.Context, requesterID, teamID uui
 	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] ListIncidents: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 	incidents, err := s.teamRepo.ListTeamIncidents(ctx, teamID)
 	if err != nil {
@@ -218,7 +207,7 @@ func (s *teamService) ListMembers(ctx context.Context, requesterID, teamID uuid.
 	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] ListMembers: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 	members, err := s.teamRepo.ListTeamMembers(ctx, teamID)
 	if err != nil {
@@ -240,7 +229,7 @@ func (s *teamService) GetIncident(ctx context.Context, requesterID, incidentID u
 	_, err = s.teamRepo.GetMemberRole(ctx, inc.TeamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] GetIncident: requester not in team", "team_id", inc.TeamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 
 	return inc, nil
@@ -263,7 +252,7 @@ func (s *teamService) UpdateIncidentStatus(ctx context.Context, requesterID, inc
 	_, err = s.teamRepo.GetMemberRole(ctx, inc.TeamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] UpdateIncidentStatus: requester not in team", "team_id", inc.TeamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 
 	previousStatus := inc.Status
@@ -306,7 +295,7 @@ func (s *teamService) GetTeamInstruction(ctx context.Context, requesterID, teamI
 	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] GetTeamInstruction: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, nil, ErrUnauthorizedTeamOp
+		return nil, nil, customErrors.ErrUnauthorizedTeamOp
 	}
 
 	inst, logs, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
@@ -322,14 +311,14 @@ func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, team
 	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] SaveTeamInstruction: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 
 	// validate instruction details minimum length requirement of 30 characters
 	trimmed := strings.TrimSpace(details)
 	if len(trimmed) < 30 {
 		slog.WarnContext(ctx, "[team-svc] SaveTeamInstruction: instruction details too short", "team_id", teamID, "length", len(trimmed))
-		return nil, ErrInstructionTooShort
+		return nil, customErrors.ErrInstructionTooShort
 	}
 
 	existingInst, existingLogs, err := s.teamRepo.GetTeamInstruction(ctx, teamID)

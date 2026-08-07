@@ -72,6 +72,16 @@ VITE_FIREBASE_API_KEY=your_firebase_api_key
 VITE_FIREBASE_APP_ID=your_firebase_app_id
 ```
 
+### MCP Servers Environment (`mcp_servers/.env`)
+Create a `.env` file under the `mcp_servers/` directory:
+
+```env
+MCP_HOST=0.0.0.0
+MCP_PORT=9000
+MCP_PATH=/mcp
+INTERNAL_API_KEY=your_internal_api_key
+```
+
 ---
 
 ## 🚀 Running the Application

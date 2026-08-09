@@ -101,13 +101,16 @@ func (s *AppService) IngestAlert(ctx context.Context, incidentID *uuid.UUID, ser
 	}
 
 	alert := &models.Alert{
-		ID:          uuid.New(),
-		IncidentID:  incidentID,
-		ServiceName: serviceName,
-		Severity:    severity,
-		Metrics:     buf.String(),
-		ReceivedAt:  time.Now(),
+		ID:              uuid.New(),
+		IncidentID:      incidentID,
+		AlertInfo:       fmt.Sprintf(`{"severity":%q}`, severity),
+		ResourceInfo:    fmt.Sprintf(`{"service":%q}`, serviceName),
+		Metrics:         buf.String(),
+		BusinessContext: "{}",
+		Metadata:        "{}",
+		ReceivedAt:      time.Now(),
 	}
+
 
 	if err := s.alertRepo.StoreAlert(ctx, alert); err != nil {
 		slog.Error("[Alert Ingestion] Failed to store alert in database", "alert_id", alert.ID, "service", serviceName, "err", err)

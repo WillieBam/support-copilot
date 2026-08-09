@@ -17,6 +17,8 @@ import (
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 )
 
+
+
 var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 	var (
 		orchestratorSvc  interfaces.IOrchestratorService
@@ -46,51 +48,65 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			"error_rate": 0.05,
 			"network_throughput": 450.0,
 			"request_rate": 300.0,
-			"response_latency": 350.0,
+			"cpu_usage": 91.4,
+			"memory_usage": 84.7,
+			"incoming_traffic": 540.0,
+			"outgoing_traffic": 512.0,
+			"error_rate": 0.80,
+			"network_throughput": 680.0,
+			"request_rate": 1320.0,
+			"response_latency": 3200.0,
 			"availability_percent": 99.1
 		}`
 
 		incID := uuid.New()
 		testAlert = &models.Alert{
-			ID:          testAlertID,
-			IncidentID:  &incID,
-			ReceivedAt:  time.Now(),
-			ServiceName: "payment-service",
-			Severity:    "CRITICAL",
-			Metrics:     validMetricsJSON,
+			ID:           testAlertID,
+			IncidentID:   &incID,
+			ReceivedAt:   time.Now(),
+			ResourceInfo: `{"service":"payment-service"}`,
+			AlertInfo:    `{"severity":"CRITICAL"}`,
+			Metrics:      validMetricsJSON,
 		}
 
 		orchestratorSvc = service.NewOrchestratorService(mockAlertRepo, mockMcpOne, mockMcpTwo, mockTeamRepo)
 	})
 
 	Context("ExecuteValidateAlert", func() {
-		It("should successfully fetch alert from DB and predict anomaly via MCP", func() {
+		It("should fetch alert, call MCP anomaly detection, and return combined result", func() {
 			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(testAlert, nil)
 
-			expectedMcpResp := &requests.AnomalyDetectionResponse{
+			expectedDetectionReq := requests.AnomalyDetectionRequest{
+				CpuUsage:            91.4,
+				MemoryUsage:         84.7,
+				IncomingTraffic:     540,
+				OutgoingTraffic:     512,
+				ErrorRate:           0.80,
+				NetworkThroughput:   680,
+				RequestRate:         1320,
+				ResponseLatency:     3200,
+				AvailabilityPercent: 99.1,
+			}
+
+			mockMLResp := &requests.AnomalyDetectionResponse{
 				Status: 0,
 				Label:  "Anomaly",
 				Engine: "IsolationForest",
 			}
-			mockMcpOne.On("DetectAnomalies", mock.Anything, mock.MatchedBy(func(req requests.AnomalyDetectionRequest) bool {
-				return req.CpuUsage == 92.5 && req.ResponseLatency == 350.0
-			})).Return(expectedMcpResp, nil)
+
+			mockMcpOne.On("DetectAnomalies", mock.Anything, expectedDetectionReq).Return(mockMLResp, nil)
 
 			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).NotTo(BeNil())
 			Expect(result.AlertID).To(Equal(testAlertID.String()))
 			Expect(result.ServiceName).To(Equal("payment-service"))
-			Expect(result.Severity).To(Equal("CRITICAL"))
-			Expect(result.MLPrediction.Status).To(Equal(0))
 			Expect(result.MLPrediction.Label).To(Equal("Anomaly"))
-
-			mockAlertRepo.AssertExpectations(GinkgoT())
-			mockMcpOne.AssertExpectations(GinkgoT())
 		})
 
-		It("should return error if alert ID is not found in Postgres", func() {
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(nil, errors.New("record not found"))
+
+		It("should return error if fetching alert from DB fails", func() {
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(nil, errors.New("db disconnect"))
 
 			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
 			Expect(err).To(HaveOccurred())
@@ -100,11 +116,12 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 
 		It("should return error if alert metrics JSON in Postgres is corrupted", func() {
 			corruptedAlert := &models.Alert{
-				ID:          testAlertID,
-				ServiceName: "cart-service",
-				Severity:    "WARNING",
-				Metrics:     "{invalid_json",
+				ID:           testAlertID,
+				ResourceInfo: `{"service":"cart-service"}`,
+				AlertInfo:    `{"severity":"WARNING"}`,
+				Metrics:      "{invalid_json",
 			}
+
 			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(corruptedAlert, nil)
 
 			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)

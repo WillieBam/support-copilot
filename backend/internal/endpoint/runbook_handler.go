@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WillieBam/support_copilot/backend/internal/domain/data"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 	"github.com/WillieBam/support_copilot/backend/types/responses"
 	"github.com/google/uuid"
@@ -237,9 +238,19 @@ func (h *Handler) GetIncidentContext(c *echo.Context) error {
 	// build cleansed alert list
 	cleansedAlerts := make([]responses.CleansedAlert, 0, len(alerts))
 	for _, a := range alerts {
+		resSec, _ := data.UnmarshalResourceSection(a.ResourceInfo)
+		alertSec, _ := data.UnmarshalAlertSection(a.AlertInfo)
+		service := ""
+		if resSec != nil {
+			service = resSec.Service
+		}
+		severity := ""
+		if alertSec != nil {
+			severity = alertSec.Severity
+		}
 		cleansedAlerts = append(cleansedAlerts, responses.CleansedAlert{
-			Service:    a.ServiceName,
-			Severity:   a.Severity,
+			Service:    service,
+			Severity:   severity,
 			Received:   relativeTime(a.ReceivedAt),
 			KeyMetrics: parseAndCleanseMetrics(a.Metrics),
 		})

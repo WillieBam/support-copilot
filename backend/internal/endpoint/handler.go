@@ -281,23 +281,24 @@ func (h *Handler) IngestAlert(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid alert payload"})
 	}
 
-	slog.Info("[ALERT] Alert ingestion request received", "service", req.ServiceName, "severity", req.Severity, "incident_id", req.IncidentID)
+	slog.Info("[ALERT] Alert ingestion request received", "service", req.Resource.Service, "severity", req.Alert.Severity, "incident_id", req.IncidentID)
 
-	if req.ServiceName == "" {
+	if req.Resource.Service == "" {
 		slog.Warn("[ALERT] Missing required service name in alert payload")
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "service name is required"})
 	}
 
-	err := h.apps.IngestAlert(c.Request().Context(), req.IncidentID, req.ServiceName, req.Severity, string(req.Metrics))
+	metricsBytes, _ := json.Marshal(req.Metrics)
+	err := h.apps.IngestAlert(c.Request().Context(), req.IncidentID, req.Resource.Service, req.Alert.Severity, string(metricsBytes))
+
 	if err != nil {
-		slog.Error("[ALERT] Failed to ingest alert via app service", "service", req.ServiceName, "err", err)
+		slog.Error("[ALERT] Failed to ingest alert via app service", "service", req.Resource.Service, "err", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	slog.Info("[ALERT] Alert successfully ingested", "service", req.ServiceName)
+	slog.Info("[ALERT] Alert successfully ingested", "service", req.Resource.Service)
 	return c.JSON(http.StatusOK, map[string]string{"status": "success"})
 }
-
 
 type UserSearchResult struct {
 	ID          uuid.UUID `json:"id"`

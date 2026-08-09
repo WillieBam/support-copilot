@@ -67,7 +67,21 @@ func (s *orchestratorService) ExecuteValidateAlert(ctx context.Context, alertID 
 		return nil, fmt.Errorf("failed to fetch alert #%s from database: %w", alertID, err)
 	}
 
-	slog.Info("[ORCHESTRATOR] Alert retrieved from DB", "service", alertRecord.ServiceName, "severity", alertRecord.Severity)
+	resSec, _ := data.UnmarshalResourceSection(alertRecord.ResourceInfo)
+	alertSec, _ := data.UnmarshalAlertSection(alertRecord.AlertInfo)
+	bizSec, _ := data.UnmarshalBusinessContextSection(alertRecord.BusinessContext)
+	metaSec, _ := data.UnmarshalMetadataSection(alertRecord.Metadata)
+
+	serviceName := ""
+	if resSec != nil {
+		serviceName = resSec.Service
+	}
+	severity := ""
+	if alertSec != nil {
+		severity = alertSec.Severity
+	}
+
+	slog.Info("[ORCHESTRATOR] Alert retrieved from DB", "service", serviceName, "severity", severity)
 
 	// unmarshal alert JSON metrics string into AnomalyDetectionRequest struct
 	metrics, err := data.ParseAlertMetrics(alertRecord.Metrics)
@@ -89,13 +103,19 @@ func (s *orchestratorService) ExecuteValidateAlert(ctx context.Context, alertID 
 
 	// assemble combined payload package
 	return &responses.CombinedValidationResult{
-		AlertID:      alertRecord.ID.String(),
-		ServiceName:  alertRecord.ServiceName,
-		Severity:     alertRecord.Severity,
-		ReceivedAt:   alertRecord.ReceivedAt,
-		Metrics:      metrics,
-		MLPrediction: *mcpResp,
+		AlertID:         alertRecord.ID.String(),
+		ServiceName:     serviceName,
+		Severity:        severity,
+		ReceivedAt:      alertRecord.ReceivedAt,
+		Alert:           alertSec,
+		Resource:        resSec,
+		BusinessContext: bizSec,
+		Metadata:        metaSec,
+		Metrics:         metrics,
+		MLPrediction:    *mcpResp,
 	}, nil
+
+
 }
 
 // ExecuteValidateAlertRaw parses raw LLM JSON arguments and delegates execution.

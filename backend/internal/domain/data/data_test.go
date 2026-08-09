@@ -44,16 +44,54 @@ var _ = Describe("Domain Data Serialisation", func() {
 			alertID := uuid.New()
 			alerts := []*models.Alert{
 				{
-					ID:          alertID,
-					ServiceName: "auth-service",
-					Severity:    "critical",
-					ReceivedAt:  time.Now(),
+					ID:           alertID,
+					ResourceInfo: `{"service": "auth-service"}`,
+					AlertInfo:    `{"severity": "critical"}`,
+					ReceivedAt:   time.Now(),
 				},
 			}
 			jsonStr, err := data.MarshalAlerts(alerts)
 			Expect(err).To(BeNil())
 			Expect(jsonStr).To(ContainSubstring("auth-service"))
 		})
+
+		It("should unmarshal alert section json", func() {
+			sec, err := data.UnmarshalAlertSection(`{"id":"ALT-1","severity":"CRITICAL"}`)
+			Expect(err).To(BeNil())
+			Expect(sec.ID).To(Equal("ALT-1"))
+			Expect(sec.Severity).To(Equal("CRITICAL"))
+			Expect(sec.Message).To(BeEmpty())
+		})
+
+		It("should unmarshal resource section json", func() {
+			sec, err := data.UnmarshalResourceSection(`{"service":"report-svc","environment":"prod"}`)
+			Expect(err).To(BeNil())
+			Expect(sec.Service).To(Equal("report-svc"))
+			Expect(sec.Environment).To(Equal("prod"))
+			Expect(sec.Cluster).To(BeEmpty())
+		})
+
+		It("should unmarshal full alert record with 5 sections", func() {
+			alertID := uuid.New()
+			model := &models.Alert{
+				ID:              alertID,
+				ReceivedAt:      time.Now(),
+				AlertInfo:       `{"id":"ALT-100","severity":"CRITICAL"}`,
+				ResourceInfo:    `{"service":"payment-svc"}`,
+				Metrics:         `{"cpu_usage":91.4}`,
+				BusinessContext: `{"business_service":"IBG"}`,
+				Metadata:        `{"version":"1.0"}`,
+			}
+			rec, err := data.UnmarshalAlertRecord(model)
+			Expect(err).To(BeNil())
+			Expect(rec.ID).To(Equal(alertID.String()))
+			Expect(rec.Resource.Service).To(Equal("payment-svc"))
+			Expect(rec.Alert.Severity).To(Equal("CRITICAL"))
+			Expect(*rec.Metrics.CPUUsage).To(Equal(91.4))
+			Expect(rec.BusinessContext.BusinessService).To(Equal("IBG"))
+			Expect(rec.Metadata.Version).To(Equal("1.0"))
+		})
+
 
 		It("should marshal validation result to json", func() {
 			res := &responses.CombinedValidationResult{

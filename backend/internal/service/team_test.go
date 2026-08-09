@@ -426,7 +426,8 @@ var _ = Describe("TeamService", func() {
 
 		It("should GetIncidentContext successfully", func() {
 			inc := &models.TeamIncident{ID: incidentID, Title: "Redis Failure"}
-			alerts := []models.Alert{{ServiceName: "redis-service"}}
+			alerts := []models.Alert{{ResourceInfo: `{"service":"redis-service"}`}}
+
 
 			teamRepo.On("GetIncidentContext", ctx, incidentID).Return(inc, alerts, nil)
 

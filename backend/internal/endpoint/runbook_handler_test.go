@@ -217,8 +217,9 @@ var _ = Describe("RunbookHandler", func() {
 				},
 			}
 			alerts := []models.Alert{
-				{ServiceName: "auth-service", Severity: "critical", ReceivedAt: time.Now(), Metrics: `{"container.cpu.usage": 98.5}`},
+				{ResourceInfo: `{"service":"auth-service"}`, AlertInfo: `{"severity":"critical"}`, ReceivedAt: time.Now(), Metrics: `{"container.cpu.usage": 98.5}`},
 			}
+
 
 			mockTeamSvc.On("GetIncidentContext", mock.Anything, incidentID).Return(inc, alerts, nil)
 			mockTeamSvc.On("ListRunbooks", mock.Anything, teamID, "active").Return([]models.Runbook{}, nil)

@@ -1,13 +1,21 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchUserTeams, fetchTeamMembers } from '@/service/team/teamService';
 import type { UserMembership, TeamRole, TeamMember } from '@/types/team';
 
-export const useTeamState = (isSignedIn: boolean) => {
+// localStorage key for tracking which team IDs this user has already seen
+const knownTeamsKey = (uid: string) => `knownTeams:${uid}`;
+
+export const useTeamState = (isSignedIn: boolean, userEmail?: string) => {
   const [memberships, setMemberships] = useState<UserMembership[]>([]);
   const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // New-team notification state
+  const [newTeamNames, setNewTeamNames] = useState<string[]>([]);
+  // Guard so detection only runs once per load cycle
+  const hasDetected = useRef(false);
 
   // load user team memberships
   const loadTeams = useCallback(async () => {
@@ -18,10 +26,32 @@ export const useTeamState = (isSignedIn: boolean) => {
       const data = await fetchUserTeams();
       const userMemberships = data.memberships || [];
       setMemberships(userMemberships);
-      
+
       // default active team to first joined team if not selected
       if (userMemberships.length > 0 && !activeTeamId) {
         setActiveTeamId(userMemberships[0].team_id);
+      }
+
+      // ── New-team notification detection ──────────────────────────
+      // Only run once per sign-in session to avoid repeat toasts
+      if (!hasDetected.current && userEmail) {
+        hasDetected.current = true;
+        const key = knownTeamsKey(userEmail);
+        const stored: string[] = JSON.parse(localStorage.getItem(key) ?? '[]');
+        const storedSet = new Set(stored);
+        const currentIds = userMemberships.map((m) => m.team_id);
+
+        // Find teams the user is now in but weren't in the snapshot
+        const newOnes = userMemberships.filter(
+          (m) => !storedSet.has(m.team_id) && m.role !== 'owner'
+        );
+
+        if (newOnes.length > 0) {
+          setNewTeamNames(newOnes.map((m) => m.team.team_name));
+        }
+
+        // Always update the snapshot to current full list
+        localStorage.setItem(key, JSON.stringify(currentIds));
       }
     } catch (err: any) {
       setError(err?.response?.data?.error || 'failed to load user teams');
@@ -45,36 +75,25 @@ export const useTeamState = (isSignedIn: boolean) => {
       .catch((err) => console.error('Failed to load active team members:', err));
   }, [activeTeamId, isSignedIn]);
 
-  // map of user_id -> display info
-  const userMap = useMemo(() => {
-    const map = new Map<string, { display_name?: string; email?: string }>();
-    teamMembers.forEach((m) => {
-      const u = m.user;
-      if (u) {
-        if (m.user_id) map.set(m.user_id, u);
-        if (u.id) map.set(u.id, u);
-      }
-    });
-    return map;
-  }, [teamMembers]);
-
-  const getUserDisplayName = useCallback((val?: string) => {
+  // getUserDisplayName resolves a user_id or raw email string to a display-friendly name
+  const getUserDisplayName = (val?: string): string => {
     if (!val) return 'System';
-    
-    // Check if val is in userMap
-    const found = userMap.get(val);
-    if (found) {
-      if (found.display_name?.trim()) return found.display_name.trim();
-      if (found.email?.trim()) return found.email.split('@')[0];
+
+    // search teamMembers directly - list is small so linear scan is fine
+    for (const m of teamMembers) {
+      const u = m.user;
+      if (!u) continue;
+      if (m.user_id === val || u.id === val) {
+        if (u.display_name?.trim()) return u.display_name.trim();
+        if (u.email?.trim()) return u.email.split('@')[0];
+      }
     }
 
     // If val is an email string
-    if (val.includes('@')) {
-      return val.split('@')[0];
-    }
+    if (val.includes('@')) return val.split('@')[0];
 
     return val;
-  }, [userMap]);
+  };
 
   const activeMembership = memberships.find((m) => m.team_id === activeTeamId) || null;
   const activeRole: TeamRole | null = activeMembership ? activeMembership.role : null;
@@ -83,6 +102,11 @@ export const useTeamState = (isSignedIn: boolean) => {
   const selectTeam = (teamId: string) => {
     setActiveTeamId(teamId);
   };
+
+  /** Called by the toast once the user has seen the notification */
+  const dismissNewTeams = useCallback(() => {
+    setNewTeamNames([]);
+  }, []);
 
   return {
     memberships,
@@ -96,5 +120,7 @@ export const useTeamState = (isSignedIn: boolean) => {
     error,
     selectTeam,
     reloadTeams: loadTeams,
+    newTeamNames,
+    dismissNewTeams,
   };
 };

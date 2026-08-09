@@ -6,7 +6,7 @@ This document defines the strict architectural rules, design tokens, and coding 
 
 ## 1. Core Constraint: No `react.Memo`
 
-* **Rule:** Under no circumstances should you optimize components using `React.memo` or `memo()`.
+* **Rule:** Under no circumstances should you optimize components using `React.memo` or `memo()` or `useMemo()`.
 * **Rationale:** Avoid premature optimization patterns. Rely entirely on optimized state placement, structural composition, and the automatic compiler optimizations of the project's build stack.
 
 ---

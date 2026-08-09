@@ -25,6 +25,7 @@ import { IncidentThreadView } from './components/incident/IncidentThreadView';
 import { AnalyticsDashboardView } from './components/analytics/AnalyticsDashboardView';
 
 import { ManageInstructionModal } from './components/instruction/ManageInstructionModal';
+import { NewTeamToast } from './components/NewTeamToast';
 
 type AuthState = ReturnType<typeof useFirebaseTotpAuth>;
 
@@ -325,6 +326,13 @@ function MainApp({
   );
 }
 
+// Renders the new-team toast inside the TeamProvider tree so it can read context
+function ToastRenderer() {
+  const { newTeamNames, dismissNewTeams } = useTeam();
+  if (newTeamNames.length === 0) return null;
+  return <NewTeamToast teamNames={newTeamNames} onDismiss={dismissNewTeams} />;
+}
+
 function App() {
   const auth = useFirebaseTotpAuth();
   const [isInstructionModalOpen, setIsInstructionModalOpen] = useState(false);
@@ -336,7 +344,8 @@ function App() {
   if (!auth.isAuthReady) return <LoadingScreen />;
 
   return (
-    <TeamProvider isSignedIn={auth.isSignedIn}>
+    <TeamProvider isSignedIn={auth.isSignedIn} userEmail={auth.userEmail ?? undefined}>
+      <ToastRenderer />
       <div className="flex flex-col h-screen max-h-screen bg-transparent text-foreground w-full overflow-hidden transition-colors duration-350">
         <GlobalHeader
           auth={auth}

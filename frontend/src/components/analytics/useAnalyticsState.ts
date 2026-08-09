@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { IncidentTrendPoint, MTTRResult, BreachedIncident } from '@/types/analytics';
 import { fetchIncidentTrend, fetchMTTR, fetchBreachedIncidents } from '@/service/analytics/analyticsService';
 
@@ -19,6 +19,7 @@ export function useAnalyticsState(teamId?: string | null) {
   const [timeframe, setTimeframe] = useState<Timeframe>('month');
   const [slaTarget, setSlaTarget] = useState<SLAFilterOption>(30);
   const [rawTrend, setRawTrend] = useState<IncidentTrendPoint[]>([]);
+  const [pivotedTrend, setPivotedTrend] = useState<PivotedTrendPoint[]>([]);
   const [mttr, setMttr] = useState<MTTRResult | null>(null);
   const [breached, setBreached] = useState<BreachedIncident[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -71,9 +72,12 @@ export function useAnalyticsState(teamId?: string | null) {
   };
 
   // pivotedTrend transforms flat incident trend rows into stacked recharts series
-  const pivotedTrend = useMemo<PivotedTrendPoint[]>(() => {
-    if (!rawTrend.length) return [];
-    
+  useEffect(() => {
+    if (!rawTrend.length) {
+      setPivotedTrend([]);
+      return;
+    }
+
     const bucketsMap: Record<string, PivotedTrendPoint> = {};
 
     rawTrend.forEach((item) => {
@@ -99,7 +103,9 @@ export function useAnalyticsState(teamId?: string | null) {
       }
     });
 
-    return Object.values(bucketsMap).sort((a, b) => a.time_bucket.localeCompare(b.time_bucket));
+    setPivotedTrend(
+      Object.values(bucketsMap).sort((a, b) => a.time_bucket.localeCompare(b.time_bucket))
+    );
   }, [rawTrend, timeframe]);
 
   return {

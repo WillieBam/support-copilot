@@ -15,11 +15,27 @@ import (
 func ParseAlertArgs(rawArgs string) (alertID string, err error) {
 	var args struct {
 		AlertID string `json:"alert_id"`
+		ID      string `json:"id"`
+		Alert   struct {
+			ID string `json:"id"`
+		} `json:"alert"`
+		AlertInfo struct {
+			ID string `json:"id"`
+		} `json:"alert_info"`
 	}
 	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
 		return "", fmt.Errorf("invalid alert arguments: %w", err)
 	}
-	return args.AlertID, nil
+	if args.AlertID != "" {
+		return args.AlertID, nil
+	}
+	if args.Alert.ID != "" {
+		return args.Alert.ID, nil
+	}
+	if args.AlertInfo.ID != "" {
+		return args.AlertInfo.ID, nil
+	}
+	return args.ID, nil
 }
 
 // ParseAlertMetrics decodes metrics json into anomaly detection request

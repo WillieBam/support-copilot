@@ -21,6 +21,13 @@ var _ = Describe("Domain Data Serialisation", func() {
 			Expect(alertID).To(Equal("12345"))
 		})
 
+		It("should parse alert args with alert info id successfully", func() {
+			raw := `{"alert": {"id": "12345"}}`
+			alertID, err := data.ParseAlertArgs(raw)
+			Expect(err).To(BeNil())
+			Expect(alertID).To(Equal("12345"))
+		})
+
 		It("should return error on invalid alert args", func() {
 			raw := `invalid json`
 			_, err := data.ParseAlertArgs(raw)

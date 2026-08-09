@@ -56,14 +56,14 @@ func (s *orchestratorService) ExecuteListAlertsRaw(ctx context.Context) (string,
 	return out, nil
 }
 
-// ExecuteValidateAlert fetches alert metrics from Postgres and predicts anomalies via Python MCP.
-func (s *orchestratorService) ExecuteValidateAlert(ctx context.Context, alertID uuid.UUID) (*responses.CombinedValidationResult, error) {
-	slog.Info("[ORCHESTRATOR] Fetching alert from database", "alert_id", alertID.String())
+// ExecuteValidateAlert fetches alert metrics from postgres and predicts anomalies via python mcp
+func (s *orchestratorService) ExecuteValidateAlert(ctx context.Context, alertID string) (*responses.CombinedValidationResult, error) {
+	slog.Info("[ORCHESTRATOR] Fetching alert from database", "alert_id", alertID)
 
-	// fetch alert from Postgres
+	// fetch alert from postgres
 	alertRecord, err := s.alertRepo.RetrieveAlertbyID(ctx, alertID)
 	if err != nil {
-		slog.Error("[ORCHESTRATOR] Failed to fetch alert from DB", "alert_id", alertID.String(), "err", err)
+		slog.Error("[ORCHESTRATOR] Failed to fetch alert from DB", "alert_id", alertID, "err", err)
 		return nil, fmt.Errorf("failed to fetch alert #%s from database: %w", alertID, err)
 	}
 
@@ -83,7 +83,7 @@ func (s *orchestratorService) ExecuteValidateAlert(ctx context.Context, alertID 
 
 	slog.Info("[ORCHESTRATOR] Alert retrieved from DB", "service", serviceName, "severity", severity)
 
-	// unmarshal alert JSON metrics string into AnomalyDetectionRequest struct
+	// unmarshal alert json metrics string into anomaly detection request struct
 	metrics, err := data.ParseAlertMetrics(alertRecord.Metrics)
 	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to unmarshal alert metrics JSON", "err", err)
@@ -118,7 +118,7 @@ func (s *orchestratorService) ExecuteValidateAlert(ctx context.Context, alertID 
 
 }
 
-// ExecuteValidateAlertRaw parses raw LLM JSON arguments and delegates execution.
+// ExecuteValidateAlertRaw parses raw llm json arguments and delegates execution
 func (s *orchestratorService) ExecuteValidateAlertRaw(ctx context.Context, rawArgs string) (string, error) {
 	slog.Info("[ORCHESTRATOR] ExecuteValidateAlertRaw triggered", "rawArgs", rawArgs)
 
@@ -134,13 +134,7 @@ func (s *orchestratorService) ExecuteValidateAlertRaw(ctx context.Context, rawAr
 		return "", fmt.Errorf("no valid alert_id provided: %q", alertIDStr)
 	}
 
-	alertUUID, err := uuid.Parse(cleanAlertID)
-	if err != nil {
-		slog.Error("[ORCHESTRATOR] Invalid alert UUID", "alertID", alertIDStr, "err", err)
-		return "", fmt.Errorf("invalid alert id %q: %w", alertIDStr, err)
-	}
-
-	result, err := s.ExecuteValidateAlert(ctx, alertUUID)
+	result, err := s.ExecuteValidateAlert(ctx, cleanAlertID)
 	if err != nil {
 		return "", err
 	}

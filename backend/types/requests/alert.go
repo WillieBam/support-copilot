@@ -15,6 +15,12 @@ type AlertIngestRequest struct {
 	Metadata        Metadata             `json:"metadata"`
 }
 
+// AlertQueryRequest is used when user queries to find an alert
+type AlertQueryRequest struct {
+	Alert AlertInfo `json:"alert"`
+}
+
+
 
 type AlertInfo struct {
 	ID          string    `json:"id"`

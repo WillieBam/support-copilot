@@ -173,34 +173,37 @@ func seedTeamsAndMemberships(db *gorm.DB) {
 
 func seedAlerts(db *gorm.DB) {
 	mockIncidentID := uuid.MustParse("a1111111-1111-1111-1111-111111111111")
+	alertID1 := uuid.MustParse("99999999-1111-1111-1111-111111111111")
+	alertID2 := uuid.MustParse("99999999-2222-2222-2222-222222222222")
+	alertID3 := uuid.MustParse("99999999-3333-3333-3333-333333333333")
 
 	mockAlerts := []models.Alert{
 		{
-			ID:              uuid.New(),
+			ID:              alertID1,
 			IncidentID:      &mockIncidentID,
 			ReceivedAt:      time.Now().Add(-15 * time.Minute),
 			ResourceInfo:    `{"service":"payment-gateway-service"}`,
-			AlertInfo:       `{"severity":"CRITICAL"}`,
+			AlertInfo:       `{"id":"165028917","severity":"CRITICAL"}`,
 			Metrics:         `{"container.cpu.usage": 94.2, "runtime.go.mem_stats.total_alloc": 4825800, "error_rate": 0.06}`,
 			BusinessContext: "{}",
 			Metadata:        "{}",
 		},
 		{
-			ID:              uuid.New(),
+			ID:              alertID2,
 			IncidentID:      &mockIncidentID,
 			ReceivedAt:      time.Now().Add(-5 * time.Minute),
 			ResourceInfo:    `{"service":"authentication-service"}`,
-			AlertInfo:       `{"severity":"WARNING"}`,
+			AlertInfo:       `{"id":"165028918","severity":"WARNING"}`,
 			Metrics:         `{"trace.grpc.server.request.hits": 4500, "system.cpu.system": 78.1}`,
 			BusinessContext: "{}",
 			Metadata:        "{}",
 		},
 		{
-			ID:              uuid.New(),
+			ID:              alertID3,
 			IncidentID:      nil,
 			ReceivedAt:      time.Now().Add(-2 * time.Minute),
 			ResourceInfo:    `{"service":"report-upload-service"}`,
-			AlertInfo:       `{"severity":"CRITICAL"}`,
+			AlertInfo:       `{"id":"165028919","severity":"CRITICAL"}`,
 			Metrics:         `{"cpu_usage": 96.8, "response_latency": 450.0, "error_rate": 0.08}`,
 			BusinessContext: "{}",
 			Metadata:        "{}",

@@ -48,7 +48,7 @@ func (_m *IAlertRepository) ListAlerts(ctx context.Context, limit int) ([]*model
 }
 
 // RetrieveAlertbyID provides a mock function with given fields: ctx, id
-func (_m *IAlertRepository) RetrieveAlertbyID(ctx context.Context, id uuid.UUID) (*models.Alert, error) {
+func (_m *IAlertRepository) RetrieveAlertbyID(ctx context.Context, id string) (*models.Alert, error) {
 	ret := _m.Called(ctx, id)
 
 	if len(ret) == 0 {
@@ -57,10 +57,10 @@ func (_m *IAlertRepository) RetrieveAlertbyID(ctx context.Context, id uuid.UUID)
 
 	var r0 *models.Alert
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*models.Alert, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.Alert, error)); ok {
 		return rf(ctx, id)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) *models.Alert); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.Alert); ok {
 		r0 = rf(ctx, id)
 	} else {
 		if ret.Get(0) != nil {
@@ -68,7 +68,7 @@ func (_m *IAlertRepository) RetrieveAlertbyID(ctx context.Context, id uuid.UUID)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(ctx, id)
 	} else {
 		r1 = ret.Error(1)

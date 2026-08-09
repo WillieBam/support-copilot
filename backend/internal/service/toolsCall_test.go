@@ -74,7 +74,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 
 	Context("ExecuteValidateAlert", func() {
 		It("should fetch alert, call MCP anomaly detection, and return combined result", func() {
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(testAlert, nil)
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(testAlert, nil)
 
 			expectedDetectionReq := requests.AnomalyDetectionRequest{
 				CpuUsage:            91.4,
@@ -96,7 +96,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 
 			mockMcpOne.On("DetectAnomalies", mock.Anything, expectedDetectionReq).Return(mockMLResp, nil)
 
-			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
+			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID.String())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).NotTo(BeNil())
 			Expect(result.AlertID).To(Equal(testAlertID.String()))
@@ -106,9 +106,9 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 
 
 		It("should return error if fetching alert from DB fails", func() {
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(nil, errors.New("db disconnect"))
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(nil, errors.New("db disconnect"))
 
-			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
+			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID.String())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to fetch alert"))
 			Expect(result).To(BeNil())
@@ -122,19 +122,19 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 				Metrics:      "{invalid_json",
 			}
 
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(corruptedAlert, nil)
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(corruptedAlert, nil)
 
-			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
+			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID.String())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to parse alert metrics JSON"))
 			Expect(result).To(BeNil())
 		})
 
 		It("should return error if MCP client returns error", func() {
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(testAlert, nil)
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(testAlert, nil)
 			mockMcpOne.On("DetectAnomalies", mock.Anything, mock.Anything).Return(nil, errors.New("mcp connection refused"))
 
-			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
+			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID.String())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to analyze metrics via MCP server"))
 			Expect(result).To(BeNil())
@@ -143,7 +143,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 
 	Context("ExecuteValidateAlertRaw", func() {
 		It("should parse JSON raw args and return serialized combined payload", func() {
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(testAlert, nil)
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(testAlert, nil)
 			expectedMcpResp := &requests.AnomalyDetectionResponse{
 				Status: 1,
 				Label:  "Normal",
@@ -158,11 +158,11 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			Expect(jsonResult).To(ContainSubstring("Normal"))
 		})
 
-		It("should fail on invalid UUID in raw args", func() {
-			rawArgs := `{"alert_id": "invalid-uuid"}`
+		It("should fail on empty or dummy alert_id in raw args", func() {
+			rawArgs := `{"alert_id": "null"}`
 			_, err := orchestratorSvc.ExecuteValidateAlertRaw(ctx, rawArgs)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid alert id"))
+			Expect(err.Error()).To(ContainSubstring("no valid alert_id provided"))
 		})
 	})
 

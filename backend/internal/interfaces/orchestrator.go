@@ -4,13 +4,12 @@ import (
 	"context"
 
 	"github.com/WillieBam/support_copilot/backend/types/responses"
-	"github.com/google/uuid"
 )
 
 // iorchestratorservice defines execution handlers for mcp tools
 type IOrchestratorService interface {
 	ExecuteListAlertsRaw(ctx context.Context) (string, error)
-	ExecuteValidateAlert(ctx context.Context, alertID uuid.UUID) (*responses.CombinedValidationResult, error)
+	ExecuteValidateAlert(ctx context.Context, alertID string) (*responses.CombinedValidationResult, error)
 	ExecuteValidateAlertRaw(ctx context.Context, rawArgs string) (string, error)
 	ExecuteGetIncidentRaw(ctx context.Context, rawArgs string) (string, error)
 	ExecuteListIncidentsRaw(ctx context.Context, rawArgs string) (string, error)

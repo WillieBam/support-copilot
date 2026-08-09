@@ -26,9 +26,19 @@ func (a *alertRepository) StoreAlert(ctx context.Context, alert *models.Alert) e
 	return nil
 }
 
-func (a *alertRepository) RetrieveAlertbyID(ctx context.Context, id uuid.UUID) (*models.Alert, error) {
+// RetrieveAlertbyID fetches alert by primary key or alert info id
+func (a *alertRepository) RetrieveAlertbyID(ctx context.Context, id string) (*models.Alert, error) {
 	var alert models.Alert
-	if err := a.db.WithContext(ctx).First(&alert, "id = ?", id).Error; err != nil {
+	if parsedUUID, err := uuid.Parse(id); err == nil {
+		if err := a.db.WithContext(ctx).First(&alert, "id = ? OR alert_info LIKE ?", parsedUUID, "%\"id\":\""+id+"\"%").Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, err
+			}
+			return nil, errors.New("Internal Server Error")
+		}
+		return &alert, nil
+	}
+	if err := a.db.WithContext(ctx).First(&alert, "alert_info LIKE ?", "%\"id\":\""+id+"\"%").Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
@@ -37,7 +47,6 @@ func (a *alertRepository) RetrieveAlertbyID(ctx context.Context, id uuid.UUID) (
 	return &alert, nil
 }
 
-// updatealertincidentid links an alert to a specific incident id
 func (a *alertRepository) UpdateAlertIncidentID(ctx context.Context, alertID, incidentID uuid.UUID) error {
 	return a.db.WithContext(ctx).
 		Model(&models.Alert{}).

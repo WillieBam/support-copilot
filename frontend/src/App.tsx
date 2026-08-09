@@ -96,6 +96,35 @@ function GlobalHeader({
   );
 }
 
+// LiveChatThread renders active chat thread with backend runtime
+function LiveChatThread({
+  teamId,
+  conversationId,
+  onConversationCreated,
+  onTitleGenerated,
+  onFinish,
+}: {
+  teamId: string | null;
+  conversationId: string | null;
+  onConversationCreated: (id: string) => void;
+  onTitleGenerated: (convId: string, title: string) => void;
+  onFinish: () => void;
+}) {
+  const { runtime } = useBackendRuntime({
+    teamId,
+    conversationId,
+    onConversationCreated,
+    onTitleGenerated,
+    onFinish,
+  });
+
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <Thread />
+    </AssistantRuntimeProvider>
+  );
+}
+
 function MainApp({
   auth,
   isInstructionModalOpen,
@@ -122,14 +151,6 @@ function MainApp({
   }, [activeTeamId]);
 
   const convState = useConversationState(activeTeamId);
-
-  const { runtime } = useBackendRuntime({
-    teamId: activeTeamId,
-    conversationId: convState.activeConvId,
-    onConversationCreated: convState.onConversationCreated,
-    onTitleGenerated: convState.onTitleGenerated,
-    onFinish: convState.onFinish,
-  });
 
   const email = auth.userEmail;
   const initial = email ? email.charAt(0).toUpperCase() : 'U';
@@ -263,9 +284,14 @@ function MainApp({
                 onBack={convState.closeReadOnly}
               />
             ) : (
-              <AssistantRuntimeProvider runtime={runtime}>
-                <Thread />
-              </AssistantRuntimeProvider>
+              <LiveChatThread
+                key={convState.chatKey}
+                teamId={activeTeamId}
+                conversationId={convState.activeConvId}
+                onConversationCreated={convState.onConversationCreated}
+                onTitleGenerated={convState.onTitleGenerated}
+                onFinish={convState.onFinish}
+              />
             )}
           </div>
         </div>

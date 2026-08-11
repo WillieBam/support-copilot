@@ -8,11 +8,11 @@ import (
 )
 
 var _ = Describe("ServerConfig", func() {
-	It("should construct NewServerConfig with given name and getters", func() {
+	It("should construct NewServerConfig with given name and fields", func() {
 		sc := config.NewServerConfig("test-server")
-		Expect(sc).NotTo(BeNil())
-		Expect(sc.Name()).To(Equal("test-server"))
-		Expect(sc.Port()).To(Equal("8080"))
+		Expect(sc.Name).To(Equal("test-server"))
+		Expect(sc.Addr()).To(Equal(":8080"))
 	})
 })
+
 

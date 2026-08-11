@@ -1,4 +1,4 @@
-export type TeamRole = 'owner' | 'member';
+export type TeamRole = 'owner' | 'member' | 'admin';
 
 export interface TeamMember {
     id: string;

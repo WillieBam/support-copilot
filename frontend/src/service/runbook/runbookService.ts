@@ -1,5 +1,5 @@
 import apiClient from '@/service/apiClient';
-import type { Runbook, CreateRunbookPayload, UpdateRunbookPayload } from '@/types/runbook';
+import type { Runbook, RunbookLog, CreateRunbookPayload, UpdateRunbookPayload } from '@/types/runbook';
 
 export async function fetchTeamRunbooks(teamId: string, status = 'active'): Promise<Runbook[]> {
   const response = await apiClient.get<Runbook[]>(`/api/teams/${teamId}/runbooks`, {
@@ -11,6 +11,11 @@ export async function fetchTeamRunbooks(teamId: string, status = 'active'): Prom
 export async function fetchRunbookById(id: string): Promise<Runbook> {
   const response = await apiClient.get<Runbook>(`/api/runbooks/${id}`);
   return response.data;
+}
+
+export async function fetchRunbookLogs(id: string): Promise<RunbookLog[]> {
+  const response = await apiClient.get<RunbookLog[]>(`/api/runbooks/${id}/logs`);
+  return response.data || [];
 }
 
 export async function createRunbook(teamId: string, payload: CreateRunbookPayload): Promise<Runbook> {

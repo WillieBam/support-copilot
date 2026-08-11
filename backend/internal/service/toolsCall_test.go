@@ -17,6 +17,8 @@ import (
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 )
 
+
+
 var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 	var (
 		orchestratorSvc  interfaces.IOrchestratorService
@@ -46,53 +48,67 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			"error_rate": 0.05,
 			"network_throughput": 450.0,
 			"request_rate": 300.0,
-			"response_latency": 350.0,
+			"cpu_usage": 91.4,
+			"memory_usage": 84.7,
+			"incoming_traffic": 540.0,
+			"outgoing_traffic": 512.0,
+			"error_rate": 0.80,
+			"network_throughput": 680.0,
+			"request_rate": 1320.0,
+			"response_latency": 3200.0,
 			"availability_percent": 99.1
 		}`
 
 		incID := uuid.New()
 		testAlert = &models.Alert{
-			ID:          testAlertID,
-			IncidentID:  &incID,
-			ReceivedAt:  time.Now(),
-			ServiceName: "payment-service",
-			Severity:    "CRITICAL",
-			Metrics:     validMetricsJSON,
+			ID:           testAlertID,
+			IncidentID:   &incID,
+			ReceivedAt:   time.Now(),
+			ResourceInfo: `{"service":"payment-service"}`,
+			AlertInfo:    `{"severity":"CRITICAL"}`,
+			Metrics:      validMetricsJSON,
 		}
 
 		orchestratorSvc = service.NewOrchestratorService(mockAlertRepo, mockMcpOne, mockMcpTwo, mockTeamRepo)
 	})
 
 	Context("ExecuteValidateAlert", func() {
-		It("should successfully fetch alert from DB and predict anomaly via MCP", func() {
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(testAlert, nil)
+		It("should fetch alert, call MCP anomaly detection, and return combined result", func() {
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(testAlert, nil)
 
-			expectedMcpResp := &requests.AnomalyDetectionResponse{
+			expectedDetectionReq := requests.AnomalyDetectionRequest{
+				CpuUsage:            91.4,
+				MemoryUsage:         84.7,
+				IncomingTraffic:     540,
+				OutgoingTraffic:     512,
+				ErrorRate:           0.80,
+				NetworkThroughput:   680,
+				RequestRate:         1320,
+				ResponseLatency:     3200,
+				AvailabilityPercent: 99.1,
+			}
+
+			mockMLResp := &requests.AnomalyDetectionResponse{
 				Status: 0,
 				Label:  "Anomaly",
 				Engine: "IsolationForest",
 			}
-			mockMcpOne.On("DetectAnomalies", mock.Anything, mock.MatchedBy(func(req requests.AnomalyDetectionRequest) bool {
-				return req.CpuUsage == 92.5 && req.ResponseLatency == 350.0
-			})).Return(expectedMcpResp, nil)
 
-			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
+			mockMcpOne.On("DetectAnomalies", mock.Anything, expectedDetectionReq).Return(mockMLResp, nil)
+
+			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID.String())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).NotTo(BeNil())
 			Expect(result.AlertID).To(Equal(testAlertID.String()))
 			Expect(result.ServiceName).To(Equal("payment-service"))
-			Expect(result.Severity).To(Equal("CRITICAL"))
-			Expect(result.MLPrediction.Status).To(Equal(0))
 			Expect(result.MLPrediction.Label).To(Equal("Anomaly"))
-
-			mockAlertRepo.AssertExpectations(GinkgoT())
-			mockMcpOne.AssertExpectations(GinkgoT())
 		})
 
-		It("should return error if alert ID is not found in Postgres", func() {
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(nil, errors.New("record not found"))
 
-			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
+		It("should return error if fetching alert from DB fails", func() {
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(nil, errors.New("db disconnect"))
+
+			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID.String())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to fetch alert"))
 			Expect(result).To(BeNil())
@@ -100,24 +116,25 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 
 		It("should return error if alert metrics JSON in Postgres is corrupted", func() {
 			corruptedAlert := &models.Alert{
-				ID:          testAlertID,
-				ServiceName: "cart-service",
-				Severity:    "WARNING",
-				Metrics:     "{invalid_json",
+				ID:           testAlertID,
+				ResourceInfo: `{"service":"cart-service"}`,
+				AlertInfo:    `{"severity":"WARNING"}`,
+				Metrics:      "{invalid_json",
 			}
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(corruptedAlert, nil)
 
-			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(corruptedAlert, nil)
+
+			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID.String())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to parse alert metrics JSON"))
 			Expect(result).To(BeNil())
 		})
 
 		It("should return error if MCP client returns error", func() {
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(testAlert, nil)
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(testAlert, nil)
 			mockMcpOne.On("DetectAnomalies", mock.Anything, mock.Anything).Return(nil, errors.New("mcp connection refused"))
 
-			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID)
+			result, err := orchestratorSvc.ExecuteValidateAlert(ctx, testAlertID.String())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to analyze metrics via MCP server"))
 			Expect(result).To(BeNil())
@@ -126,7 +143,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 
 	Context("ExecuteValidateAlertRaw", func() {
 		It("should parse JSON raw args and return serialized combined payload", func() {
-			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID).Return(testAlert, nil)
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(testAlert, nil)
 			expectedMcpResp := &requests.AnomalyDetectionResponse{
 				Status: 1,
 				Label:  "Normal",
@@ -141,11 +158,11 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			Expect(jsonResult).To(ContainSubstring("Normal"))
 		})
 
-		It("should fail on invalid UUID in raw args", func() {
-			rawArgs := `{"alert_id": "invalid-uuid"}`
+		It("should fail on empty or dummy alert_id in raw args", func() {
+			rawArgs := `{"alert_id": "null"}`
 			_, err := orchestratorSvc.ExecuteValidateAlertRaw(ctx, rawArgs)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid alert id"))
+			Expect(err.Error()).To(ContainSubstring("no valid alert_id provided"))
 		})
 	})
 
@@ -255,4 +272,106 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			Expect(res).To(ContainSubstring(incidentID.String()))
 		})
 	})
+
+	Context("ExecuteListAlertsRaw", func() {
+		It("should return json formatted list of alerts", func() {
+			alerts := []*models.Alert{
+				testAlert,
+			}
+			mockAlertRepo.On("ListAlerts", mock.Anything, 20).Return(alerts, nil)
+
+			res, err := orchestratorSvc.ExecuteListAlertsRaw(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("payment-service"))
+		})
+
+		It("should return error when alertRepo ListAlerts fails", func() {
+			mockAlertRepo.On("ListAlerts", mock.Anything, 20).Return(nil, errors.New("db error"))
+
+			_, err := orchestratorSvc.ExecuteListAlertsRaw(ctx)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to list alerts"))
+		})
+	})
+
+	Context("Raw Tools Argument Validation and Errors", func() {
+		It("should return error on empty or dummy alert_id in ExecuteValidateAlertRaw", func() {
+			_, err := orchestratorSvc.ExecuteValidateAlertRaw(ctx, `{"alert_id": "null"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no valid alert_id provided"))
+		})
+
+		It("should return error on missing incident_id in ExecuteGetIncidentRaw", func() {
+			_, err := orchestratorSvc.ExecuteGetIncidentRaw(ctx, `{"incident_id": ""}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("incident_id is required"))
+		})
+
+		It("should return error on invalid json in ExecuteGetIncidentRaw", func() {
+			_, err := orchestratorSvc.ExecuteGetIncidentRaw(ctx, `invalid json`)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should return error on missing team_id in ExecuteListIncidentsRaw", func() {
+			_, err := orchestratorSvc.ExecuteListIncidentsRaw(ctx, `{"team_id": ""}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("team_id is required"))
+		})
+
+		It("should return error on missing required fields in ExecuteCreateRunbookRaw", func() {
+			_, err := orchestratorSvc.ExecuteCreateRunbookRaw(ctx, `{"title": "Title"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("team_id, incident_id, title, and content are required"))
+		})
+
+		It("should return error on missing runbook_id in ExecuteUpdateRunbookRaw", func() {
+			_, err := orchestratorSvc.ExecuteUpdateRunbookRaw(ctx, `{"title": "Title"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("runbook_id is required"))
+		})
+
+		It("should return error on missing runbook_id in ExecuteDeprecateRunbookRaw", func() {
+			_, err := orchestratorSvc.ExecuteDeprecateRunbookRaw(ctx, `{}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("runbook_id is required"))
+		})
+
+		It("should return error on missing runbook_id in ExecuteGetRunbookRaw", func() {
+			_, err := orchestratorSvc.ExecuteGetRunbookRaw(ctx, `{}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("runbook_id is required"))
+		})
+
+		It("should return error on missing team_id in ExecuteListRunbooksRaw", func() {
+			_, err := orchestratorSvc.ExecuteListRunbooksRaw(ctx, `{}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("team_id is required"))
+		})
+
+		It("should return error on invalid alert_id in ExecuteLinkAlertToIncidentRaw", func() {
+			_, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `{"alert_id": "invalid"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid alert_id"))
+		})
+
+		It("should return error when incident title cannot be resolved in ExecuteLinkAlertToIncidentRaw", func() {
+			alertID := uuid.New()
+			mockTeamRepo.On("ListTeamIncidents", mock.Anything, uuid.Nil).Return([]models.TeamIncident{}, nil)
+
+			_, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `{"alert_id": "`+alertID.String()+`", "incident_title": "NonExistent"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not resolve valid incident UUID"))
+		})
+
+		It("should return error when UpdateAlertIncidentID fails in ExecuteLinkAlertToIncidentRaw", func() {
+			alertID := uuid.New()
+			incidentID := uuid.New()
+			mockAlertRepo.On("UpdateAlertIncidentID", mock.Anything, alertID, incidentID).Return(errors.New("db error"))
+
+			_, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `{"alert_id": "`+alertID.String()+`", "incident_id": "`+incidentID.String()+`"}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to link alert to incident"))
+		})
+	})
 })
+

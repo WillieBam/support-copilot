@@ -51,6 +51,9 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ auth }) => {
               className="register-input"
               required
             />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Must be 6–8 characters long with at least 1 special character (e.g. !@#$%^&*)
+            </p>
             {state.passwordError && (
               <p className="register-input-error">{state.passwordError}</p>
             )}

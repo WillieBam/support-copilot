@@ -33,3 +33,33 @@ export const fetchBreachedIncidents = async (
   });
   return response.data || [];
 };
+
+// fetchAllTeamsIncidentTrend retrieves combined incident frequency trends across all teams
+export const fetchAllTeamsIncidentTrend = async (
+  timeframe: 'day' | 'month' | 'year'
+): Promise<IncidentTrendPoint[]> => {
+  const response = await apiClient.get<IncidentTrendPoint[]>('/api/admin/dashboard/incidents/trend', {
+    params: { timeframe },
+  });
+  return response.data || [];
+};
+
+// fetchAllTeamsMTTR calculates combined mttr metrics across all teams
+export const fetchAllTeamsMTTR = async (
+  slaTargetMinutes: number
+): Promise<MTTRResult> => {
+  const response = await apiClient.get<MTTRResult>('/api/admin/dashboard/mttr', {
+    params: { sla_target_minutes: slaTargetMinutes },
+  });
+  return response.data;
+};
+
+// fetchAllTeamsBreachedIncidents lists resolved incidents across all teams that breached sla
+export const fetchAllTeamsBreachedIncidents = async (
+  slaTargetMinutes: number
+): Promise<BreachedIncident[]> => {
+  const response = await apiClient.get<BreachedIncident[]>('/api/admin/dashboard/incidents/breached', {
+    params: { sla_target_minutes: slaTargetMinutes },
+  });
+  return response.data || [];
+};

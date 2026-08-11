@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -91,31 +90,115 @@ func NewAppService(alertRepo interfaces.IAlertRepository, llmClient interfaces.I
 	}
 }
 
-func (s *AppService) IngestAlert(ctx context.Context, incidentID *uuid.UUID, serviceName, severity, metrics string) error {
-	slog.Info("[Alert Ingestion] Ingestion process started", "service", serviceName, "severity", severity, "has_incident_id", incidentID != nil)
-
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, []byte(metrics)); err != nil {
-		slog.Warn("[Alert Ingestion] Metrics field is not valid JSON, storing raw value", "err", err)
-		buf.WriteString(metrics)
+func (s *AppService) IngestAlert(ctx context.Context, req *requests.AlertIngestRequest) error {
+	if req == nil {
+		return errors.New("alert ingest request cannot be nil")
 	}
+	slog.Info("[Alert Ingestion] Ingestion process started", "service", req.Resource.Service, "severity", req.Alert.Severity, "alert_info_id", req.Alert.ID)
+
+	alertBytes, _ := json.Marshal(req.Alert)
+	resourceBytes, _ := json.Marshal(req.Resource)
+	metricsBytes, _ := json.Marshal(req.Metrics)
+	bizBytes, _ := json.Marshal(req.BusinessContext)
+	metaBytes, _ := json.Marshal(req.Metadata)
 
 	alert := &models.Alert{
-		ID:          uuid.New(),
-		IncidentID:  incidentID,
-		ServiceName: serviceName,
-		Severity:    severity,
-		Metrics:     buf.String(),
-		ReceivedAt:  time.Now(),
+		ID:              uuid.New(),
+		IncidentID:      req.IncidentID,
+		AlertInfo:       string(alertBytes),
+		ResourceInfo:    string(resourceBytes),
+		Metrics:         string(metricsBytes),
+		BusinessContext: string(bizBytes),
+		Metadata:        string(metaBytes),
+		ReceivedAt:      time.Now(),
 	}
 
 	if err := s.alertRepo.StoreAlert(ctx, alert); err != nil {
-		slog.Error("[Alert Ingestion] Failed to store alert in database", "alert_id", alert.ID, "service", serviceName, "err", err)
+		slog.Error("[Alert Ingestion] Failed to store alert in database", "alert_id", alert.ID, "service", req.Resource.Service, "err", err)
 		return err
 	}
 
-	slog.Info("[Alert Ingestion] Alert successfully stored in database", "alert_id", alert.ID, "service", serviceName)
+	slog.Info("[Alert Ingestion] Alert successfully stored in database", "alert_id", alert.ID, "service", req.Resource.Service)
 	return nil
+}
+
+// formatFallbackMarkdown converts raw JSON tool results into clean markdown tables if LLM outputs empty content
+func formatFallbackMarkdown(toolName, toolResult string) string {
+	if toolName == "list_incidents" {
+		var incs []struct {
+			ID        string `json:"id"`
+			Title     string `json:"title"`
+			Status    string `json:"status"`
+			CreatedAt string `json:"created_at"`
+		}
+		if err := json.Unmarshal([]byte(toolResult), &incs); err == nil && len(incs) > 0 {
+			var sb strings.Builder
+			sb.WriteString("\n\n### Team Incidents\n\n")
+			sb.WriteString("| Title | Status | Incident ID | Created |\n")
+			sb.WriteString("| --- | --- | --- | --- |\n")
+			for _, inc := range incs {
+				sb.WriteString(fmt.Sprintf("| %s | `%s` | `%s` | %s |\n", inc.Title, inc.Status, inc.ID, inc.CreatedAt))
+			}
+			return sb.String()
+		}
+	}
+	if toolName == "get_incident" {
+		var inc struct {
+			IncidentID       string `json:"incident_id"`
+			Title            string `json:"title"`
+			Status           string `json:"status"`
+			Age              string `json:"age"`
+			Details          string `json:"details"`
+			ExistingRunbooks []struct {
+				ID    string `json:"id"`
+				Title string `json:"title"`
+			} `json:"existing_runbooks"`
+		}
+		if err := json.Unmarshal([]byte(toolResult), &inc); err == nil && inc.IncidentID != "" {
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("\n\n### Incident Details: %s\n\n", inc.Title))
+			sb.WriteString(fmt.Sprintf("- **Incident ID**: `%s`\n", inc.IncidentID))
+			sb.WriteString(fmt.Sprintf("- **Status**: `%s`\n", inc.Status))
+			if inc.Age != "" {
+				sb.WriteString(fmt.Sprintf("- **Age**: %s\n", inc.Age))
+			}
+			if inc.Details != "" {
+				sb.WriteString(fmt.Sprintf("\n#### Summary & Telemetry\n%s\n", inc.Details))
+			}
+			if len(inc.ExistingRunbooks) > 0 {
+				sb.WriteString("\n#### Linked Runbooks\n")
+				for _, rb := range inc.ExistingRunbooks {
+					sb.WriteString(fmt.Sprintf("- **%s** (`%s`)\n", rb.Title, rb.ID))
+				}
+			}
+			return sb.String()
+		}
+	}
+	if toolName == "create_runbook" || toolName == "get_runbook" || toolName == "update_runbook" {
+		var rb struct {
+			ID         string `json:"id"`
+			IncidentID string `json:"incident_id"`
+			Title      string `json:"title"`
+			Status     string `json:"status"`
+			Content    string `json:"content"`
+		}
+		if err := json.Unmarshal([]byte(toolResult), &rb); err == nil && rb.ID != "" {
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("\n\n### 📘 Operational Runbook: %s\n\n", rb.Title))
+			sb.WriteString(fmt.Sprintf("- **Runbook ID**: `%s`\n", rb.ID))
+			sb.WriteString(fmt.Sprintf("- **Status**: `%s`\n", rb.Status))
+			if rb.IncidentID != "" {
+				sb.WriteString(fmt.Sprintf("- **Incident ID**: `%s`\n", rb.IncidentID))
+			}
+			sb.WriteString("\n---\n\n")
+			sb.WriteString(rb.Content)
+			return sb.String()
+		}
+	}
+	if len(toolResult) > 0 && len(toolResult) < 2000 {
+		return fmt.Sprintf("\n\n### Tool Execution Result (`%s`)\n```json\n%s\n```", toolName, strings.TrimSpace(toolResult))
+	}
+	return fmt.Sprintf("\n\nSuccessfully retrieved operational data via `%s`.", toolName)
 }
 
 func isValidToolCallArgs(toolName string, args map[string]interface{}) bool {
@@ -130,9 +213,6 @@ func isValidToolCallArgs(toolName string, args map[string]interface{}) bool {
 		}
 		alertID = strings.TrimSpace(alertID)
 		if alertID == "" || alertID == "null" || alertID == "none" || alertID == "undefined" || alertID == "{alert_id}" || alertID == "00000000-0000-0000-0000-000000000000" {
-			return false
-		}
-		if _, err := uuid.Parse(alertID); err != nil {
 			return false
 		}
 	}
@@ -250,6 +330,16 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 
 	systemPrompt := promptpkg.SystemPrompt
 
+	if teamID != uuid.Nil || activeIncidentID != uuid.Nil {
+		systemPrompt += "\n\n## Current Workspace Context"
+		if teamID != uuid.Nil {
+			systemPrompt += fmt.Sprintf("\n- Active Team ID: `%s`", teamID.String())
+		}
+		if activeIncidentID != uuid.Nil {
+			systemPrompt += fmt.Sprintf("\n- Active Incident ID: `%s`", activeIncidentID.String())
+		}
+	}
+
 	if teamID != uuid.Nil && s.teamRepo != nil {
 		inst, _, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
 		if err == nil && inst != nil && strings.TrimSpace(inst.InstructionDetails) != "" {
@@ -292,7 +382,7 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		Tools:    availableTools,
 	}
 
-	// Call Ollama streaming with tool declarations dynamically provided by ToolRegistry
+	// Call LLM streaming with tool declarations dynamically provided by ToolRegistry
 	assistantMsg, err := s.llmClient.QueryStreamWithTools(ctx, req, streamChan)
 	if err != nil {
 		slog.Error("[APP SERVICE] First pass QueryStreamWithTools failed", "err", err)
@@ -383,16 +473,25 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 				Content: toolResult,
 			})
 
-			// 2nd Pass: Stream LLM's final synthesis based on the tool result
+			// 2nd pass: stream llm's final synthesis based on the tool result
 			slog.Info("[APP SERVICE] Starting Pass 2 synthesis with LLM...")
 			secondReq := requests.LLMChatRequest{
 				Messages: messages,
 			}
-			_, err = s.llmClient.QueryStreamWithTools(ctx, secondReq, streamChan)
+			pass2Msg, err := s.llmClient.QueryStreamWithTools(ctx, secondReq, streamChan)
 			if err != nil {
 				slog.Error("[APP SERVICE] Pass 2 synthesis failed", "err", err)
 			} else {
-				slog.Info("[APP SERVICE] Pass 2 synthesis completed successfully")
+				contentLen := 0
+				if pass2Msg != nil {
+					contentLen = len(pass2Msg.Content)
+				}
+				slog.Info("[APP SERVICE] Pass 2 synthesis completed successfully", "contentLen", contentLen)
+				if pass2Msg == nil || strings.TrimSpace(pass2Msg.Content) == "" {
+					slog.Warn("[APP SERVICE] Pass 2 LLM generated empty content, emitting fallback summary")
+					fallbackText := formatFallbackMarkdown(toolName, toolResult)
+					streamChan <- types.StreamEvent{Type: "text", Content: fallbackText}
+				}
 			}
 			return err
 		}
@@ -445,7 +544,6 @@ func (s *AppService) SaveMessage(ctx context.Context, convID uuid.UUID, sender, 
 		ConversationID: convID,
 		Sender:         sender,
 		Content:        content,
-		ReasoningSteps: reasoning,
 		CreatedAt:      time.Now(),
 	}
 	if err := s.convRepo.CreateMessage(ctx, msg); err != nil {

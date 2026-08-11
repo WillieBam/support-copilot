@@ -25,11 +25,16 @@ func InitDatabase(db *gorm.DB) {
 		log.Fatalf("Failed to create UUID extension: %v", err)
 	}
 
-	db.Exec("ALTER TABLE team_incidents DROP COLUMN IF EXISTS incident_id")
+	db.Exec("ALTER TABLE IF EXISTS team_incidents DROP COLUMN IF EXISTS incident_id")
+	db.Exec("ALTER TABLE IF EXISTS alerts DROP COLUMN IF EXISTS service_name")
+	db.Exec("UPDATE alerts SET incident_id = NULL WHERE incident_id IS NOT NULL AND incident_id NOT IN (SELECT id FROM team_incidents)")
+	db.Exec("UPDATE runbooks SET incident_id = 'a1111111-1111-1111-1111-111111111111' WHERE incident_id NOT IN (SELECT id FROM team_incidents)")
+	db.Exec("UPDATE runbook_logs SET incident_id = 'a1111111-1111-1111-1111-111111111111' WHERE incident_id NOT IN (SELECT id FROM team_incidents)")
+	db.Exec("UPDATE conversations SET team_incident_id = NULL WHERE team_incident_id IS NOT NULL AND team_incident_id NOT IN (SELECT id FROM team_incidents)")
+	db.Exec("UPDATE messages SET parent_message_id = NULL WHERE parent_message_id IS NOT NULL AND parent_message_id NOT IN (SELECT id FROM messages)")
 
 	err := db.AutoMigrate(
 		&models.User{},
-		&models.Alert{},
 		&models.Team{},
 		&models.TeamMember{},
 		&models.TeamIncident{},
@@ -37,6 +42,8 @@ func InitDatabase(db *gorm.DB) {
 		&models.Instruction{},
 		&models.InstructionLog{},
 		&models.Runbook{},
+		&models.RunbookLog{},
+		&models.Alert{},
 		&models.Conversation{},
 		&models.Message{},
 	)
@@ -47,9 +54,10 @@ func InitDatabase(db *gorm.DB) {
 
 	seedUsers(db)
 	seedTeamsAndMemberships(db)
-	seedAlerts(db)
 	seedTeamIncidents(db)
+	seedAlerts(db)
 	seedRunbooks(db)
+	seedRunbookLogs(db)
 	seedInstructions(db)
 }
 
@@ -65,7 +73,7 @@ func seedUsers(db *gorm.DB) {
 		{
 			ID:          superAdminID,
 			FirebaseUID: "fb_superadmin_111",
-			Email:       "superadmin@company.com",
+			Email:       "iswilliebam@gmail.com",
 			DisplayName: "System Boss",
 			Scope:       "super_admin",
 		},
@@ -87,8 +95,8 @@ func seedUsers(db *gorm.DB) {
 
 	for _, u := range defaultUsers {
 		err := db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "email"}},
-			DoNothing: true,
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"email", "firebase_uid", "display_name", "scope"}),
 		}).Create(&u).Error
 
 		if err != nil {
@@ -165,34 +173,44 @@ func seedTeamsAndMemberships(db *gorm.DB) {
 }
 
 func seedAlerts(db *gorm.DB) {
-	mockIncidentID := uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d")
+	mockIncidentID := uuid.MustParse("a1111111-1111-1111-1111-111111111111")
+	alertID1 := uuid.MustParse("99999999-1111-1111-1111-111111111111")
+	alertID2 := uuid.MustParse("99999999-2222-2222-2222-222222222222")
+	alertID3 := uuid.MustParse("99999999-3333-3333-3333-333333333333")
 
 	mockAlerts := []models.Alert{
 		{
-			ID:          uuid.New(),
-			IncidentID:  &mockIncidentID,
-			ReceivedAt:  time.Now().Add(-15 * time.Minute),
-			ServiceName: "payment-gateway-service",
-			Severity:    "CRITICAL",
-			Metrics:     `{"container.cpu.usage": 94.2, "runtime.go.mem_stats.total_alloc": 4825800, "error_rate": 0.06}`,
+			ID:              alertID1,
+			IncidentID:      &mockIncidentID,
+			ReceivedAt:      time.Now().Add(-15 * time.Minute),
+			ResourceInfo:    `{"service":"payment-gateway-service"}`,
+			AlertInfo:       `{"id":"165028917","severity":"CRITICAL"}`,
+			Metrics:         `{"container.cpu.usage": 94.2, "runtime.go.mem_stats.total_alloc": 4825800, "error_rate": 0.06}`,
+			BusinessContext: "{}",
+			Metadata:        "{}",
 		},
 		{
-			ID:          uuid.New(),
-			IncidentID:  &mockIncidentID,
-			ReceivedAt:  time.Now().Add(-5 * time.Minute),
-			ServiceName: "authentication-service",
-			Severity:    "WARNING",
-			Metrics:     `{"trace.grpc.server.request.hits": 4500, "system.cpu.system": 78.1}`,
+			ID:              alertID2,
+			IncidentID:      &mockIncidentID,
+			ReceivedAt:      time.Now().Add(-5 * time.Minute),
+			ResourceInfo:    `{"service":"authentication-service"}`,
+			AlertInfo:       `{"id":"165028918","severity":"WARNING"}`,
+			Metrics:         `{"trace.grpc.server.request.hits": 4500, "system.cpu.system": 78.1}`,
+			BusinessContext: "{}",
+			Metadata:        "{}",
 		},
 		{
-			ID:          uuid.New(),
-			IncidentID:  nil,
-			ReceivedAt:  time.Now().Add(-2 * time.Minute),
-			ServiceName: "report-upload-service",
-			Severity:    "CRITICAL",
-			Metrics:     `{"cpu_usage": 96.8, "response_latency": 450.0, "error_rate": 0.08}`,
+			ID:              alertID3,
+			IncidentID:      nil,
+			ReceivedAt:      time.Now().Add(-2 * time.Minute),
+			ResourceInfo:    `{"service":"report-upload-service"}`,
+			AlertInfo:       `{"id":"165028919","severity":"CRITICAL"}`,
+			Metrics:         `{"cpu_usage": 96.8, "response_latency": 450.0, "error_rate": 0.08}`,
+			BusinessContext: "{}",
+			Metadata:        "{}",
 		},
 	}
+
 
 	err := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
@@ -211,7 +229,7 @@ func seedTeamIncidents(db *gorm.DB) {
 		{
 			ID:         uuid.MustParse("a1111111-1111-1111-1111-111111111111"),
 			TeamID:     teamDevOpsID,
-			AssignedBy: realUserID,
+			CreatedBy:  realUserID,
 			Title:      "Payment Gateway High CPU Spike",
 			Status:     "IN_PROGRESS",
 			Details:    "CPU spike observed on payment gateway pod #3.",
@@ -221,7 +239,7 @@ func seedTeamIncidents(db *gorm.DB) {
 		{
 			ID:         uuid.MustParse("a2222222-2222-2222-2222-222222222222"),
 			TeamID:     teamDevOpsID,
-			AssignedBy: realUserID,
+			CreatedBy:  realUserID,
 			Title:      "Redis Session Cache Out of Memory",
 			Status:     "OPEN",
 			Details:    "Eviction policy maxmemory exceeded on cache-cluster-01.",
@@ -231,7 +249,7 @@ func seedTeamIncidents(db *gorm.DB) {
 		{
 			ID:         uuid.MustParse("a3333333-3333-3333-3333-333333333333"),
 			TeamID:     teamDevOpsID,
-			AssignedBy: leadEngineerID,
+			CreatedBy:  leadEngineerID,
 			Title:      "Cart Service DB Connection Pool Exhausted",
 			Status:     "IN_PROGRESS",
 			Details:    "Connection pool leak detected in cart-service v2.4.",
@@ -241,7 +259,7 @@ func seedTeamIncidents(db *gorm.DB) {
 		{
 			ID:         uuid.MustParse("a4444444-4444-4444-4444-444444444444"),
 			TeamID:     teamDevOpsID,
-			AssignedBy: realUserID,
+			CreatedBy:  realUserID,
 			Title:      "Kafka Consumer Lag Spike on Orders Topic",
 			Status:     "OPEN",
 			Details:    "Lag count exceeded 50,000 unhandled messages.",
@@ -251,7 +269,7 @@ func seedTeamIncidents(db *gorm.DB) {
 		{
 			ID:         uuid.MustParse("a5555555-5555-5555-5555-555555555555"),
 			TeamID:     teamDevOpsID,
-			AssignedBy: engineerID1,
+			CreatedBy:  engineerID1,
 			Title:      "Search Index Synchronization Out of Sync",
 			Status:     "OPEN",
 			Details:    "Elasticsearch cluster node #2 rebalancing failure.",
@@ -261,27 +279,51 @@ func seedTeamIncidents(db *gorm.DB) {
 		{
 			ID:         uuid.MustParse("a6666666-6666-6666-6666-666666666666"),
 			TeamID:     teamDevOpsID,
-			AssignedBy: superAdminID,
+			CreatedBy:  superAdminID,
 			Title:      "Kubernetes Node Network Partition",
 			Status:     "RESOLVED",
 			Details:    "Node replaced and network overlay routing rules restored.",
 			CreatedAt:  time.Now().Add(-12 * time.Hour),
 			AssignedAt: time.Now().Add(-12 * time.Hour),
+			ResolvedAt: timePtr(time.Now().Add(-5 * time.Hour)),
 		},
 		{
 			ID:         uuid.MustParse("a7777777-7777-7777-7777-777777777777"),
 			TeamID:     teamDevOpsID,
-			AssignedBy: realUserID,
+			CreatedBy:  realUserID,
 			Title:      "Ingress Controller SSL Certificate Expiry",
-			Status:     "CLOSED",
+			Status:     "RESOLVED",
 			Details:    "Cert-manager automatically renewed wildcard TLS certificate.",
 			CreatedAt:  time.Now().Add(-24 * time.Hour),
 			AssignedAt: time.Now().Add(-24 * time.Hour),
+			ResolvedAt: timePtr(time.Now().Add(-23 * time.Hour)),
+		},
+		{
+			ID:         uuid.MustParse("a8888888-8888-8888-8888-888888888888"),
+			TeamID:     teamDevOpsID,
+			CreatedBy:  realUserID,
+			Title:      "Database Deadlock in User Service",
+			Status:     "RESOLVED",
+			Details:    "Optimized transaction order to eliminate deadlocks.",
+			CreatedAt:  time.Now().Add(-18 * time.Hour),
+			AssignedAt: time.Now().Add(-18 * time.Hour),
+			ResolvedAt: timePtr(time.Now().Add(-17 * time.Hour)),
+		},
+		{
+			ID:         uuid.MustParse("a9999999-9999-9999-9999-999999999999"),
+			TeamID:     teamDevOpsID,
+			CreatedBy:  leadEngineerID,
+			Title:      "Disk Space Exhaustion on Log Server",
+			Status:     "RESOLVED",
+			Details:    "Cleared archived logs and updated retention policy.",
+			CreatedAt:  time.Now().Add(-8 * time.Hour),
+			AssignedAt: time.Now().Add(-8 * time.Hour),
+			ResolvedAt: timePtr(time.Now().Add(-6 * time.Hour)),
 		},
 		{
 			ID:         uuid.MustParse("b2222222-2222-2222-2222-222222222222"),
 			TeamID:     teamPlatformID,
-			AssignedBy: leadEngineerID,
+			CreatedBy:  leadEngineerID,
 			Title:      "Authentication Service Latency Degradation",
 			Status:     "IN_PROGRESS",
 			Details:    "gRPC server response latency exceeded SLA threshold.",
@@ -291,12 +333,13 @@ func seedTeamIncidents(db *gorm.DB) {
 		{
 			ID:         uuid.MustParse("b3333333-3333-3333-3333-333333333333"),
 			TeamID:     teamPlatformID,
-			AssignedBy: realUserID,
+			CreatedBy:  realUserID,
 			Title:      "GraphQL Gateway Schema Stitching Failure",
 			Status:     "RESOLVED",
 			Details:    "Rolled back breaking change in catalog microservice deployment.",
 			CreatedAt:  time.Now().Add(-6 * time.Hour),
 			AssignedAt: time.Now().Add(-6 * time.Hour),
+			ResolvedAt: timePtr(time.Now().Add(-5 * time.Hour)),
 		},
 	}
 
@@ -429,12 +472,18 @@ func seedInstructions(db *gorm.DB) {
 	}
 }
 
+func uuidPtr(id string) *uuid.UUID {
+	u := uuid.MustParse(id)
+	return &u
+}
+
 func seedRunbooks(db *gorm.DB) {
 	mockRunbooks := []models.Runbook{
 		{
 			ID:         uuid.MustParse("f1111111-1111-1111-1111-111111111111"),
-			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			IncidentID: uuidPtr("a1111111-1111-1111-1111-111111111111"),
 			TeamID:     teamDevOpsID,
+			CreatedBy:  realUserID,
 			Title:      "Payment Gateway CPU Spike — Scale & Throttle",
 			Status:     "active",
 			Content: "## Root Cause\n" +
@@ -452,16 +501,18 @@ func seedRunbooks(db *gorm.DB) {
 		},
 		{
 			ID:         uuid.MustParse("f2222222-2222-2222-2222-222222222222"),
-			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			IncidentID: uuidPtr("a1111111-1111-1111-1111-111111111111"),
 			TeamID:     teamDevOpsID,
+			CreatedBy:  leadEngineerID,
 			Title:      "Old: Manual Pod Restart (Deprecated)",
 			Status:     "deprecated",
 			Content:    "Manually restart pods via `kubectl rollout restart deploy/payment-gateway`. Deprecated in favour of auto-scaling runbook f1111111.",
 		},
 		{
 			ID:         uuid.MustParse("f3333333-3333-3333-3333-333333333333"),
-			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			IncidentID: uuidPtr("a8888888-8888-8888-8888-888888888888"),
 			TeamID:     teamDevOpsID,
+			CreatedBy:  realUserID,
 			Title:      "PostgreSQL Connection Pool Exhaustion & Recovery",
 			Status:     "active",
 			Content: "## Symptom\n" +
@@ -476,8 +527,9 @@ func seedRunbooks(db *gorm.DB) {
 		},
 		{
 			ID:         uuid.MustParse("f4444444-4444-4444-4444-444444444444"),
-			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			IncidentID: uuidPtr("a2222222-2222-2222-2222-222222222222"),
 			TeamID:     teamDevOpsID,
+			CreatedBy:  engineerID1,
 			Title:      "Redis Cache Eviction Surge — Memory Remediation",
 			Status:     "active",
 			Content: "## Trigger\n" +
@@ -493,8 +545,9 @@ func seedRunbooks(db *gorm.DB) {
 		},
 		{
 			ID:         uuid.MustParse("f5555555-5555-5555-5555-555555555555"),
-			IncidentID: uuid.MustParse("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"),
+			IncidentID: uuidPtr("b2222222-2222-2222-2222-222222222222"),
 			TeamID:     teamPlatformID,
+			CreatedBy:  leadEngineerID,
 			Title:      "API Gateway Ingress Rate Limiting & Circuit Breaking",
 			Status:     "active",
 			Content: "## Overview\n" +
@@ -519,3 +572,35 @@ func seedRunbooks(db *gorm.DB) {
 	}
 	log.Println("Runbook database seeding done!")
 }
+
+func seedRunbookLogs(db *gorm.DB) {
+	mockLogs := []models.RunbookLog{
+		{
+			ID:           uuid.MustParse("f6666666-6666-6666-6666-666666666666"),
+			RunbookID:    uuid.MustParse("f1111111-1111-1111-1111-111111111111"),
+			IncidentID:   uuidPtr("a1111111-1111-1111-1111-111111111111"),
+			TeamID:       teamDevOpsID,
+			UpdatedBy:    realUserID,
+			OlderTitle:   "Payment Gateway CPU Spike — Initial Version",
+			OlderContent: "Initial draft: restart payment gateway pod when CPU hits 90%.",
+			Version:      1,
+			UpdatedAt:    time.Now().Add(-12 * time.Hour),
+		},
+	}
+
+	for _, l := range mockLogs {
+		err := db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoNothing: true,
+		}).Create(&l).Error
+		if err != nil {
+			log.Printf("Warning: RunbookLog seeding failed: %v", err)
+		}
+	}
+	log.Println("RunbookLog database seeding done!")
+}
+
+func timePtr(t time.Time) *time.Time {
+	return &t
+}
+

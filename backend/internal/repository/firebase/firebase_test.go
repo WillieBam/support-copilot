@@ -1,6 +1,8 @@
 package firebase_test
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -17,6 +19,14 @@ var _ = Describe("FirebaseRepository", func() {
 			repo, err := firebaseRepo.NewFirebaseRepository(cfg)
 			Expect(err).To(HaveOccurred())
 			Expect(repo).To(BeNil())
+		})
+
+		It("should return an error when the auth client has not been initialized", func() {
+			repo := &firebaseRepo.FirebaseRepository{}
+
+			_, err := repo.VerifyIDToken(context.Background(), "token")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("auth client"))
 		})
 	})
 })

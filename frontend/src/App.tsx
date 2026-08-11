@@ -25,6 +25,7 @@ import { IncidentThreadView } from './components/incident/IncidentThreadView';
 import { AnalyticsDashboardView } from './components/analytics/AnalyticsDashboardView';
 
 import { ManageInstructionModal } from './components/instruction/ManageInstructionModal';
+import { NewTeamToast } from './components/NewTeamToast';
 
 type AuthState = ReturnType<typeof useFirebaseTotpAuth>;
 
@@ -52,6 +53,7 @@ function GlobalHeader({
   onOpenAnalyticsDashboard: () => void;
 }) {
   const { theme, toggleTheme } = useTheme();
+  const { activeTeamId } = useTeam();
 
   return (
     <header className="flex w-full h-[73px] items-center justify-between px-6 bg-card border-b border-border shrink-0 transition-colors duration-350 z-20 sticky top-0">
@@ -70,17 +72,19 @@ function GlobalHeader({
         {auth.isSignedIn && (
           <>
             <TeamSelector />
-            <button
-              onClick={onOpenInstructionModal}
-              className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-foreground hover:bg-muted transition-colors text-sm cursor-pointer"
-            >
-              <FileText className="w-4 h-4 text-muted-foreground" /> Manage Instruction
-            </button>
+            {Boolean(activeTeamId) && (
+              <button
+                onClick={onOpenInstructionModal}
+                className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-foreground hover:bg-muted transition-colors text-sm cursor-pointer"
+              >
+                <FileText className="w-4 h-4 text-muted-foreground" /> Manage Instruction
+              </button>
+            )}
             <button
               onClick={onOpenAnalyticsDashboard}
               className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-foreground hover:bg-muted transition-colors text-sm cursor-pointer"
             >
-              <BarChart2 className="w-4 h-4 text-emerald-500" /> Analytics
+              <BarChart2 className="w-4 h-4 text-emerald-500" /> Dashboard
             </button>
             <button
               onClick={() => void auth.signOut()}
@@ -93,6 +97,35 @@ function GlobalHeader({
         )}
       </div>
     </header>
+  );
+}
+
+// LiveChatThread renders active chat thread with backend runtime
+function LiveChatThread({
+  teamId,
+  conversationId,
+  onConversationCreated,
+  onTitleGenerated,
+  onFinish,
+}: {
+  teamId: string | null;
+  conversationId: string | null;
+  onConversationCreated: (id: string) => void;
+  onTitleGenerated: (convId: string, title: string) => void;
+  onFinish: () => void;
+}) {
+  const { runtime } = useBackendRuntime({
+    teamId,
+    conversationId,
+    onConversationCreated,
+    onTitleGenerated,
+    onFinish,
+  });
+
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <Thread />
+    </AssistantRuntimeProvider>
   );
 }
 
@@ -122,14 +155,6 @@ function MainApp({
   }, [activeTeamId]);
 
   const convState = useConversationState(activeTeamId);
-
-  const { runtime } = useBackendRuntime({
-    teamId: activeTeamId,
-    conversationId: convState.activeConvId,
-    onConversationCreated: convState.onConversationCreated,
-    onTitleGenerated: convState.onTitleGenerated,
-    onFinish: convState.onFinish,
-  });
 
   const email = auth.userEmail;
   const initial = email ? email.charAt(0).toUpperCase() : 'U';
@@ -263,9 +288,14 @@ function MainApp({
                 onBack={convState.closeReadOnly}
               />
             ) : (
-              <AssistantRuntimeProvider runtime={runtime}>
-                <Thread />
-              </AssistantRuntimeProvider>
+              <LiveChatThread
+                key={convState.chatKey}
+                teamId={activeTeamId}
+                conversationId={convState.activeConvId}
+                onConversationCreated={convState.onConversationCreated}
+                onTitleGenerated={convState.onTitleGenerated}
+                onFinish={convState.onFinish}
+              />
             )}
           </div>
         </div>
@@ -299,6 +329,13 @@ function MainApp({
   );
 }
 
+// Renders the new-team toast inside the TeamProvider tree so it can read context
+function ToastRenderer() {
+  const { newTeamNames, dismissNewTeams } = useTeam();
+  if (newTeamNames.length === 0) return null;
+  return <NewTeamToast teamNames={newTeamNames} onDismiss={dismissNewTeams} />;
+}
+
 function App() {
   const auth = useFirebaseTotpAuth();
   const [isInstructionModalOpen, setIsInstructionModalOpen] = useState(false);
@@ -310,7 +347,8 @@ function App() {
   if (!auth.isAuthReady) return <LoadingScreen />;
 
   return (
-    <TeamProvider isSignedIn={auth.isSignedIn}>
+    <TeamProvider isSignedIn={auth.isSignedIn} userEmail={auth.userEmail ?? undefined}>
+      <ToastRenderer />
       <div className="flex flex-col h-screen max-h-screen bg-transparent text-foreground w-full overflow-hidden transition-colors duration-350">
         <GlobalHeader
           auth={auth}

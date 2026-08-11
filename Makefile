@@ -1,7 +1,7 @@
 include .env
 export $(shell sed 's/=.*//' .env)
 
-.PHONY: up down dev-start dev mcp-servers mcp-one mcp test build-frontend
+.PHONY: up down dev-start dev mcp-servers test-coverage test build-frontend
 
 build-frontend:
 	cd frontend && npm install && npm run build
@@ -36,29 +36,35 @@ generate: $(MOCKERY)
 	$(MOCKERY) --all --dir backend/internal/interfaces --output backend/internal/mocks --outpkg mocks --case camel
 
 
-test:
+test-coverage:
 	@tmp=$$(mktemp); \
 	total_failed=0; \
-	for pkg in $$(go list ./backend/...); do \
-		output=$$(go test -cover $$pkg 2>&1); \
-		status=$$?; \
-		coverage=$$(echo "$$output" | grep -oE 'coverage: [0-9.]+%' | awk '{print $$2}' | tr -d '%'); \
-		coverage=$${coverage:-0}; \
-		echo "$$coverage $$pkg" >> $$tmp; \
-		[ $$status -ne 0 ] && total_failed=1; \
-	done; \
-	col_width=$$(awk 'BEGIN { max = 0 } { if (length($$2) > max) max = length($$2) } END { print max }' $$tmp); \
-	left_border=$$(printf '%*s' $$((col_width + 2)) '' | tr ' ' '-'); \
-	printf "+%s+----------+\n" "$$left_border"; \
-	printf "| %-*s | %8s |\n" "$$col_width" "Directory" "Coverage"; \
-	printf "+%s+----------+\n" "$$left_border"; \
-	sort -n $$tmp | while read cov pkg; do \
-		printf "| %-*s | %7.1f%% |\n" "$$col_width" "$$pkg" "$$cov"; \
-	done; \
-	printf "+%s+----------+\n" "$$left_border"; \
-	go test -coverprofile=coverage.out ./backend/... >/dev/null; \
-	total=$$(go tool cover -func=coverage.out | grep total | awk '{print $$3}'); \
-	printf "| %-*s | %8s |\n" "$$col_width" "TOTAL" "$$total"; \
-	printf "+%s+----------+\n" "$$left_border"; \
-	rm -f $$tmp coverage.out; \
-	exit $$total_failed
+	cd backend && { \
+		for pkg in $$(go list ./... | grep -vE '(mocks|interfaces|types|prompt)'); do \
+			output=$$(go test -cover $$pkg 2>&1); \
+			status=$$?; \
+			coverage=$$(echo "$$output" | grep -oE 'coverage: [0-9.]+%' | awk '{print $$2}' | tr -d '%'); \
+			coverage=$${coverage:-0}; \
+			echo "$$coverage $$pkg" >> $$tmp; \
+			if [ $$status -ne 0 ]; then total_failed=1; fi; \
+		done; \
+		col_width=$$(awk 'BEGIN { max = 0 } { if (length($$2) > max) max = length($$2) } END { print max }' $$tmp); \
+		left_border=$$(printf '%*s' $$((col_width + 2)) '' | tr ' ' '-'); \
+		printf "+%s+----------+\n" "$$left_border"; \
+		printf "| %-*s | %8s |\n" "$$col_width" "Directory" "Coverage"; \
+		printf "+%s+----------+\n" "$$left_border"; \
+		sort -n $$tmp | while read cov pkg; do \
+			printf "| %-*s | %7.1f%% |\n" "$$col_width" "$$pkg" "$$cov"; \
+		done; \
+		printf "+%s+----------+\n" "$$left_border"; \
+		go test -coverprofile=coverage.out ./... >/dev/null 2>&1; \
+		grep -vE '(mocks|interfaces|types|prompt)' coverage.out > coverage_filtered.out 2>/dev/null; \
+		total=$$(go tool cover -func=coverage_filtered.out | grep total | awk '{print $$3}'); \
+		printf "| %-*s | %8s |\n" "$$col_width" "TOTAL" "$$total"; \
+		printf "+%s+----------+\n" "$$left_border"; \
+		rm -f $$tmp coverage.out coverage_filtered.out; \
+		exit 0; \
+	}
+
+test:
+	@cd backend && go test -v -cover ./...

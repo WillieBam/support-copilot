@@ -2,14 +2,13 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
 
+	"github.com/WillieBam/support_copilot/backend/internal/domain/data"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types/models"
-	"github.com/WillieBam/support_copilot/backend/types/requests"
 	"github.com/WillieBam/support_copilot/backend/types/responses"
 	"github.com/google/uuid"
 )
@@ -40,24 +39,55 @@ func NewOrchestratorService(
 	return svc
 }
 
-// ExecuteValidateAlert fetches alert metrics from Postgres and predicts anomalies via Python MCP.
-func (s *orchestratorService) ExecuteValidateAlert(ctx context.Context, alertID uuid.UUID) (*responses.CombinedValidationResult, error) {
-	slog.Info("[ORCHESTRATOR] Fetching alert from database", "alert_id", alertID.String())
+// ExecuteListAlertsRaw returns a list of alerts from the backend.
+func (s *orchestratorService) ExecuteListAlertsRaw(ctx context.Context) (string, error) {
+	slog.Info("[ORCHESTRATOR] ExecuteListAlertsRaw triggered")
+	alerts, err := s.alertRepo.ListAlerts(ctx, 20)
+	if err != nil {
+		slog.Error("[ORCHESTRATOR] Failed to list alerts", "err", err)
+		return "", fmt.Errorf("failed to list alerts: %w", err)
+	}
 
-	// fetch alert from Postgres
+	out, err := data.MarshalAlerts(alerts)
+	if err != nil {
+		slog.Error("[ORCHESTRATOR] Failed to marshal alerts", "err", err)
+		return "", err
+	}
+	return out, nil
+}
+
+// ExecuteValidateAlert fetches alert metrics from postgres and predicts anomalies via python mcp
+func (s *orchestratorService) ExecuteValidateAlert(ctx context.Context, alertID string) (*responses.CombinedValidationResult, error) {
+	slog.Info("[ORCHESTRATOR] Fetching alert from database", "alert_id", alertID)
+
+	// fetch alert from postgres
 	alertRecord, err := s.alertRepo.RetrieveAlertbyID(ctx, alertID)
 	if err != nil {
-		slog.Error("[ORCHESTRATOR] Failed to fetch alert from DB", "alert_id", alertID.String(), "err", err)
+		slog.Error("[ORCHESTRATOR] Failed to fetch alert from DB", "alert_id", alertID, "err", err)
 		return nil, fmt.Errorf("failed to fetch alert #%s from database: %w", alertID, err)
 	}
 
-	slog.Info("[ORCHESTRATOR] Alert retrieved from DB", "service", alertRecord.ServiceName, "severity", alertRecord.Severity)
+	resSec, _ := data.UnmarshalResourceSection(alertRecord.ResourceInfo)
+	alertSec, _ := data.UnmarshalAlertSection(alertRecord.AlertInfo)
+	bizSec, _ := data.UnmarshalBusinessContextSection(alertRecord.BusinessContext)
+	metaSec, _ := data.UnmarshalMetadataSection(alertRecord.Metadata)
 
-	// unmarshal alert JSON metrics string into AnomalyDetectionRequest struct
-	var metrics requests.AnomalyDetectionRequest
-	if err := json.Unmarshal([]byte(alertRecord.Metrics), &metrics); err != nil {
+	serviceName := ""
+	if resSec != nil {
+		serviceName = resSec.Service
+	}
+	severity := ""
+	if alertSec != nil {
+		severity = alertSec.Severity
+	}
+
+	slog.Info("[ORCHESTRATOR] Alert retrieved from DB", "service", serviceName, "severity", severity)
+
+	// unmarshal alert json metrics string into anomaly detection request struct
+	metrics, err := data.ParseAlertMetrics(alertRecord.Metrics)
+	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to unmarshal alert metrics JSON", "err", err)
-		return nil, fmt.Errorf("failed to parse alert metrics JSON: %w", err)
+		return nil, err
 	}
 
 	slog.Info("[ORCHESTRATOR] Invoking Python MCP Server detect_anomalies", "cpu", metrics.CpuUsage, "latency", metrics.ResponseLatency)
@@ -73,52 +103,61 @@ func (s *orchestratorService) ExecuteValidateAlert(ctx context.Context, alertID 
 
 	// assemble combined payload package
 	return &responses.CombinedValidationResult{
-		AlertID:      alertRecord.ID.String(),
-		ServiceName:  alertRecord.ServiceName,
-		Severity:     alertRecord.Severity,
-		ReceivedAt:   alertRecord.ReceivedAt,
-		Metrics:      metrics,
-		MLPrediction: *mcpResp,
+		AlertID:         alertRecord.ID.String(),
+		ServiceName:     serviceName,
+		Severity:        severity,
+		ReceivedAt:      alertRecord.ReceivedAt,
+		Alert:           alertSec,
+		Resource:        resSec,
+		BusinessContext: bizSec,
+		Metadata:        metaSec,
+		Metrics:         metrics,
+		MLPrediction:    *mcpResp,
 	}, nil
+
+
 }
 
-// ExecuteValidateAlertRaw parses raw LLM JSON arguments and delegates execution.
+// ExecuteValidateAlertRaw parses raw llm json arguments and delegates execution
 func (s *orchestratorService) ExecuteValidateAlertRaw(ctx context.Context, rawArgs string) (string, error) {
 	slog.Info("[ORCHESTRATOR] ExecuteValidateAlertRaw triggered", "rawArgs", rawArgs)
 
-	var args struct {
-		AlertID string `json:"alert_id"`
-	}
-	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
-		slog.Error("[ORCHESTRATOR] Failed to parse raw tool arguments", "rawArgs", rawArgs, "err", err)
-		return "", fmt.Errorf("invalid tool arguments: %w", err)
-	}
-
-	cleanAlertID := strings.TrimSpace(args.AlertID)
-	if cleanAlertID == "" || cleanAlertID == "null" || cleanAlertID == "none" || cleanAlertID == "undefined" {
-		slog.Warn("[ORCHESTRATOR] Empty or dummy alert_id provided", "alertID", args.AlertID)
-		return "", fmt.Errorf("no valid alert_id provided: %q", args.AlertID)
-	}
-
-	alertUUID, err := uuid.Parse(cleanAlertID)
+	alertIDStr, err := data.ParseAlertArgs(rawArgs)
 	if err != nil {
-		slog.Error("[ORCHESTRATOR] Invalid alert UUID", "alertID", args.AlertID, "err", err)
-		return "", fmt.Errorf("invalid alert id %q: %w", args.AlertID, err)
+		slog.Error("[ORCHESTRATOR] Failed to parse raw tool arguments", "rawArgs", rawArgs, "err", err)
+		return "", err
 	}
 
-	result, err := s.ExecuteValidateAlert(ctx, alertUUID)
+	cleanAlertID := strings.TrimSpace(alertIDStr)
+	if cleanAlertID == "" || cleanAlertID == "null" || cleanAlertID == "none" || cleanAlertID == "undefined" {
+		slog.Warn("[ORCHESTRATOR] Empty or dummy alert_id provided", "alertID", alertIDStr)
+		return "", fmt.Errorf("no valid alert_id provided: %q", alertIDStr)
+	}
+
+	result, err := s.ExecuteValidateAlert(ctx, cleanAlertID)
 	if err != nil {
 		return "", err
 	}
 
-	resultBytes, err := json.Marshal(result)
+	resultStr, err := data.MarshalValidationResult(result)
 	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to marshal validation result", "err", err)
-		return "", fmt.Errorf("failed to marshal validation result: %w", err)
+		return "", err
 	}
 
-	slog.Info("[ORCHESTRATOR] Combined validation package built successfully", "result", string(resultBytes))
-	return string(resultBytes), nil
+	slog.Info("[ORCHESTRATOR] Combined validation package built successfully", "result", resultStr)
+	return resultStr, nil
+}
+
+// normalizeUUID cleans malformed uuid strings with extra hyphens
+func normalizeUUID(input string) string {
+	cleaned := strings.TrimSpace(input)
+	cleaned = strings.Trim(cleaned, `"'`)
+	digits := strings.ReplaceAll(cleaned, "-", "")
+	if len(digits) == 32 {
+		return fmt.Sprintf("%s-%s-%s-%s-%s", digits[:8], digits[8:12], digits[12:16], digits[16:20], digits[20:])
+	}
+	return cleaned
 }
 
 // Executegetincidentraw parses raw args and invokes mcp2 get_incident tool
@@ -128,11 +167,12 @@ func (s *orchestratorService) ExecuteGetIncidentRaw(ctx context.Context, rawArgs
 		return "", fmt.Errorf("mcp2 client is not configured")
 	}
 
-	var args requests.MCP2GetIncidentArgs
-	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+	args, err := data.ParseGetIncidentArgs(rawArgs)
+	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to parse get_incident raw args", "err", err)
-		return "", fmt.Errorf("invalid get_incident arguments: %w", err)
+		return "", err
 	}
+	args.IncidentID = normalizeUUID(args.IncidentID)
 	if strings.TrimSpace(args.IncidentID) == "" {
 		return "", fmt.Errorf("incident_id is required")
 	}
@@ -146,10 +186,10 @@ func (s *orchestratorService) ExecuteListIncidentsRaw(ctx context.Context, rawAr
 		return "", fmt.Errorf("mcp2 client is not configured")
 	}
 
-	var args requests.MCP2ListIncidentsArgs
-	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+	args, err := data.ParseListIncidentsArgs(rawArgs)
+	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to parse list_incidents raw args", "err", err)
-		return "", fmt.Errorf("invalid list_incidents arguments: %w", err)
+		return "", err
 	}
 	if strings.TrimSpace(args.TeamID) == "" {
 		return "", fmt.Errorf("team_id is required")
@@ -164,14 +204,21 @@ func (s *orchestratorService) ExecuteCreateRunbookRaw(ctx context.Context, rawAr
 		return "", fmt.Errorf("mcp2 client is not configured")
 	}
 
-	var args requests.MCP2CreateRunbookArgs
-	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+	args, err := data.ParseCreateRunbookArgs(rawArgs)
+	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to parse create_runbook raw args", "err", err)
-		return "", fmt.Errorf("invalid create_runbook arguments: %w", err)
+		return "", err
 	}
-	// If team_id is empty or uuid.Nil, auto-resolve team_id from the specified incident_id
+	// If team_id is empty, nil, or refers to a non-existent team (like placeholder a0000000-...), auto-resolve team_id from incident
 	parsedTeamID, _ := uuid.Parse(strings.TrimSpace(args.TeamID))
-	if (strings.TrimSpace(args.TeamID) == "" || parsedTeamID == uuid.Nil) && s.teamRepo != nil {
+	teamExists := false
+	if parsedTeamID != uuid.Nil && s.teamRepo != nil {
+		if _, err := s.teamRepo.GetTeamByID(ctx, parsedTeamID); err == nil {
+			teamExists = true
+		}
+	}
+
+	if (!teamExists || strings.TrimSpace(args.TeamID) == "" || parsedTeamID == uuid.Nil) && s.teamRepo != nil {
 		if incID, err := uuid.Parse(strings.TrimSpace(args.IncidentID)); err == nil && incID != uuid.Nil {
 			if inc, _, err := s.teamRepo.GetIncidentContext(ctx, incID); err == nil && inc != nil {
 				args.TeamID = inc.TeamID.String()
@@ -193,10 +240,10 @@ func (s *orchestratorService) ExecuteUpdateRunbookRaw(ctx context.Context, rawAr
 		return "", fmt.Errorf("mcp2 client is not configured")
 	}
 
-	var args requests.MCP2UpdateRunbookArgs
-	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+	args, err := data.ParseUpdateRunbookArgs(rawArgs)
+	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to parse update_runbook raw args", "err", err)
-		return "", fmt.Errorf("invalid update_runbook arguments: %w", err)
+		return "", err
 	}
 	if strings.TrimSpace(args.RunbookID) == "" {
 		return "", fmt.Errorf("runbook_id is required")
@@ -211,10 +258,10 @@ func (s *orchestratorService) ExecuteDeprecateRunbookRaw(ctx context.Context, ra
 		return "", fmt.Errorf("mcp2 client is not configured")
 	}
 
-	var args requests.MCP2DeprecateRunbookArgs
-	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+	args, err := data.ParseDeprecateRunbookArgs(rawArgs)
+	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to parse deprecate_runbook raw args", "err", err)
-		return "", fmt.Errorf("invalid deprecate_runbook arguments: %w", err)
+		return "", err
 	}
 	if strings.TrimSpace(args.RunbookID) == "" {
 		return "", fmt.Errorf("runbook_id is required")
@@ -229,10 +276,10 @@ func (s *orchestratorService) ExecuteGetRunbookRaw(ctx context.Context, rawArgs 
 		return "", fmt.Errorf("mcp2 client is not configured")
 	}
 
-	var args requests.MCP2GetRunbookArgs
-	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+	args, err := data.ParseGetRunbookArgs(rawArgs)
+	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to parse get_runbook raw args", "err", err)
-		return "", fmt.Errorf("invalid get_runbook arguments: %w", err)
+		return "", err
 	}
 	if strings.TrimSpace(args.RunbookID) == "" {
 		return "", fmt.Errorf("runbook_id is required")
@@ -247,10 +294,10 @@ func (s *orchestratorService) ExecuteListRunbooksRaw(ctx context.Context, rawArg
 		return "", fmt.Errorf("mcp2 client is not configured")
 	}
 
-	var args requests.MCP2ListRunbooksArgs
-	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+	args, err := data.ParseListRunbooksArgs(rawArgs)
+	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to parse list_runbooks raw args", "err", err)
-		return "", fmt.Errorf("invalid list_runbooks arguments: %w", err)
+		return "", err
 	}
 	if strings.TrimSpace(args.TeamID) == "" {
 		return "", fmt.Errorf("team_id is required")
@@ -262,10 +309,10 @@ func (s *orchestratorService) ExecuteListRunbooksRaw(ctx context.Context, rawArg
 func (s *orchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context, rawArgs string) (string, error) {
 	slog.Info("[ORCHESTRATOR] ExecuteLinkAlertToIncidentRaw triggered", "rawArgs", rawArgs)
 
-	var args requests.MCP2LinkAlertIncidentArgs
-	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+	args, err := data.ParseLinkAlertArgs(rawArgs)
+	if err != nil {
 		slog.Error("[ORCHESTRATOR] Failed to parse link_alert_to_incident raw args", "err", err)
-		return "", fmt.Errorf("invalid link_alert_to_incident arguments: %w", err)
+		return "", err
 	}
 
 	alertID := strings.TrimSpace(args.AlertID)
@@ -343,11 +390,5 @@ func (s *orchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context,
 	}
 
 	slog.Info("[ORCHESTRATOR] Successfully linked alert to incident", "alert_id", alertUUID, "incident_id", incidentUUID)
-	result := map[string]string{
-		"status":      "success",
-		"alert_id":    alertUUID.String(),
-		"incident_id": incidentUUID.String(),
-	}
-	resultBytes, _ := json.Marshal(result)
-	return string(resultBytes), nil
+	return data.MarshalLinkResult(alertUUID.String(), incidentUUID.String())
 }

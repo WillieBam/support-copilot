@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WillieBam/support_copilot/backend/types/models"
+
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -184,6 +186,75 @@ var _ = Describe("Handler", func() {
 		})
 	})
 
+	Context("Conversation helpers", func() {
+		It("should create a conversation when user and team context are valid", func() {
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
+			teamID := uuid.New()
+			userID := uuid.New()
+			conv := &models.Conversation{ID: uuid.New(), TeamID: teamID, UserID: userID}
+
+			body, _ := json.Marshal(map[string]any{"team_id": teamID.String()})
+			req := httptest.NewRequest(http.MethodPost, "/api/conversations", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "uid-123")
+
+			userSvc.On("GetUserByFirebaseUID", mock.Anything, "uid-123").Return(&models.User{ID: userID}, nil)
+			mockAppSvc.On("CreateConversation", mock.Anything, teamID, userID).Return(conv, nil)
+
+			err := hWithUser.CreateConversation(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should list team conversations with a parsed limit", func() {
+			teamID := uuid.New()
+			body := []models.Conversation{{ID: uuid.New(), TeamID: teamID}}
+			mockAppSvc.On("ListTeamConversations", mock.Anything, teamID, 3).Return(body, nil)
+
+			e.GET("/api/teams/:team_id/conversations", func(c *echo.Context) error {
+				return h.ListTeamConversations(c)
+			})
+			req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID.String()+"/conversations?limit=3", nil)
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return conversation messages when the conversation id is valid", func() {
+			convID := uuid.New()
+			msgList := []models.Message{{ID: uuid.New(), ConversationID: convID, Sender: "user"}}
+			mockAppSvc.On("ListMessagesByConversation", mock.Anything, convID).Return(msgList, nil)
+
+			e.GET("/api/conversations/:id/messages", func(c *echo.Context) error {
+				return h.GetConversationMessages(c)
+			})
+			req := httptest.NewRequest(http.MethodGet, "/api/conversations/"+convID.String()+"/messages", nil)
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should search users when query is long enough", func() {
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
+			userSvc.On("SearchUsers", mock.Anything, "ada", 10).Return([]models.User{{ID: uuid.New(), Email: "ada@example.com", DisplayName: "Ada"}}, nil)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/users/search?q=ada", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "uid-123")
+
+			err := hWithUser.SearchUsers(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+	})
+
 	Context("IngestAlert", func() {
 		It("should return 400 when body binding fails", func() {
 			req := httptest.NewRequest(http.MethodPost, "/api/alerts", strings.NewReader("invalid body"))
@@ -199,10 +270,9 @@ var _ = Describe("Handler", func() {
 		It("should return 400 when ServiceName is empty", func() {
 			incID := uuid.New()
 			reqBody := requests.AlertIngestRequest{
-				IncidentID:  &incID,
-				ServiceName: "",
-				Severity:    "high",
-				Metrics:     json.RawMessage(`{"cpu": 95}`),
+				IncidentID: &incID,
+				Resource:   requests.ResourceInfo{Service: ""},
+				Alert:      requests.AlertInfo{Severity: "high"},
 			}
 			body, _ := json.Marshal(reqBody)
 			req := httptest.NewRequest(http.MethodPost, "/api/alerts", bytes.NewReader(body))
@@ -218,10 +288,10 @@ var _ = Describe("Handler", func() {
 		It("should return 500 when service IngestAlert fails", func() {
 			incID := uuid.New()
 			reqBody := requests.AlertIngestRequest{
-				IncidentID:  &incID,
-				ServiceName: "auth-service",
-				Severity:    "critical",
-				Metrics:     json.RawMessage(`{"latency": 5000}`),
+				IncidentID: &incID,
+				Resource:   requests.ResourceInfo{Service: "auth-service"},
+				Alert:      requests.AlertInfo{Severity: "critical"},
+				Metrics:    requests.MetricsInfo{ResponseLatency: 5000},
 			}
 			body, _ := json.Marshal(reqBody)
 			req := httptest.NewRequest(http.MethodPost, "/api/alerts", bytes.NewReader(body))
@@ -229,8 +299,9 @@ var _ = Describe("Handler", func() {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			mockAppSvc.On("IngestAlert", mock.Anything, &incID, "auth-service", "critical", `{"latency":5000}`).
-				Return(errors.New("db error"))
+			mockAppSvc.On("IngestAlert", mock.Anything, mock.MatchedBy(func(r *requests.AlertIngestRequest) bool {
+				return r != nil && r.Resource.Service == "auth-service"
+			})).Return(errors.New("db error"))
 
 			err := h.IngestAlert(c)
 			Expect(err).NotTo(HaveOccurred())
@@ -240,10 +311,10 @@ var _ = Describe("Handler", func() {
 		It("should return 200 on successful alert ingestion with or without IncidentID", func() {
 			incID := uuid.New()
 			reqBody := requests.AlertIngestRequest{
-				IncidentID:  &incID,
-				ServiceName: "auth-service",
-				Severity:    "info",
-				Metrics:     json.RawMessage(`{"status": "ok"}`),
+				IncidentID: &incID,
+				Resource:   requests.ResourceInfo{Service: "auth-service"},
+				Alert:      requests.AlertInfo{Severity: "info"},
+				Metrics:    requests.MetricsInfo{CPUUsage: 50},
 			}
 			body, _ := json.Marshal(reqBody)
 			req := httptest.NewRequest(http.MethodPost, "/api/alerts", bytes.NewReader(body))
@@ -251,13 +322,15 @@ var _ = Describe("Handler", func() {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			mockAppSvc.On("IngestAlert", mock.Anything, &incID, "auth-service", "info", `{"status":"ok"}`).
-				Return(nil)
+			mockAppSvc.On("IngestAlert", mock.Anything, mock.MatchedBy(func(r *requests.AlertIngestRequest) bool {
+				return r != nil && r.Resource.Service == "auth-service"
+			})).Return(nil)
 
 			err := h.IngestAlert(c)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
+
 	})
 
 })

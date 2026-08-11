@@ -72,19 +72,59 @@ def detect_anomalies(
         ordered_vector = [imputed_data[feature] for feature in MODEL_FEATURES]
         input_matrix = np.array([ordered_vector])
         scaled_matrix = scaler.transform(input_matrix)
+        
         # -1 for anomaly, 1 for normal
         raw_prediction = model.predict(scaled_matrix)[0]
         final_status = 0 if raw_prediction == -1 else 1
         status_label = "Anomaly" if final_status == 0 else "Normal"
+        prediction_str = "ANOMALY" if final_status == 0 else "NORMAL"
+        
+        # compute raw decision/ anomaly score
+        score = float(model.decision_function(scaled_matrix)[0])
+        anomaly_score = round(score,4)
+        
+        # compute confidence score based on distance boundary
+        confidence = round(min(0.99, max(0.50, 0.50 + abs(score) * 2.0)),2)
+        
+        if final_status == 0:
+            if cpu_usage > 90.0 or error_rate > 0.05 or score < -0.15:
+                risk_level = "CRITICAL"
+            else:
+                risk_level = "HIGH"
+        else:
+            risk_level = "LOW"
+        
+        anomalous_features = []
+        if cpu_usage > 85.0:
+            anomalous_features.append(f"cpu_usage={cpu_usage}%")
+            if error_rate > 0.01:
+                anomalous_features.append(f"error_rate={error_rate}")
+            if response_latency > 2000.0:
+                anomalous_features.append(f"latency={response_latency}ms")
+  
+            if anomalous_features:
+                summary = f"Telemetry anomaly detected: {', '.join(anomalous_features)}"
+            else:
+                summary = "System telemetry within normal operational bounds"
+  
+            return {
+                "status": final_status,
+                "label": status_label,
+                "engine": "IsolationForest",
+                "prediction": prediction_str,
+                "confidence": confidence,
+                "risk_level": risk_level,
+                "summary": summary,
+                "anomaly_score": anomaly_score
+            }
+        
         _logger.info("tool=detect_anomalies prediction completed. Result:%s (%s)",
                      status_label, final_status)  
-        return {
-            "status": final_status,
-            "label": status_label,
-            "engine": "IsolationForest"
-        }
+
     except Exception as e:
         _logger.error("tool=detect_anomalies error encountered: %s",  str(e))
         return {
             "error": f"Inference execution failed: {str(e)}"
         }
+
+

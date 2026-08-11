@@ -15,6 +15,15 @@ var (
 	config *Config
 )
 
+func init() {
+	loc, err := time.LoadLocation("Asia/Kuala_Lumpur")
+	if err == nil {
+		time.Local = loc
+	} else {
+		time.Local = time.FixedZone("MYT", 8*3600)
+	}
+}
+
 type IConfig interface {
 	GetString(key string) string
 }
@@ -112,7 +121,6 @@ func newConfig() IConfig {
 	cfg.SetDefault("llm.keep_alive", "30m")
 	cfg.SetDefault("llm.timeout", 5*time.Minute)
 	cfg.SetDefault("llm.num_ctx", 2048)
-	cfg.SetDefault("llm.tls_skip_verify", false)
 	cfg.SetDefault("mcp1.host", "localhost")
 	cfg.SetDefault("mcp1.port", 9000)
 	cfg.SetDefault("mcp2.host", "localhost")

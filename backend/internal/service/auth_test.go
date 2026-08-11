@@ -14,6 +14,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
 	"github.com/WillieBam/support_copilot/backend/internal/service"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 )
 
 var _ = Describe("AuthService", func() {
@@ -202,6 +203,28 @@ var _ = Describe("AuthService", func() {
 			Expect(parsedClaims).NotTo(BeNil())
 			Expect(parsedClaims.FirebaseUID).To(Equal("uid-123"))
 			Expect(parsedClaims.Email).To(Equal("user@test.com"))
+		})
+	})
+
+	Context("ValidatePasswordComplexity", func() {
+		It("should fail if password is too short", func() {
+			err := service.ValidatePasswordComplexity("short")
+			Expect(err).To(Equal(customErrors.ErrInvalidPasswordComplexity))
+		})
+
+		It("should fail if password is too long", func() {
+			err := service.ValidatePasswordComplexity("toolongpassword")
+			Expect(err).To(Equal(customErrors.ErrInvalidPasswordComplexity))
+		})
+
+		It("should fail if password missing special character", func() {
+			err := service.ValidatePasswordComplexity("nospec1")
+			Expect(err).To(Equal(customErrors.ErrInvalidPasswordComplexity))
+		})
+
+		It("should succeed when password satisfies 6-8 chars and special char requirement", func() {
+			err := service.ValidatePasswordComplexity("Pass!12")
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })

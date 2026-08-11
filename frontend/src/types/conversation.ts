@@ -18,6 +18,5 @@ export interface ConversationMessage {
   conversation_id: string;
   sender: 'user' | 'assistant';
   content: string;
-  reasoning_steps?: string;
   created_at: string;
 }

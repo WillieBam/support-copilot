@@ -2,10 +2,10 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/WillieBam/support_copilot/backend/internal/domain/data"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
 )
@@ -18,8 +18,6 @@ type CommandInterceptor struct {
 	orchestrator interfaces.IOrchestratorService
 }
 
-
-
 func NewCommandInterceptor(orchestrator ...interfaces.IOrchestratorService) interfaces.ICommandInterceptor {
 	ci := &CommandInterceptor{
 		handlers: make(map[string]CommandHandler),
@@ -30,6 +28,7 @@ func NewCommandInterceptor(orchestrator ...interfaces.IOrchestratorService) inte
 	ci.RegisterCommand("/quit", handleQuitCommand) // register command here, add on when needed
 	ci.RegisterCommand("/incident", ci.handleIncidentCommand)
 	ci.RegisterCommand("/runbook", ci.handleRunbookCommand)
+	ci.RegisterCommand("/alert", ci.handleAlertCommand)
 	return ci
 }
 
@@ -138,9 +137,33 @@ func (ci *CommandInterceptor) handleRunbookCommand(ctx context.Context, prompt s
 	return &types.CommandResult{Handled: true, Message: filtered}, nil
 }
 
+func (ci *CommandInterceptor) handleAlertCommand(ctx context.Context, prompt string) (*types.CommandResult,
+	error) {
+	if ci.orchestrator == nil {
+		return &types.CommandResult{
+			Handled: true,
+			Message: "Orchestrator service is unavailable.",
+		}, nil
+	}
+
+	alertJSON, err := ci.orchestrator.ExecuteListAlertsRaw(ctx)
+	if err != nil {
+		return &types.CommandResult{
+			Handled: true,
+			Message: fmt.Sprintf("Failed to list alerts: %v", err),
+		}, nil
+	}
+
+	return &types.CommandResult{
+		Handled: true,
+		Message: formatAlertList(alertJSON),
+	}, nil
+
+}
+
 func formatRunbookList(jsonStr string) string {
-	var runbooks []types.RunbookRecord
-	if err := json.Unmarshal([]byte(jsonStr), &runbooks); err != nil {
+	runbooks, err := data.UnmarshalRunbooks(jsonStr)
+	if err != nil {
 		return jsonStr
 	}
 
@@ -156,9 +179,31 @@ func formatRunbookList(jsonStr string) string {
 	return sb.String()
 }
 
+func formatAlertList(jsonStr string) string {
+	alerts, err := data.UnmarshalAlerts(jsonStr)
+	if err != nil {
+		return jsonStr
+	}
+
+	if len(alerts) == 0 {
+		return "no alerts found"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("found %d alert(s):\n\n", len(alerts)))
+	for _, a := range alerts {
+		link := "unlinked"
+		if a.IncidentID != "" {
+			link = fmt.Sprintf("linked to incident `%s`", a.IncidentID)
+		}
+		sb.WriteString(fmt.Sprintf("- **%s** [%s] %s — `%s`\n", a.ServiceName, a.Severity, link, a.ID))
+	}
+	return sb.String()
+}
+
 func filterIncidentsByQuery(jsonStr string, query string) string {
-	var incidents []types.IncidentRecord
-	if err := json.Unmarshal([]byte(jsonStr), &incidents); err != nil {
+	incidents, err := data.UnmarshalIncidents(jsonStr)
+	if err != nil {
 		return jsonStr // return raw fallback if parsing fails
 	}
 
@@ -191,8 +236,8 @@ func filterIncidentsByQuery(jsonStr string, query string) string {
 }
 
 func filterRunbooksByQuery(jsonStr string, query string) string {
-	var runbooks []types.RunbookRecord
-	if err := json.Unmarshal([]byte(jsonStr), &runbooks); err != nil {
+	runbooks, err := data.UnmarshalRunbooks(jsonStr)
+	if err != nil {
 		return jsonStr
 	}
 
@@ -223,3 +268,4 @@ func filterRunbooksByQuery(jsonStr string, query string) string {
 	}
 	return sb.String()
 }
+

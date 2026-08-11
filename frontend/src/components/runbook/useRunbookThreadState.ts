@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Runbook } from '@/types/runbook';
-import { fetchRunbookById, updateRunbook, deprecateRunbook } from '@/service/runbook/runbookService';
+import type { Runbook, RunbookLog } from '@/types/runbook';
+import { fetchRunbookById, fetchRunbookLogs, updateRunbook, deprecateRunbook } from '@/service/runbook/runbookService';
 
 export function useRunbookThreadState(
   runbookId: string | null,
@@ -9,6 +9,7 @@ export function useRunbookThreadState(
   onRunbookUpdated?: () => void
 ) {
   const [runbook, setRunbook] = useState<Runbook | null>(null);
+  const [runbookLogs, setRunbookLogs] = useState<RunbookLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -21,23 +22,30 @@ export function useRunbookThreadState(
   const loadRunbook = useCallback(async () => {
     if (!runbookId) {
       setRunbook(null);
+      setRunbookLogs([]);
       setAuthError(null);
       return;
     }
     setIsLoading(true);
     setAuthError(null);
     try {
-      const data = await fetchRunbookById(runbookId);
+      const [data, logs] = await Promise.all([
+        fetchRunbookById(runbookId),
+        fetchRunbookLogs(runbookId),
+      ]);
       if (activeTeamId && data.team_id !== activeTeamId) {
         setAuthError('Unauthorized: You are not authorized to view runbooks belonging to another team.');
         setRunbook(null);
+        setRunbookLogs([]);
       } else {
         setRunbook(data);
+        setRunbookLogs(logs || []);
         setEditTitle(data.title);
         setEditContent(data.content);
       }
     } catch {
       setRunbook(null);
+      setRunbookLogs([]);
     } finally {
       setIsLoading(false);
     }
@@ -57,6 +65,8 @@ export function useRunbookThreadState(
       });
       setRunbook(updated);
       setIsEditing(false);
+      const updatedLogs = await fetchRunbookLogs(runbookId);
+      setRunbookLogs(updatedLogs || []);
       if (onRunbookUpdated) onRunbookUpdated();
     } catch (err) {
       console.error('Failed to update runbook', err);
@@ -81,6 +91,7 @@ export function useRunbookThreadState(
 
   return {
     runbook,
+    runbookLogs,
     isLoading,
     authError,
     isEditing,

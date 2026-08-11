@@ -17,6 +17,96 @@ type IDashboardService struct {
 	mock.Mock
 }
 
+// GetAllTeamsBreachedIncidents provides a mock function with given fields: ctx, userScope, slaTargetMinutes, limit, offset
+func (_m *IDashboardService) GetAllTeamsBreachedIncidents(ctx context.Context, userScope string, slaTargetMinutes int, limit int, offset int) ([]types.BreachedIncident, error) {
+	ret := _m.Called(ctx, userScope, slaTargetMinutes, limit, offset)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAllTeamsBreachedIncidents")
+	}
+
+	var r0 []types.BreachedIncident
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, int, int) ([]types.BreachedIncident, error)); ok {
+		return rf(ctx, userScope, slaTargetMinutes, limit, offset)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, int, int) []types.BreachedIncident); ok {
+		r0 = rf(ctx, userScope, slaTargetMinutes, limit, offset)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]types.BreachedIncident)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int, int, int) error); ok {
+		r1 = rf(ctx, userScope, slaTargetMinutes, limit, offset)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetAllTeamsIncidentTrend provides a mock function with given fields: ctx, userScope, timeframe
+func (_m *IDashboardService) GetAllTeamsIncidentTrend(ctx context.Context, userScope string, timeframe string) ([]types.IncidentTrendPoint, error) {
+	ret := _m.Called(ctx, userScope, timeframe)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAllTeamsIncidentTrend")
+	}
+
+	var r0 []types.IncidentTrendPoint
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]types.IncidentTrendPoint, error)); ok {
+		return rf(ctx, userScope, timeframe)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []types.IncidentTrendPoint); ok {
+		r0 = rf(ctx, userScope, timeframe)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]types.IncidentTrendPoint)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, userScope, timeframe)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetAllTeamsMTTR provides a mock function with given fields: ctx, userScope, slaTargetMinutes
+func (_m *IDashboardService) GetAllTeamsMTTR(ctx context.Context, userScope string, slaTargetMinutes int) (*types.MTTRResult, error) {
+	ret := _m.Called(ctx, userScope, slaTargetMinutes)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAllTeamsMTTR")
+	}
+
+	var r0 *types.MTTRResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int) (*types.MTTRResult, error)); ok {
+		return rf(ctx, userScope, slaTargetMinutes)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int) *types.MTTRResult); ok {
+		r0 = rf(ctx, userScope, slaTargetMinutes)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*types.MTTRResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int) error); ok {
+		r1 = rf(ctx, userScope, slaTargetMinutes)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetBreachedIncidents provides a mock function with given fields: ctx, requesterID, teamID, userScope, slaTargetMinutes, limit, offset
 func (_m *IDashboardService) GetBreachedIncidents(ctx context.Context, requesterID uuid.UUID, teamID uuid.UUID, userScope string, slaTargetMinutes int, limit int, offset int) ([]types.BreachedIncident, error) {
 	ret := _m.Called(ctx, requesterID, teamID, userScope, slaTargetMinutes, limit, offset)

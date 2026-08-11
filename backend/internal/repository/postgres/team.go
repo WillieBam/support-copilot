@@ -101,7 +101,7 @@ func (t *teamRepository) AssignTeamIncident(ctx context.Context, incident *model
 		initialHistory := models.IncidentStatusHistory{
 			ID:             uuid.New(),
 			TeamIncidentID: incident.ID,
-			UpdatedBy:      incident.AssignedBy,
+			UpdatedBy:      incident.CreatedBy,
 			Title:          incident.Title,
 			NewStatus:      incident.Status,
 			PreviousStatus: "",
@@ -193,4 +193,11 @@ func (t *teamRepository) SaveTeamInstruction(ctx context.Context, instruction *m
 		existing.CreatedBy = instruction.CreatedBy
 		return tx.Save(&existing).Error
 	})
+}
+
+// ListAllTeams returns all teams in the database
+func (t *teamRepository) ListAllTeams(ctx context.Context) ([]models.Team, error) {
+	var teams []models.Team
+	err := t.db.WithContext(ctx).Order("team_name ASC").Find(&teams).Error
+	return teams, err
 }

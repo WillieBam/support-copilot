@@ -1,8 +1,10 @@
 package server_test
 
 import (
+	"context"
 	"time"
 
+	echov5 "github.com/labstack/echo/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -11,9 +13,9 @@ import (
 
 // MockServerConfig satisfies the IServer interface
 type MockServerConfig struct {
-	port     string
-	timeout  time.Duration
-	name     string
+	port    string
+	timeout time.Duration
+	name    string
 }
 
 func (m *MockServerConfig) Name() string {
@@ -56,6 +58,20 @@ var _ = Describe("Server Utils", func() {
 			srv := server.New(mockCfg)
 			Expect(srv).NotTo(BeNil())
 			Expect(srv.Echo).NotTo(BeNil())
+		})
+
+		It("should start the server with the provided setup hook", func() {
+			mockCfg := &MockServerConfig{name: "MockServer", port: "0", timeout: 1 * time.Second}
+			srv := server.New(mockCfg)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			err := srv.Start(ctx, func(e *echov5.Echo) {
+				e.GET("/health", func(c *echov5.Context) error {
+					return c.String(200, "ok")
+				})
+			})
+			Expect(err).To(BeNil())
 		})
 	})
 })

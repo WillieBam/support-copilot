@@ -8,6 +8,7 @@ import (
 	mock "github.com/stretchr/testify/mock"
 
 	models "github.com/WillieBam/support_copilot/backend/types/models"
+	requests "github.com/WillieBam/support_copilot/backend/types/requests"
 
 	types "github.com/WillieBam/support_copilot/backend/types"
 
@@ -107,17 +108,17 @@ func (_m *IAppService) GetConversationByID(ctx context.Context, id uuid.UUID) (*
 	return r0, r1
 }
 
-// IngestAlert provides a mock function with given fields: ctx, incidentID, serviceName, severity, metrics
-func (_m *IAppService) IngestAlert(ctx context.Context, incidentID *uuid.UUID, serviceName string, severity string, metrics string) error {
-	ret := _m.Called(ctx, incidentID, serviceName, severity, metrics)
+// IngestAlert provides a mock function with given fields: ctx, req
+func (_m *IAppService) IngestAlert(ctx context.Context, req *requests.AlertIngestRequest) error {
+	ret := _m.Called(ctx, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for IngestAlert")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *uuid.UUID, string, string, string) error); ok {
-		r0 = rf(ctx, incidentID, serviceName, severity, metrics)
+	if rf, ok := ret.Get(0).(func(context.Context, *requests.AlertIngestRequest) error); ok {
+		r0 = rf(ctx, req)
 	} else {
 		r0 = ret.Error(0)
 	}

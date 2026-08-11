@@ -2,24 +2,14 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types/models"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
-)
-
-var (
-	ErrTeamNameRequired      = errors.New("team name is required")
-	ErrTeamNameTooLong       = errors.New("team name must be 20 characters or less")
-	ErrUnauthorizedTeamOp    = errors.New("unauthorized team operation: owner permission required")
-	ErrSuperAdminRequired    = errors.New("unauthorized operation: super_admin scope required to delete a team")
-	ErrUserNotInTeam         = errors.New("user is not a member of this team")
-	ErrInvalidIncidentStatus = errors.New("invalid incident status: must be OPEN, IN_PROGRESS, RESOLVED, or CLOSED")
-	ErrIncidentNotFound      = errors.New("incident not found")
 )
 
 func normalizeIncidentStatus(status string) (string, error) {
@@ -37,7 +27,7 @@ func normalizeIncidentStatus(status string) (string, error) {
 	case "CLOSED":
 		return "CLOSED", nil
 	default:
-		return "", ErrInvalidIncidentStatus
+		return "", customErrors.ErrInvalidIncidentStatus
 	}
 }
 
@@ -52,10 +42,10 @@ func NewTeamService(teamRepo interfaces.ITeamRepository) interfaces.ITeamService
 func (s *teamService) CreateTeam(ctx context.Context, teamName string, creatorID uuid.UUID) (*models.Team, error) {
 	name := strings.TrimSpace(teamName)
 	if name == "" {
-		return nil, ErrTeamNameRequired
+		return nil, customErrors.ErrTeamNameRequired
 	}
 	if len(name) > 20 {
-		return nil, ErrTeamNameTooLong
+		return nil, customErrors.ErrTeamNameTooLong
 	}
 
 	team := &models.Team{
@@ -98,10 +88,10 @@ func (s *teamService) GetUserTeams(ctx context.Context, userID uuid.UUID) (*mode
 
 func (s *teamService) AddMember(ctx context.Context, requesterID, teamID, userID uuid.UUID) error {
 	slog.InfoContext(ctx, "[team-svc] AddMember: checking requester role", "team_id", teamID, "requester_id", requesterID, "target_user_id", userID)
-	reqRole, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	reqRole, err := s.checkMemberRoleOrSuperAdmin(ctx, teamID, requesterID)
 	if err != nil || reqRole != "owner" {
 		slog.WarnContext(ctx, "[team-svc] AddMember: requester is not owner", "team_id", teamID, "requester_id", requesterID, "role", reqRole, "error", err)
-		return ErrUnauthorizedTeamOp
+		return customErrors.ErrUnauthorizedTeamOp
 	}
 
 	member := &models.TeamMember{
@@ -121,16 +111,16 @@ func (s *teamService) AddMember(ctx context.Context, requesterID, teamID, userID
 
 func (s *teamService) RemoveMember(ctx context.Context, requesterID, teamID, userID uuid.UUID) error {
 	slog.InfoContext(ctx, "[team-svc] RemoveMember: checking requester role", "team_id", teamID, "requester_id", requesterID, "target_user_id", userID)
-	reqRole, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	reqRole, err := s.checkMemberRoleOrSuperAdmin(ctx, teamID, requesterID)
 	if err != nil || reqRole != "owner" {
 		slog.WarnContext(ctx, "[team-svc] RemoveMember: requester is not owner", "team_id", teamID, "requester_id", requesterID, "role", reqRole, "error", err)
-		return ErrUnauthorizedTeamOp
+		return customErrors.ErrUnauthorizedTeamOp
 	}
 
 	_, err = s.teamRepo.GetMemberRole(ctx, teamID, userID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] RemoveMember: target user not in team", "team_id", teamID, "target_user_id", userID, "error", err)
-		return ErrUserNotInTeam
+		return customErrors.ErrUserNotInTeam
 	}
 
 	slog.InfoContext(ctx, "[team-svc] RemoveMember: removing", "team_id", teamID, "target_user_id", userID)
@@ -145,7 +135,7 @@ func (s *teamService) RemoveMember(ctx context.Context, requesterID, teamID, use
 func (s *teamService) DeleteTeam(ctx context.Context, userScope string, teamID uuid.UUID) error {
 	if userScope != "super_admin" {
 		slog.WarnContext(ctx, "[team-svc] DeleteTeam: forbidden - not super_admin", "team_id", teamID, "scope", userScope)
-		return ErrSuperAdminRequired
+		return customErrors.ErrSuperAdminRequired
 	}
 	slog.InfoContext(ctx, "[team-svc] DeleteTeam: deleting team", "team_id", teamID, "scope", userScope)
 	if err := s.teamRepo.DeleteTeam(ctx, teamID); err != nil {
@@ -156,12 +146,40 @@ func (s *teamService) DeleteTeam(ctx context.Context, userScope string, teamID u
 	return nil
 }
 
+// ListAllTeams returns all system teams for super_admin
+func (s *teamService) ListAllTeams(ctx context.Context, userScope string) ([]models.Team, error) {
+	if userScope != "super_admin" {
+		slog.WarnContext(ctx, "[team-svc] ListAllTeams: forbidden - not super_admin", "scope", userScope)
+		return nil, customErrors.ErrSuperAdminRequired
+	}
+	slog.InfoContext(ctx, "[team-svc] ListAllTeams: listing all teams", "scope", userScope)
+	teams, err := s.teamRepo.ListAllTeams(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] ListAllTeams: failed", "error", err)
+		return nil, err
+	}
+	return teams, nil
+}
+
+// checkMemberRoleOrSuperAdmin returns owner role for super_admin or checks member role
+func (s *teamService) checkMemberRoleOrSuperAdmin(ctx context.Context, teamID, requesterID uuid.UUID) (string, error) {
+	role, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	if err == nil {
+		return role, nil
+	}
+	user, userErr := s.teamRepo.GetUserWithTeamsByID(ctx, requesterID)
+	if userErr == nil && user != nil && user.Scope == "super_admin" {
+		return "owner", nil
+	}
+	return "", err
+}
+
 func (s *teamService) AssignIncident(ctx context.Context, requesterID, teamID uuid.UUID, title, status, details string) (*models.TeamIncident, error) {
 	slog.InfoContext(ctx, "[team-svc] AssignIncident: checking membership", "team_id", teamID, "requester_id", requesterID)
-	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	_, err := s.checkMemberRoleOrSuperAdmin(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] AssignIncident: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 
 	validStatus, err := normalizeIncidentStatus(status)
@@ -173,7 +191,7 @@ func (s *teamService) AssignIncident(ctx context.Context, requesterID, teamID uu
 	inc := &models.TeamIncident{
 		ID:         uuid.New(),
 		TeamID:     teamID,
-		AssignedBy: requesterID,
+		CreatedBy:  requesterID,
 		Title:      strings.TrimSpace(title),
 		Status:     validStatus,
 		Details:    details,
@@ -193,10 +211,10 @@ func (s *teamService) AssignIncident(ctx context.Context, requesterID, teamID uu
 
 func (s *teamService) ListIncidents(ctx context.Context, requesterID, teamID uuid.UUID) ([]models.TeamIncident, error) {
 	slog.InfoContext(ctx, "[team-svc] ListIncidents: checking membership", "team_id", teamID, "requester_id", requesterID)
-	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	_, err := s.checkMemberRoleOrSuperAdmin(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] ListIncidents: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 	incidents, err := s.teamRepo.ListTeamIncidents(ctx, teamID)
 	if err != nil {
@@ -214,10 +232,10 @@ func (s *teamService) ListTeamIncidents(ctx context.Context, teamID uuid.UUID) (
 
 func (s *teamService) ListMembers(ctx context.Context, requesterID, teamID uuid.UUID) ([]models.TeamMember, error) {
 	slog.InfoContext(ctx, "[team-svc] ListMembers: checking membership", "team_id", teamID, "requester_id", requesterID)
-	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	_, err := s.checkMemberRoleOrSuperAdmin(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] ListMembers: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 	members, err := s.teamRepo.ListTeamMembers(ctx, teamID)
 	if err != nil {
@@ -236,10 +254,10 @@ func (s *teamService) GetIncident(ctx context.Context, requesterID, incidentID u
 		return nil, err
 	}
 
-	_, err = s.teamRepo.GetMemberRole(ctx, inc.TeamID, requesterID)
+	_, err = s.checkMemberRoleOrSuperAdmin(ctx, inc.TeamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] GetIncident: requester not in team", "team_id", inc.TeamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 
 	return inc, nil
@@ -259,10 +277,10 @@ func (s *teamService) UpdateIncidentStatus(ctx context.Context, requesterID, inc
 		return nil, err
 	}
 
-	_, err = s.teamRepo.GetMemberRole(ctx, inc.TeamID, requesterID)
+	_, err = s.checkMemberRoleOrSuperAdmin(ctx, inc.TeamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] UpdateIncidentStatus: requester not in team", "team_id", inc.TeamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
 	}
 
 	previousStatus := inc.Status
@@ -302,10 +320,10 @@ func (s *teamService) UpdateIncidentStatus(ctx context.Context, requesterID, inc
 
 func (s *teamService) GetTeamInstruction(ctx context.Context, requesterID, teamID uuid.UUID) (*models.Instruction, []models.InstructionLog, error) {
 	slog.InfoContext(ctx, "[team-svc] GetTeamInstruction: checking membership", "team_id", teamID, "requester_id", requesterID)
-	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	_, err := s.checkMemberRoleOrSuperAdmin(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] GetTeamInstruction: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, nil, ErrUnauthorizedTeamOp
+		return nil, nil, customErrors.ErrUnauthorizedTeamOp
 	}
 
 	inst, logs, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
@@ -318,10 +336,17 @@ func (s *teamService) GetTeamInstruction(ctx context.Context, requesterID, teamI
 
 func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, teamID uuid.UUID, details string) (*models.Instruction, error) {
 	slog.InfoContext(ctx, "[team-svc] SaveTeamInstruction: checking membership", "team_id", teamID, "requester_id", requesterID)
-	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
+	_, err := s.checkMemberRoleOrSuperAdmin(ctx, teamID, requesterID)
 	if err != nil {
 		slog.WarnContext(ctx, "[team-svc] SaveTeamInstruction: requester not in team", "team_id", teamID, "requester_id", requesterID, "error", err)
-		return nil, ErrUnauthorizedTeamOp
+		return nil, customErrors.ErrUnauthorizedTeamOp
+	}
+
+	// validate instruction details minimum length requirement of 30 characters
+	trimmed := strings.TrimSpace(details)
+	if len(trimmed) < 30 {
+		slog.WarnContext(ctx, "[team-svc] SaveTeamInstruction: instruction details too short", "team_id", teamID, "length", len(trimmed))
+		return nil, customErrors.ErrInstructionTooShort
 	}
 
 	existingInst, existingLogs, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
@@ -361,12 +386,47 @@ func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, team
 	return updatedInst, err
 }
 
-func (s *teamService) CreateRunbook(ctx context.Context, teamID, incidentID uuid.UUID, title, content string) (*models.Runbook, error) {
-	slog.InfoContext(ctx, "[team-svc] CreateRunbook: persisting", "team_id", teamID, "incident_id", incidentID)
+func (s *teamService) CreateRunbook(ctx context.Context, creatorID, teamID, incidentID uuid.UUID, title, content string) (*models.Runbook, error) {
+	slog.InfoContext(ctx, "[team-svc] CreateRunbook: persisting", "team_id", teamID, "incident_id", incidentID, "creator_id", creatorID)
+
+	var incidentIDPtr *uuid.UUID
+
+	if incidentID != uuid.Nil {
+		inc, err := s.teamRepo.GetTeamIncidentByID(ctx, incidentID)
+		if err != nil || inc == nil {
+			slog.WarnContext(ctx, "[team-svc] CreateRunbook: incident not found", "incident_id", incidentID, "error", err)
+			return nil, customErrors.ErrIncidentNotFound
+		}
+		incidentIDPtr = &incidentID
+		if _, teamErr := s.teamRepo.GetTeamByID(ctx, teamID); teamErr != nil || teamID == uuid.Nil {
+			teamID = inc.TeamID
+		}
+		if creatorID == uuid.Nil {
+			creatorID = inc.CreatedBy
+		}
+	} else {
+		// auto-link to latest team incident if any exists
+		if incidents, err := s.teamRepo.ListTeamIncidents(ctx, teamID); err == nil && len(incidents) > 0 {
+			incidentIDPtr = &incidents[0].ID
+		}
+	}
+
+	// fallback creatorID to system boss if creatorID is still nil
+	if creatorID == uuid.Nil {
+		creatorID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	}
+
+	// verify team exists in database
+	if _, err := s.teamRepo.GetTeamByID(ctx, teamID); err != nil {
+		slog.WarnContext(ctx, "[team-svc] CreateRunbook: team not found", "team_id", teamID, "error", err)
+		return nil, customErrors.ErrTeamNotFound
+	}
+
 	rb := &models.Runbook{
 		ID:         uuid.New(),
 		TeamID:     teamID,
-		IncidentID: incidentID,
+		IncidentID: incidentIDPtr,
+		CreatedBy:  creatorID,
 		Title:      strings.TrimSpace(title),
 		Status:     "active",
 		Content:    content,
@@ -381,9 +441,39 @@ func (s *teamService) CreateRunbook(ctx context.Context, teamID, incidentID uuid
 	return rb, nil
 }
 
-func (s *teamService) UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title, content string) (*models.Runbook, error) {
-	slog.InfoContext(ctx, "[team-svc] UpdateRunbook: updating", "runbook_id", runbookID)
-	rb, err := s.teamRepo.UpdateRunbook(ctx, runbookID, strings.TrimSpace(title), content)
+func (s *teamService) UpdateRunbook(ctx context.Context, updaterID, runbookID uuid.UUID, title, content string) (*models.Runbook, error) {
+	slog.InfoContext(ctx, "[team-svc] UpdateRunbook: updating", "runbook_id", runbookID, "updater_id", updaterID)
+	existingLogs, _ := s.teamRepo.GetRunbookLogs(ctx, runbookID)
+	existingRb, err := s.teamRepo.GetRunbookByID(ctx, runbookID)
+	if err != nil || existingRb == nil {
+		slog.WarnContext(ctx, "[team-svc] UpdateRunbook: runbook not found", "runbook_id", runbookID, "error", err)
+		return nil, customErrors.ErrRunbookNotFound
+	}
+
+	if updaterID == uuid.Nil {
+		if existingRb.CreatedBy != uuid.Nil {
+			updaterID = existingRb.CreatedBy
+		} else {
+			updaterID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+		}
+	}
+
+	var logEntry *models.RunbookLog
+	if existingRb != nil {
+		logEntry = &models.RunbookLog{
+			ID:           uuid.New(),
+			RunbookID:    runbookID,
+			IncidentID:   existingRb.IncidentID,
+			TeamID:       existingRb.TeamID,
+			UpdatedBy:    updaterID,
+			OlderTitle:   existingRb.Title,
+			OlderContent: existingRb.Content,
+			Version:      len(existingLogs) + 1,
+			UpdatedAt:    time.Now(),
+		}
+	}
+
+	rb, err := s.teamRepo.UpdateRunbook(ctx, runbookID, strings.TrimSpace(title), content, logEntry)
 	if err != nil {
 		slog.ErrorContext(ctx, "[team-svc] UpdateRunbook: failed", "runbook_id", runbookID, "error", err)
 		return nil, err
@@ -414,6 +504,11 @@ func (s *teamService) ListRunbooks(ctx context.Context, teamID uuid.UUID, status
 	}
 	slog.InfoContext(ctx, "[team-svc] ListRunbooks: listing", "team_id", teamID, "status", status)
 	return s.teamRepo.ListRunbooks(ctx, teamID, status)
+}
+
+func (s *teamService) GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error) {
+	slog.InfoContext(ctx, "[team-svc] GetRunbookLogs: fetching logs", "runbook_id", runbookID)
+	return s.teamRepo.GetRunbookLogs(ctx, runbookID)
 }
 
 func (s *teamService) GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error) {

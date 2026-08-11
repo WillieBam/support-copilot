@@ -69,7 +69,7 @@ func RegisterDefaultTools(registry interfaces.IToolRegistry, orchestrator interf
 				"properties": map[string]interface{}{
 					"alert_id": map[string]interface{}{
 						"type":        "string",
-						"description": "The alert identifier must be a valid UUIDv4 (36 characters including hyphens, in the form xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx). Only call this tool when the user has explicitly provided this UUID. Do not guess, generate, or infer the alert_id.",
+						"description": "The alert identifier string (e.g. '165028917' or UUID). Only call this tool when the user has explicitly provided an alert ID. Do not guess, generate, or infer the alert_id.",
 					},
 				},
 				"required":             []string{"alert_id"},
@@ -126,7 +126,7 @@ func RegisterDefaultTools(registry interfaces.IToolRegistry, orchestrator interf
 		Type: "function",
 		Function: requests.LLMFunction{
 			Name:        "create_runbook",
-			Description: "Creates a runbook in the Knowledge Base for an incident. Use after get_incident. Content must follow: ## Root Cause, ## Diagnostic Steps, ## Resolution, ## Prevention.",
+			Description: "Creates a runbook in the Knowledge Base for an incident. Content must follow: ## Root Cause, ## Diagnostic Steps, ## Resolution, ## Prevention.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{

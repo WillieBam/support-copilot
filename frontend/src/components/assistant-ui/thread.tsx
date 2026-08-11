@@ -179,6 +179,18 @@ const Composer: FC = () => {
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // check if current session has been terminated by /quit command
+  const isQuitSession = useAuiState((s) =>
+    s.thread.messages.some((m) => {
+      if (m.role !== "user") return false;
+      return m.content.some(
+        (part) =>
+          part.type === "text" &&
+          part.text.trim().toLowerCase().startsWith("/quit")
+      );
+    })
+  );
+
   const handleSelect = useCallback((cmd: SlashCommand) => {
     const text = cmd.name + " ";
     setInputValue(text);
@@ -197,27 +209,40 @@ const Composer: FC = () => {
 
   return (
     <ComposerPrimitive.Root
-      className="aui-composer-root relative flex w-full flex-col"
+      className={cn(
+        "aui-composer-root relative flex w-full flex-col",
+        isQuitSession && "opacity-60 pointer-events-none select-none"
+      )}
       onSubmit={() => setInputValue("")}
     >
       {/* command palette appears above the input shell */}
-      <CommandPalette
-        query={inputValue}
-        onSelect={handleSelect}
-        onDismiss={handleDismiss}
-      />
+      {!isQuitSession && (
+        <CommandPalette
+          query={inputValue}
+          onSelect={handleSelect}
+          onDismiss={handleDismiss}
+        />
+      )}
       <ComposerPrimitive.AttachmentDropzone asChild>
         <div
           data-slot="aui_composer-shell"
-          className="flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-muted/50 p-(--composer-padding) transition-shadow focus-within:border-ring/75 focus-within:ring-2 focus-within:ring-ring/20 data-[dragging=true]:border-ring data-[dragging=true]:border-dashed data-[dragging=true]:bg-accent/50"
+          className={cn(
+            "flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-muted/50 p-(--composer-padding) transition-shadow focus-within:border-ring/75 focus-within:ring-2 focus-within:ring-ring/20 data-[dragging=true]:border-ring data-[dragging=true]:border-dashed data-[dragging=true]:bg-accent/50",
+            isQuitSession && "bg-muted/80 border-border/50 text-muted-foreground cursor-not-allowed"
+          )}
         >
           <ComposerAttachments />
           <ComposerPrimitive.Input
             ref={inputRef}
-            placeholder="Send a message... (type / for commands)"
-            className="aui-composer-input max-h-32 min-h-10 w-full resize-none bg-transparent px-1.75 py-1 text-sm outline-none placeholder:text-muted-foreground/80"
+            disabled={isQuitSession}
+            placeholder={
+              isQuitSession
+                ? "Session ended via /quit (Start a new chat to continue)"
+                : "Send a message... (type / for commands)"
+            }
+            className="aui-composer-input max-h-32 min-h-10 w-full resize-none bg-transparent px-1.75 py-1 text-sm outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed"
             rows={1}
-            autoFocus
+            autoFocus={!isQuitSession}
             aria-label="Message input"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -227,7 +252,7 @@ const Composer: FC = () => {
               }
             }}
           />
-          <ComposerAction />
+          {!isQuitSession && <ComposerAction />}
         </div>
       </ComposerPrimitive.AttachmentDropzone>
     </ComposerPrimitive.Root>

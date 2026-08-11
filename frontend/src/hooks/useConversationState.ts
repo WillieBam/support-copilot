@@ -7,6 +7,7 @@ export function useConversationState(activeTeamId: string | null) {
   const [allConvs, setAllConvs] = useState<Conversation[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [chatKey, setChatKey] = useState<number>(0);
   const [selectedMessages, setSelectedMessages] = useState<ConversationMessage[]>([]);
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -83,6 +84,7 @@ export function useConversationState(activeTeamId: string | null) {
   // start a fresh live conversation session
   const startNewChat = useCallback(() => {
     setActiveConvId(null);
+    setChatKey((prev) => prev + 1);
     closeReadOnly();
   }, [closeReadOnly]);
 
@@ -115,6 +117,7 @@ export function useConversationState(activeTeamId: string | null) {
   useEffect(() => {
     closeReadOnly();
     setActiveConvId(null);
+    setChatKey((prev) => prev + 1);
   }, [activeTeamId, closeReadOnly]);
 
   return {
@@ -122,6 +125,7 @@ export function useConversationState(activeTeamId: string | null) {
     allConvs,
     selectedConvId,
     activeConvId,
+    chatKey,
     selectedMessages,
     isReadOnly,
     isModalOpen,

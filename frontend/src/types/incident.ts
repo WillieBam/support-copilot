@@ -12,12 +12,13 @@ export interface IncidentStatusHistory {
 export interface TeamIncident {
     id: string;
     team_id: string;
-    assigned_by: string;
+    created_by: string;
     title: string;
     status: string;
     details: string;
     created_at: string;
     assigned_at: string;
+    resolved_at?: string | null;
     history?: IncidentStatusHistory[];
 }
 

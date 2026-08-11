@@ -70,16 +70,21 @@ export const ManageInstructionModal: React.FC<ManageInstructionModalProps> = ({
   const formatDate = (isoString?: string) => {
     if (!isoString) return '';
     try {
-      return new Date(isoString).toLocaleString('en-US', {
+      return new Date(isoString).toLocaleString('en-MY', {
+        timeZone: 'Asia/Kuala_Lumpur',
         month: 'short',
         day: 'numeric',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
       });
     } catch {
       return isoString;
     }
   };
+
+  const latestLog = logs && logs.length > 0 ? logs[0] : null;
 
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 overflow-y-auto">
@@ -122,11 +127,15 @@ export const ManageInstructionModal: React.FC<ManageInstructionModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-sm font-semibold text-foreground">Custom LLM Guidelines & Prompt Rules</label>
-                  {instruction && (
+                  {latestLog ? (
                     <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Last updated: {formatDate(instruction.created_at)}
+                      <Clock className="w-3 h-3 text-emerald-500" /> Edited by: <strong className="text-foreground font-medium">{getUserDisplayName(latestLog.updated_by)}</strong> ({formatDate(latestLog.updated_at)})
                     </span>
-                  )}
+                  ) : instruction ? (
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-emerald-500" /> Updated: {formatDate(instruction.created_at)}
+                    </span>
+                  ) : null}
                 </div>
                 <textarea
                   value={details}
@@ -205,7 +214,7 @@ export const ManageInstructionModal: React.FC<ManageInstructionModalProps> = ({
                           {log.older_instruction}
                         </p>
                         <span className="text-[10px] text-muted-foreground/70 block">
-                          Updated by: {getUserDisplayName(log.updated_by)}
+                          {log.version === 1 ? 'Created by:' : 'Edited by:'} {getUserDisplayName(log.updated_by)}
                         </span>
                       </div>
                     ))}

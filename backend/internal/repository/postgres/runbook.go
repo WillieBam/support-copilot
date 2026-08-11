@@ -14,19 +14,32 @@ func (t *teamRepository) CreateRunbook(ctx context.Context, runbook *models.Runb
 	return t.db.WithContext(ctx).Create(runbook).Error
 }
 
-func (t *teamRepository) UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title, content string) (*models.Runbook, error) {
+func (t *teamRepository) UpdateRunbook(ctx context.Context, runbookID uuid.UUID, title, content string, log *models.RunbookLog) (*models.Runbook, error) {
 	var rb models.Runbook
-	if err := t.db.WithContext(ctx).Where("id = ?", runbookID).First(&rb).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, gorm.ErrRecordNotFound
+	err := t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id = ?", runbookID).First(&rb).Error; err != nil {
+			return err
 		}
-		return nil, err
-	}
-	if err := t.db.WithContext(ctx).Model(&rb).Updates(map[string]interface{}{
-		"title":      title,
-		"content":    content,
-		"updated_at": time.Now(),
-	}).Error; err != nil {
+		if log != nil {
+			log.RunbookID = rb.ID
+			log.IncidentID = rb.IncidentID
+			log.TeamID = rb.TeamID
+			if err := tx.Create(log).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Model(&rb).Updates(map[string]interface{}{
+			"title":      title,
+			"content":    content,
+			"updated_at": time.Now(),
+		}).Error; err != nil {
+			return err
+		}
+		rb.Title = title
+		rb.Content = content
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	return &rb, nil
@@ -87,8 +100,20 @@ func (t *teamRepository) GetRunbooksByIncidentID(ctx context.Context, incidentID
 	return runbooks, nil
 }
 
+// GetRunbookLogs returns version history logs for a runbook ordered by version desc
+func (t *teamRepository) GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error) {
+	var logs []models.RunbookLog
+	if err := t.db.WithContext(ctx).Where("runbook_id = ?", runbookID).Order("version DESC").Find(&logs).Error; err != nil {
+		return nil, err
+	}
+	if logs == nil {
+		logs = []models.RunbookLog{}
+	}
+	return logs, nil
+}
+
 // GetIncidentContext fetches a TeamIncident with its full status history (ASC order)
-// plus all associated alerts via the root IncidentID — used by the MCP KB incident context endpoint.
+// plus all associated alerts via the root IncidentID — used by the MCP KB incident context endpoint
 func (t *teamRepository) GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error) {
 	var incident models.TeamIncident
 	if err := t.db.WithContext(ctx).

@@ -67,6 +67,44 @@ export interface UseBackendRuntimeOptions {
   onFinish?: () => void;
 }
 
+// fetchWithExponentialBackoff retries stream fetch requests with exponential backoff for nfr06 resilience
+async function fetchWithExponentialBackoff(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+  initialDelayMs = 1000,
+  backoffFactor = 2.0
+): Promise<Response> {
+  let attempt = 0
+  let delay = initialDelayMs
+
+  while (true) {
+    try {
+      const response = await fetch(url, options)
+      if (response.ok || response.status === 401 || response.status === 403 || response.status === 400) {
+        return response
+      }
+      if (attempt >= maxRetries) {
+        return response
+      }
+      console.warn(`[nfr06 stream retry] status ${response.status} retrying attempt ${attempt + 1}/${maxRetries} after ${delay}ms`)
+    } catch (err: any) {
+      if (options.signal?.aborted || err?.name === "AbortError") {
+        throw err
+      }
+      if (attempt >= maxRetries) {
+        console.error(`[nfr06 stream failed] all ${maxRetries} backoff retries exhausted`, err)
+        throw err
+      }
+      console.warn(`[nfr06 connection backoff] network failure (${err?.message}) retrying attempt ${attempt + 1}/${maxRetries} after ${delay}ms`)
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, delay))
+    attempt++
+    delay *= backoffFactor
+  }
+}
+
 export function useBackendRuntime(options?: UseBackendRuntimeOptions) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -93,7 +131,7 @@ export function useBackendRuntime(options?: UseBackendRuntimeOptions) {
       };
 
       try {
-        let response = await fetch(ENDPOINT, fetchOptions);
+        let response = await fetchWithExponentialBackoff(ENDPOINT, fetchOptions);
         const user = firebaseAuth.currentUser;
         if (response.status == 401) {
           if (!user) {
@@ -101,7 +139,7 @@ export function useBackendRuntime(options?: UseBackendRuntimeOptions) {
           }
           try {
             await exchangeToken(user);
-            response = await fetch(ENDPOINT, fetchOptions);
+            response = await fetchWithExponentialBackoff(ENDPOINT, fetchOptions);
           } catch (refreshErr: any) {
             if (refreshErr.message !== "mfa_required") {
               await firebaseAuth.signOut().catch(() => {});

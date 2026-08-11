@@ -90,3 +90,72 @@ func (r *dashboardRepository) CountBreachedIncidents(ctx context.Context, teamID
 	err := r.db.WithContext(ctx).Raw(sql, teamID, slaTargetMinutes).Scan(&count).Error
 	return count, err
 }
+
+// GetAllTeamsIncidentTrend aggregates incident counts across all teams
+func (r *dashboardRepository) GetAllTeamsIncidentTrend(ctx context.Context, timeframe string) ([]types.IncidentTrendPoint, error) {
+	var results []types.IncidentTrendPoint
+	sql := `
+		SELECT
+			DATE_TRUNC(?, created_at)::text AS time_bucket,
+			status,
+			COUNT(*) AS count
+		FROM team_incidents
+		GROUP BY time_bucket, status
+		ORDER BY time_bucket ASC
+	`
+	err := r.db.WithContext(ctx).Raw(sql, timeframe).Scan(&results).Error
+	return results, err
+}
+
+// GetAllTeamsMTTRStats returns resolution time and total resolved count across all teams
+func (r *dashboardRepository) GetAllTeamsMTTRStats(ctx context.Context) (float64, int, error) {
+	type rawResult struct {
+		AvgMinutes float64
+		Total      int
+	}
+	var res rawResult
+	sql := `
+		SELECT
+			COALESCE(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60), 0) AS avg_minutes,
+			COUNT(*) AS total
+		FROM team_incidents
+		WHERE status = 'RESOLVED'
+		  AND resolved_at IS NOT NULL
+	`
+	err := r.db.WithContext(ctx).Raw(sql).Scan(&res).Error
+	return res.AvgMinutes, res.Total, err
+}
+
+// GetAllTeamsBreachedIncidents fetches resolved incidents that exceeded sla target across all teams
+func (r *dashboardRepository) GetAllTeamsBreachedIncidents(ctx context.Context, slaTargetMinutes int, limit, offset int) ([]types.BreachedIncident, error) {
+	var results []types.BreachedIncident
+	sql := `
+		SELECT
+			id::text,
+			title,
+			created_at,
+			resolved_at,
+			EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60 AS duration_minutes
+		FROM team_incidents
+		WHERE status = 'RESOLVED'
+		  AND resolved_at IS NOT NULL
+		  AND EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60 > ?
+		ORDER BY duration_minutes DESC
+		LIMIT ? OFFSET ?
+	`
+	err := r.db.WithContext(ctx).Raw(sql, slaTargetMinutes, limit, offset).Scan(&results).Error
+	return results, err
+}
+
+// CountAllTeamsBreachedIncidents returns total count of sla-breached resolved incidents across all teams
+func (r *dashboardRepository) CountAllTeamsBreachedIncidents(ctx context.Context, slaTargetMinutes int) (int, error) {
+	var count int
+	sql := `
+		SELECT COUNT(*) FROM team_incidents
+		WHERE status = 'RESOLVED'
+		  AND resolved_at IS NOT NULL
+		  AND EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60 > ?
+	`
+	err := r.db.WithContext(ctx).Raw(sql, slaTargetMinutes).Scan(&count).Error
+	return count, err
+}

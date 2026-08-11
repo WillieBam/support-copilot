@@ -15,4 +15,6 @@ type IncidentStatusHistory struct {
 	PreviousStatus string    `gorm:"type:varchar(20)" json:"previous_status"`
 	Details        string    `gorm:"type:text" json:"details"`
 	UpdatedAt      time.Time `gorm:"type:timestamp(3);default:CURRENT_TIMESTAMP" json:"updated_at"`
+	TeamIncident TeamIncident `gorm:"foreignKey:TeamIncidentID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+	User         User         `gorm:"foreignKey:UpdatedBy;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 }

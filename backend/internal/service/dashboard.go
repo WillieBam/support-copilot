@@ -2,18 +2,12 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
-)
-
-var (
-	ErrInvalidTimeframe      = errors.New("invalid timeframe: must be day, month, or year")
-	ErrInvalidSLATarget      = errors.New("sla_target_minutes must be a positive integer")
-	ErrDashboardUnauthorized = errors.New("unauthorized: must be a team member to access dashboard analytics")
 )
 
 type dashboardService struct {
@@ -41,7 +35,7 @@ func (s *dashboardService) validateAccess(ctx context.Context, requesterID, team
 	}
 	_, err := s.teamRepo.GetMemberRole(ctx, teamID, requesterID)
 	if err != nil {
-		return ErrDashboardUnauthorized
+		return customErrors.ErrDashboardUnauthorized
 	}
 	return nil
 }
@@ -51,7 +45,7 @@ func (s *dashboardService) GetIncidentTrend(ctx context.Context, requesterID, te
 	switch timeframe {
 	case "day", "month", "year":
 	default:
-		return nil, ErrInvalidTimeframe
+		return nil, customErrors.ErrInvalidTimeframe
 	}
 	if err := s.validateAccess(ctx, requesterID, teamID, userScope); err != nil {
 		return nil, err
@@ -68,7 +62,7 @@ func (s *dashboardService) GetIncidentTrend(ctx context.Context, requesterID, te
 // GetMTTR validates membership then computes mttr and sla compliance metrics
 func (s *dashboardService) GetMTTR(ctx context.Context, requesterID, teamID uuid.UUID, userScope string, slaTargetMinutes int) (*types.MTTRResult, error) {
 	if slaTargetMinutes <= 0 {
-		return nil, ErrInvalidSLATarget
+		return nil, customErrors.ErrInvalidSLATarget
 	}
 	if err := s.validateAccess(ctx, requesterID, teamID, userScope); err != nil {
 		return nil, err
@@ -104,7 +98,7 @@ func (s *dashboardService) GetMTTR(ctx context.Context, requesterID, teamID uuid
 // GetBreachedIncidents validates membership then returns sla-breached incidents with pagination
 func (s *dashboardService) GetBreachedIncidents(ctx context.Context, requesterID, teamID uuid.UUID, userScope string, slaTargetMinutes, limit, offset int) ([]types.BreachedIncident, error) {
 	if slaTargetMinutes < 0 {
-		return nil, ErrInvalidSLATarget
+		return nil, customErrors.ErrInvalidSLATarget
 	}
 	if limit <= 0 {
 		limit = 50
@@ -116,6 +110,80 @@ func (s *dashboardService) GetBreachedIncidents(ctx context.Context, requesterID
 	results, err := s.dashboardRepo.GetBreachedIncidents(ctx, teamID, slaTargetMinutes, limit, offset)
 	if err != nil {
 		slog.ErrorContext(ctx, "[dashboard-svc] GetBreachedIncidents: repository error", "team_id", teamID, "error", err)
+		return nil, err
+	}
+	return results, nil
+}
+
+// GetAllTeamsIncidentTrend validates super_admin scope then returns combined trend data for all teams
+func (s *dashboardService) GetAllTeamsIncidentTrend(ctx context.Context, userScope, timeframe string) ([]types.IncidentTrendPoint, error) {
+	if !isSuperAdmin(userScope) {
+		return nil, customErrors.ErrSuperAdminRequired
+	}
+	switch timeframe {
+	case "day", "month", "year":
+	default:
+		return nil, customErrors.ErrInvalidTimeframe
+	}
+	slog.InfoContext(ctx, "[dashboard-svc] GetAllTeamsIncidentTrend", "timeframe", timeframe)
+	results, err := s.dashboardRepo.GetAllTeamsIncidentTrend(ctx, timeframe)
+	if err != nil {
+		slog.ErrorContext(ctx, "[dashboard-svc] GetAllTeamsIncidentTrend: repository error", "error", err)
+		return nil, err
+	}
+	return results, nil
+}
+
+// GetAllTeamsMTTR validates super_admin scope then computes combined mttr metrics for all teams
+func (s *dashboardService) GetAllTeamsMTTR(ctx context.Context, userScope string, slaTargetMinutes int) (*types.MTTRResult, error) {
+	if !isSuperAdmin(userScope) {
+		return nil, customErrors.ErrSuperAdminRequired
+	}
+	if slaTargetMinutes <= 0 {
+		return nil, customErrors.ErrInvalidSLATarget
+	}
+	slog.InfoContext(ctx, "[dashboard-svc] GetAllTeamsMTTR", "sla_target_minutes", slaTargetMinutes)
+
+	avgMinutes, totalResolved, err := s.dashboardRepo.GetAllTeamsMTTRStats(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "[dashboard-svc] GetAllTeamsMTTR: stats query failed", "error", err)
+		return nil, err
+	}
+
+	breachCount, err := s.dashboardRepo.CountAllTeamsBreachedIncidents(ctx, slaTargetMinutes)
+	if err != nil {
+		slog.ErrorContext(ctx, "[dashboard-svc] GetAllTeamsMTTR: breach count query failed", "error", err)
+		return nil, err
+	}
+
+	var complianceRate float64
+	if totalResolved > 0 {
+		complianceRate = float64(totalResolved-breachCount) / float64(totalResolved) * 100
+	}
+
+	return &types.MTTRResult{
+		MTTRMinutes:    avgMinutes,
+		TotalResolved:  totalResolved,
+		SLABreaches:    breachCount,
+		ComplianceRate: complianceRate,
+	}, nil
+}
+
+// GetAllTeamsBreachedIncidents validates super_admin scope then returns combined breached incidents for all teams
+func (s *dashboardService) GetAllTeamsBreachedIncidents(ctx context.Context, userScope string, slaTargetMinutes, limit, offset int) ([]types.BreachedIncident, error) {
+	if !isSuperAdmin(userScope) {
+		return nil, customErrors.ErrSuperAdminRequired
+	}
+	if slaTargetMinutes < 0 {
+		return nil, customErrors.ErrInvalidSLATarget
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	slog.InfoContext(ctx, "[dashboard-svc] GetAllTeamsBreachedIncidents", "sla_target_minutes", slaTargetMinutes, "limit", limit, "offset", offset)
+	results, err := s.dashboardRepo.GetAllTeamsBreachedIncidents(ctx, slaTargetMinutes, limit, offset)
+	if err != nil {
+		slog.ErrorContext(ctx, "[dashboard-svc] GetAllTeamsBreachedIncidents: repository error", "error", err)
 		return nil, err
 	}
 	return results, nil

@@ -51,12 +51,14 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
   const formatDate = (isoString?: string) => {
     if (!isoString) return '';
     try {
-      return new Date(isoString).toLocaleString('en-US', {
+      return new Date(isoString).toLocaleString('en-MY', {
+        timeZone: 'Asia/Kuala_Lumpur',
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
       });
     } catch {
       return isoString;
@@ -116,7 +118,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                   <div>
                     <h1 className="text-xl font-bold text-foreground tracking-tight">{incident.title}</h1>
                     <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                      <User className="w-3.5 h-3.5" /> Assigned to: <span className="text-foreground font-medium">{getUserDisplayName(incident.assigned_by)}</span>
+                      <User className="w-3.5 h-3.5" /> Created by: <span className="text-foreground font-medium">{getUserDisplayName(incident.created_by)}</span>
                     </p>
                   </div>
                 </div>
@@ -218,7 +220,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                   {incident.history.map((item) => (
                     <div key={item.id} className="relative group">
                       {/* Timeline dot */}
-                      <div className="absolute -left-[27px] top-3.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
+                      <div className="absolute left-[27px] top-3.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
 
                       <div className="bg-background border border-border p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-3">

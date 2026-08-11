@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"regexp"
 	"time"
 
 	"log/slog"
@@ -11,9 +12,23 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/models"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
+
+var specialCharRegex = regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`)
+
+// ValidatePasswordComplexity validates that password satisfies nfr01 complexity policy
+func ValidatePasswordComplexity(password string) error {
+	if len(password) < 6 || len(password) > 8 {
+		return customErrors.ErrInvalidPasswordComplexity
+	}
+	if !specialCharRegex.MatchString(password) {
+		return customErrors.ErrInvalidPasswordComplexity
+	}
+	return nil
+}
 
 type authService struct {
 	userRepo     interfaces.IUserRepository

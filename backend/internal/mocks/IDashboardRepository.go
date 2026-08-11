@@ -17,6 +17,34 @@ type IDashboardRepository struct {
 	mock.Mock
 }
 
+// CountAllTeamsBreachedIncidents provides a mock function with given fields: ctx, slaTargetMinutes
+func (_m *IDashboardRepository) CountAllTeamsBreachedIncidents(ctx context.Context, slaTargetMinutes int) (int, error) {
+	ret := _m.Called(ctx, slaTargetMinutes)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountAllTeamsBreachedIncidents")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int) (int, error)); ok {
+		return rf(ctx, slaTargetMinutes)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int) int); ok {
+		r0 = rf(ctx, slaTargetMinutes)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
+		r1 = rf(ctx, slaTargetMinutes)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CountBreachedIncidents provides a mock function with given fields: ctx, teamID, slaTargetMinutes
 func (_m *IDashboardRepository) CountBreachedIncidents(ctx context.Context, teamID uuid.UUID, slaTargetMinutes int) (int, error) {
 	ret := _m.Called(ctx, teamID, slaTargetMinutes)
@@ -43,6 +71,101 @@ func (_m *IDashboardRepository) CountBreachedIncidents(ctx context.Context, team
 	}
 
 	return r0, r1
+}
+
+// GetAllTeamsBreachedIncidents provides a mock function with given fields: ctx, slaTargetMinutes, limit, offset
+func (_m *IDashboardRepository) GetAllTeamsBreachedIncidents(ctx context.Context, slaTargetMinutes int, limit int, offset int) ([]types.BreachedIncident, error) {
+	ret := _m.Called(ctx, slaTargetMinutes, limit, offset)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAllTeamsBreachedIncidents")
+	}
+
+	var r0 []types.BreachedIncident
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int, int, int) ([]types.BreachedIncident, error)); ok {
+		return rf(ctx, slaTargetMinutes, limit, offset)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int, int, int) []types.BreachedIncident); ok {
+		r0 = rf(ctx, slaTargetMinutes, limit, offset)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]types.BreachedIncident)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int, int, int) error); ok {
+		r1 = rf(ctx, slaTargetMinutes, limit, offset)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetAllTeamsIncidentTrend provides a mock function with given fields: ctx, timeframe
+func (_m *IDashboardRepository) GetAllTeamsIncidentTrend(ctx context.Context, timeframe string) ([]types.IncidentTrendPoint, error) {
+	ret := _m.Called(ctx, timeframe)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAllTeamsIncidentTrend")
+	}
+
+	var r0 []types.IncidentTrendPoint
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]types.IncidentTrendPoint, error)); ok {
+		return rf(ctx, timeframe)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []types.IncidentTrendPoint); ok {
+		r0 = rf(ctx, timeframe)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]types.IncidentTrendPoint)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, timeframe)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetAllTeamsMTTRStats provides a mock function with given fields: ctx
+func (_m *IDashboardRepository) GetAllTeamsMTTRStats(ctx context.Context) (float64, int, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAllTeamsMTTRStats")
+	}
+
+	var r0 float64
+	var r1 int
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context) (float64, int, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) float64); ok {
+		r0 = rf(ctx)
+	} else {
+		r0 = ret.Get(0).(float64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) int); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Get(1).(int)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context) error); ok {
+		r2 = rf(ctx)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // GetBreachedIncidents provides a mock function with given fields: ctx, teamID, slaTargetMinutes, limit, offset

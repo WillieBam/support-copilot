@@ -44,17 +44,21 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
   const formatDate = (isoString?: string) => {
     if (!isoString) return '';
     try {
-      return new Date(isoString).toLocaleString('en-US', {
+      return new Date(isoString).toLocaleString('en-MY', {
+        timeZone: 'Asia/Kuala_Lumpur',
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
       });
     } catch {
       return isoString;
     }
   };
+
+  const latestLog = runbookLogs && runbookLogs.length > 0 ? runbookLogs[0] : null;
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-transparent">
@@ -117,13 +121,26 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
                     <span className="text-xs font-bold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5" /> Operational Runbook
                     </span>
-                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <User className="w-3 h-3 text-emerald-500" /> Created by: <strong className="text-foreground font-medium">{getUserDisplayName(runbook.created_by)}</strong>
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" /> {formatDate(runbook.created_at)}
-                      </span>
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
+                      {latestLog ? (
+                        <>
+                          <span className="flex items-center gap-1">
+                            <Edit3 className="w-3 h-3 text-emerald-500" /> Edited by: <strong className="text-foreground font-medium">{getUserDisplayName(latestLog.updated_by)}</strong>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> {formatDate(latestLog.updated_at)}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex items-center gap-1">
+                            <User className="w-3 h-3 text-emerald-500" /> Created by: <strong className="text-foreground font-medium">{getUserDisplayName(runbook.created_by)}</strong>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> {formatDate(runbook.created_at)}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -194,7 +211,12 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
                         <div className="flex items-center justify-between text-muted-foreground">
                           <span className="font-semibold text-emerald-500">Version #{log.version}</span>
                           <div className="flex items-center gap-3 text-[11px]">
-                            <span>Edited by: <strong className="text-foreground">{getUserDisplayName(log.updated_by)}</strong></span>
+                            <span>
+                              {log.version === 1 ? 'Created by:' : 'Edited by:'}{' '}
+                              <strong className="text-foreground">
+                                {getUserDisplayName(log.version === 1 ? runbook.created_by : log.updated_by)}
+                              </strong>
+                            </span>
                             <span>{formatDate(log.updated_at)}</span>
                           </div>
                         </div>

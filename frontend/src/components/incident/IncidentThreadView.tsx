@@ -51,12 +51,14 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
   const formatDate = (isoString?: string) => {
     if (!isoString) return '';
     try {
-      return new Date(isoString).toLocaleString('en-US', {
+      return new Date(isoString).toLocaleString('en-MY', {
+        timeZone: 'Asia/Kuala_Lumpur',
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
       });
     } catch {
       return isoString;

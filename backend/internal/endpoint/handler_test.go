@@ -299,9 +299,9 @@ var _ = Describe("Handler", func() {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			metricsBytes, _ := json.Marshal(reqBody.Metrics)
-			mockAppSvc.On("IngestAlert", mock.Anything, &incID, "auth-service", "critical", string(metricsBytes)).
-				Return(errors.New("db error"))
+			mockAppSvc.On("IngestAlert", mock.Anything, mock.MatchedBy(func(r *requests.AlertIngestRequest) bool {
+				return r != nil && r.Resource.Service == "auth-service"
+			})).Return(errors.New("db error"))
 
 			err := h.IngestAlert(c)
 			Expect(err).NotTo(HaveOccurred())
@@ -322,9 +322,9 @@ var _ = Describe("Handler", func() {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			metricsBytes, _ := json.Marshal(reqBody.Metrics)
-			mockAppSvc.On("IngestAlert", mock.Anything, &incID, "auth-service", "info", string(metricsBytes)).
-				Return(nil)
+			mockAppSvc.On("IngestAlert", mock.Anything, mock.MatchedBy(func(r *requests.AlertIngestRequest) bool {
+				return r != nil && r.Resource.Service == "auth-service"
+			})).Return(nil)
 
 			err := h.IngestAlert(c)
 			Expect(err).NotTo(HaveOccurred())

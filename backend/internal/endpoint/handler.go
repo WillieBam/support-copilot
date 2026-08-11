@@ -288,8 +288,7 @@ func (h *Handler) IngestAlert(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "service name is required"})
 	}
 
-	metricsBytes, _ := json.Marshal(req.Metrics)
-	err := h.apps.IngestAlert(c.Request().Context(), req.IncidentID, req.Resource.Service, req.Alert.Severity, string(metricsBytes))
+	err := h.apps.IngestAlert(c.Request().Context(), &req)
 
 	if err != nil {
 		slog.Error("[ALERT] Failed to ingest alert via app service", "service", req.Resource.Service, "err", err)

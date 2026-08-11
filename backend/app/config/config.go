@@ -15,6 +15,15 @@ var (
 	config *Config
 )
 
+func init() {
+	loc, err := time.LoadLocation("Asia/Kuala_Lumpur")
+	if err == nil {
+		time.Local = loc
+	} else {
+		time.Local = time.FixedZone("MYT", 8*3600)
+	}
+}
+
 type IConfig interface {
 	GetString(key string) string
 }

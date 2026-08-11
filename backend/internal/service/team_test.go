@@ -184,6 +184,23 @@ var _ = Describe("TeamService", func() {
 		})
 	})
 
+	Context("ListAllTeams", func() {
+		It("should fail if user scope is not super_admin", func() {
+			teams, err := teamSvc.ListAllTeams(ctx, "engineer")
+			Expect(err).To(Equal(customErrors.ErrSuperAdminRequired))
+			Expect(teams).To(BeNil())
+		})
+
+		It("should return all teams if user scope is super_admin", func() {
+			expected := []models.Team{{ID: uuid.New(), TeamName: "DevOps"}}
+			teamRepo.On("ListAllTeams", ctx).Return(expected, nil)
+
+			teams, err := teamSvc.ListAllTeams(ctx, "super_admin")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(teams).To(Equal(expected))
+		})
+	})
+
 	Context("AssignIncident & ListIncidents", func() {
 		var (
 			teamID uuid.UUID
@@ -197,6 +214,7 @@ var _ = Describe("TeamService", func() {
 
 		It("should fail AssignIncident if user is not in team", func() {
 			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("", errors.New("not member"))
+			teamRepo.On("GetUserWithTeamsByID", ctx, userID).Return(&models.User{Scope: "engineer"}, nil).Maybe()
 
 			inc, err := teamSvc.AssignIncident(ctx, userID, teamID, "High Latency", "OPEN", "Details")
 			Expect(err).To(Equal(customErrors.ErrUnauthorizedTeamOp))
@@ -245,6 +263,7 @@ var _ = Describe("TeamService", func() {
 			mockInc := &models.TeamIncident{ID: incidentID, TeamID: teamID, Title: "Database Slow"}
 			teamRepo.On("GetTeamIncidentByID", ctx, incidentID).Return(mockInc, nil)
 			teamRepo.On("GetMemberRole", ctx, teamID, userID).Return("", errors.New("not member"))
+			teamRepo.On("GetUserWithTeamsByID", ctx, userID).Return(&models.User{Scope: "engineer"}, nil).Maybe()
 
 			inc, err := teamSvc.GetIncident(ctx, userID, incidentID)
 			Expect(err).To(Equal(customErrors.ErrUnauthorizedTeamOp))
@@ -368,6 +387,8 @@ var _ = Describe("TeamService", func() {
 		})
 
 		It("should CreateRunbook successfully", func() {
+			teamRepo.On("GetTeamIncidentByID", ctx, incidentID).Return(&models.TeamIncident{ID: incidentID, TeamID: teamID, CreatedBy: userID}, nil)
+			teamRepo.On("GetTeamByID", ctx, teamID).Return(&models.Team{ID: teamID}, nil).Maybe()
 			teamRepo.On("CreateRunbook", ctx, mock.MatchedBy(func(rb *models.Runbook) bool {
 				return rb.TeamID == teamID && rb.CreatedBy == userID && rb.Title == "Pod Restart Guide"
 			})).Return(nil)
@@ -382,7 +403,7 @@ var _ = Describe("TeamService", func() {
 			existingRb := &models.Runbook{
 				ID:         runbookID,
 				TeamID:     teamID,
-				IncidentID: incidentID,
+				IncidentID: &incidentID,
 				Title:      "Original Title",
 				Content:    "Original Content",
 			}

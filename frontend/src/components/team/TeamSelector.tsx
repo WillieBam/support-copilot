@@ -49,6 +49,13 @@ export const TeamSelector = () => {
     );
   }
 
+  const getRoleBadge = (item?: (typeof memberships)[0] | null) => {
+    if (!item) return '';
+    if (item.team_id === '') return 'OVERVIEW';
+    if (item.id?.startsWith('virtual-') || item.role === 'admin') return 'SUPER ADMIN';
+    return item.role;
+  };
+
   return (
     <div className="relative inline-block text-left">
       {/* active team dropdown toggle */}
@@ -61,7 +68,7 @@ export const TeamSelector = () => {
           {activeMembership?.team?.team_name || 'Select Team'}
         </span>
         <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-          {activeMembership?.role}
+          {getRoleBadge(activeMembership)}
         </span>
         <ChevronDown className="w-4 h-4 text-muted-foreground" />
       </button>
@@ -70,7 +77,7 @@ export const TeamSelector = () => {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-card shadow-xl z-50 py-2 backdrop-blur-xl">
           <div className="px-3 py-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-            Your Joined Teams
+            Available Teams
           </div>
 
           <div className="max-h-48 overflow-y-auto">
@@ -85,21 +92,23 @@ export const TeamSelector = () => {
                 }`}
               >
                 <span className="truncate">{item.team.team_name}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground">
-                  {item.role}
+                <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded border border-border text-muted-foreground">
+                  {getRoleBadge(item)}
                 </span>
               </button>
             ))}
           </div>
 
           <div className="border-t border-border mt-2 pt-2 px-2 space-y-1">
-            <button
-              onClick={openMembersModal}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors font-medium cursor-pointer"
-            >
-              <Users className="w-3.5 h-3.5" />
-              Manage Team Members
-            </button>
+            {Boolean(activeMembership?.team_id) && (
+              <button
+                onClick={openMembersModal}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors font-medium cursor-pointer"
+              >
+                <Users className="w-3.5 h-3.5" />
+                Manage Team Members
+              </button>
+            )}
             <button
               onClick={openCreateModal}
               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors font-medium cursor-pointer"

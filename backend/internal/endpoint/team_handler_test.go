@@ -333,4 +333,69 @@ var _ = Describe("TeamHandler", func() {
 			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
+
+	Context("DeleteTeam", func() {
+		It("should return 403 when user scope is engineer", func() {
+			req := httptest.NewRequest(http.MethodDelete, "/api/teams/"+teamID.String(), nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			c.Set("user_uid", "fb-uid-123")
+
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(testUser, nil)
+			mockTeamSvc.On("DeleteTeam", mock.Anything, "engineer", teamID).Return(customErrors.ErrSuperAdminRequired)
+
+			err := h.DeleteTeam(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("should return 200 when user scope is super_admin", func() {
+			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			req := httptest.NewRequest(http.MethodDelete, "/api/admin/teams/"+teamID.String(), nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			c.Set("user_uid", "fb-uid-123")
+
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(adminUser, nil)
+			mockTeamSvc.On("DeleteTeam", mock.Anything, "super_admin", teamID).Return(nil)
+
+			err := h.DeleteTeam(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+	})
+
+	Context("ListAllTeams", func() {
+		It("should return 403 when user scope is engineer", func() {
+			req := httptest.NewRequest(http.MethodGet, "/api/admin/teams", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "fb-uid-123")
+
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(testUser, nil)
+			mockTeamSvc.On("ListAllTeams", mock.Anything, "engineer").Return(nil, customErrors.ErrSuperAdminRequired)
+
+			err := h.ListAllTeams(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("should return 200 when user scope is super_admin", func() {
+			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			req := httptest.NewRequest(http.MethodGet, "/api/admin/teams", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "fb-uid-123")
+
+			teams := []models.Team{{ID: teamID, TeamName: "DevOps"}}
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(adminUser, nil)
+			mockTeamSvc.On("ListAllTeams", mock.Anything, "super_admin").Return(teams, nil)
+
+			err := h.ListAllTeams(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+	})
 })

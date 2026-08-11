@@ -194,3 +194,10 @@ func (t *teamRepository) SaveTeamInstruction(ctx context.Context, instruction *m
 		return tx.Save(&existing).Error
 	})
 }
+
+// ListAllTeams returns all teams in the database
+func (t *teamRepository) ListAllTeams(ctx context.Context) ([]models.Team, error) {
+	var teams []models.Team
+	err := t.db.WithContext(ctx).Order("team_name ASC").Find(&teams).Error
+	return teams, err
+}

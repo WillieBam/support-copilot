@@ -401,6 +401,36 @@ func (_m *ITeamService) GetUserTeams(ctx context.Context, userID uuid.UUID) (*mo
 	return r0, r1
 }
 
+// ListAllTeams provides a mock function with given fields: ctx, userScope
+func (_m *ITeamService) ListAllTeams(ctx context.Context, userScope string) ([]models.Team, error) {
+	ret := _m.Called(ctx, userScope)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAllTeams")
+	}
+
+	var r0 []models.Team
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.Team, error)); ok {
+		return rf(ctx, userScope)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []models.Team); ok {
+		r0 = rf(ctx, userScope)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Team)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, userScope)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListIncidents provides a mock function with given fields: ctx, requesterID, teamID
 func (_m *ITeamService) ListIncidents(ctx context.Context, requesterID uuid.UUID, teamID uuid.UUID) ([]models.TeamIncident, error) {
 	ret := _m.Called(ctx, requesterID, teamID)

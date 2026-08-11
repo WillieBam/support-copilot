@@ -224,6 +224,32 @@ func (h *Handler) DeleteTeam(c *echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "team deleted successfully"})
 }
 
+// ListAllTeams handles GET /api/admin/teams
+func (h *Handler) ListAllTeams(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	if h.teamService == nil {
+		slog.Error("[team] ListAllTeams: team service is nil")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
+	}
+
+	slog.Info("[team] ListAllTeams: listing all teams", "requester_id", user.ID, "scope", user.Scope)
+	teams, err := h.teamService.ListAllTeams(c.Request().Context(), user.Scope)
+	if err != nil {
+		if errors.Is(err, customErrors.ErrSuperAdminRequired) {
+			slog.Warn("[team] ListAllTeams: forbidden - not super_admin", "requester_id", user.ID, "scope", user.Scope)
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		slog.Error("[team] ListAllTeams: failed", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, teams)
+}
+
 // AssignTeamIncident handles POST /api/teams/:team_id/incidents
 func (h *Handler) AssignTeamIncident(c *echo.Context) error {
 	user, err := h.getAuthenticatedUser(c)

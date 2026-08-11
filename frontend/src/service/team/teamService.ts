@@ -1,5 +1,5 @@
 import apiClient from '@/service/apiClient';
-import type {UserWithTeams, AddMemberPayload, TeamMember} from '@/types/team';
+import type {UserWithTeams, AddMemberPayload, TeamMember, Team} from '@/types/team';
 import type {UserSearchResult} from '@/types/user';
 
 export const fetchUserTeams = async (): Promise<UserWithTeams> => {
@@ -29,4 +29,15 @@ export const searchUsers = async (query: string): Promise<UserSearchResult[]> =>
         params: { q: query },
     });
     return response.data;
+}
+
+// deleteTeam removes a team permanently
+export const deleteTeam = async (teamId: string): Promise<void> => {
+    await apiClient.delete(`/api/admin/teams/${teamId}`);
+}
+
+// fetchAllTeams retrieves all system teams for super_admin
+export const fetchAllTeams = async (): Promise<Team[]> => {
+    const response = await apiClient.get<Team[]>('/api/admin/teams');
+    return response.data || [];
 }

@@ -32,6 +32,8 @@ type ITeamRepository interface {
 	GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error)
 	// Enriched incident context for MCP KB tools
 	GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error)
+	// ListAllTeams returns all teams in database
+	ListAllTeams(ctx context.Context) ([]models.Team, error)
 }
 
 type ITeamService interface {
@@ -57,4 +59,6 @@ type ITeamService interface {
 	GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error)
 	ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error)
 	GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error)
+	// ListAllTeams returns all teams for super_admin
+	ListAllTeams(ctx context.Context, userScope string) ([]models.Team, error)
 }

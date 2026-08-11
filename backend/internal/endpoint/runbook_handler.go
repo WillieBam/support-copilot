@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -12,6 +13,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/domain/data"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 	"github.com/WillieBam/support_copilot/backend/types/responses"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 )
@@ -42,6 +44,9 @@ func (h *Handler) CreateRunbook(c *echo.Context) error {
 	rb, err := h.teamService.CreateRunbook(c.Request().Context(), creatorID, teamID, req.IncidentID, req.Title, req.Content)
 	if err != nil {
 		slog.Error("[runbook] CreateRunbook failed", "team_id", teamID, "error", err)
+		if errors.Is(err, customErrors.ErrTeamNotFound) || errors.Is(err, customErrors.ErrIncidentNotFound) {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusCreated, rb)
@@ -67,6 +72,9 @@ func (h *Handler) UpdateRunbook(c *echo.Context) error {
 	rb, err := h.teamService.UpdateRunbook(c.Request().Context(), updaterID, runbookID, req.Title, req.Content)
 	if err != nil {
 		slog.Error("[runbook] UpdateRunbook failed", "runbook_id", runbookID, "error", err)
+		if errors.Is(err, customErrors.ErrRunbookNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, rb)
@@ -82,6 +90,9 @@ func (h *Handler) DeprecateRunbook(c *echo.Context) error {
 	rb, err := h.teamService.DeprecateRunbook(c.Request().Context(), runbookID)
 	if err != nil {
 		slog.Error("[runbook] DeprecateRunbook failed", "runbook_id", runbookID, "error", err)
+		if errors.Is(err, customErrors.ErrRunbookNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, rb)
@@ -96,7 +107,11 @@ func (h *Handler) GetRunbook(c *echo.Context) error {
 
 	rb, err := h.teamService.GetRunbook(c.Request().Context(), runbookID)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "runbook not found"})
+		slog.Error("[runbook] GetRunbook failed", "runbook_id", runbookID, "error", err)
+		if errors.Is(err, customErrors.ErrRunbookNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, rb)
 }
@@ -220,11 +235,23 @@ func parseAndCleanseMetrics(raw string) map[string]any {
 	return cleaned
 }
 
+// normalizeUUID cleans malformed uuid strings with extra hyphens
+func normalizeUUID(input string) string {
+	cleaned := strings.TrimSpace(input)
+	cleaned = strings.Trim(cleaned, `"'`)
+	digits := strings.ReplaceAll(cleaned, "-", "")
+	if len(digits) == 32 {
+		return fmt.Sprintf("%s-%s-%s-%s-%s", digits[:8], digits[8:12], digits[12:16], digits[16:20], digits[20:])
+	}
+	return cleaned
+}
+
 // GetIncidentContext handles get /internal/incidents/:id/context
 // returns a cleansed, llm-optimised incident context - timeline capped at 3 entries
 // metrics noise-filtered, timestamps as relative strings
 func (h *Handler) GetIncidentContext(c *echo.Context) error {
-	incidentID, err := uuid.Parse(c.Param("id"))
+	rawID := normalizeUUID(c.Param("id"))
+	incidentID, err := uuid.Parse(rawID)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid incident id"})
 	}
@@ -283,7 +310,7 @@ func (h *Handler) GetIncidentContext(c *echo.Context) error {
 	existingRunbooks, _ := h.teamService.ListRunbooks(c.Request().Context(), inc.TeamID, "active")
 	summaries := make([]responses.RunbookSummary, 0)
 	for _, rb := range existingRunbooks {
-		if rb.IncidentID == inc.ID {
+		if rb.IncidentID != nil && *rb.IncidentID == inc.ID {
 			summaries = append(summaries, responses.RunbookSummary{
 				ID:     rb.ID.String(),
 				Title:  rb.Title,

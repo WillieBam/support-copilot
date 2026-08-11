@@ -88,7 +88,7 @@ var _ = Describe("RunbookHandler", func() {
 			createdRb := &models.Runbook{
 				ID:         runbookID,
 				TeamID:     teamID,
-				IncidentID: incidentID,
+				IncidentID: &incidentID,
 				Title:      "Pod Eviction Recovery",
 				Content:    "Execute kubectl rollout restart deployment",
 				Status:     "active",

@@ -85,6 +85,14 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 		apiGroup.GET("/dashboard/mttr", h.GetMTTR)
 		apiGroup.GET("/dashboard/incidents/breached", h.GetBreachedIncidents)
 
+		// admin dashboard analytics endpoints
+		adminGroup := apiGroup.Group("/admin")
+		adminGroup.GET("/dashboard/incidents/trend", h.GetAllTeamsIncidentTrend)
+		adminGroup.GET("/dashboard/mttr", h.GetAllTeamsMTTR)
+		adminGroup.GET("/dashboard/incidents/breached", h.GetAllTeamsBreachedIncidents)
+		adminGroup.GET("/teams", h.ListAllTeams)
+		adminGroup.DELETE("/teams/:team_id", h.DeleteTeam)
+
 		// '/query' group endpoints
 		g := e.Group("/query")
 		g.Use(middlewares.AuthMiddleware(a.AuthService))

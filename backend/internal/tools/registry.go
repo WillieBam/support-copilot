@@ -126,7 +126,7 @@ func RegisterDefaultTools(registry interfaces.IToolRegistry, orchestrator interf
 		Type: "function",
 		Function: requests.LLMFunction{
 			Name:        "create_runbook",
-			Description: "Creates a runbook in the Knowledge Base for an incident. Use after get_incident. Content must follow: ## Root Cause, ## Diagnostic Steps, ## Resolution, ## Prevention.",
+			Description: "Creates a runbook in the Knowledge Base for an incident. Content must follow: ## Root Cause, ## Diagnostic Steps, ## Resolution, ## Prevention.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{

@@ -149,6 +149,17 @@ func (s *orchestratorService) ExecuteValidateAlertRaw(ctx context.Context, rawAr
 	return resultStr, nil
 }
 
+// normalizeUUID cleans malformed uuid strings with extra hyphens
+func normalizeUUID(input string) string {
+	cleaned := strings.TrimSpace(input)
+	cleaned = strings.Trim(cleaned, `"'`)
+	digits := strings.ReplaceAll(cleaned, "-", "")
+	if len(digits) == 32 {
+		return fmt.Sprintf("%s-%s-%s-%s-%s", digits[:8], digits[8:12], digits[12:16], digits[16:20], digits[20:])
+	}
+	return cleaned
+}
+
 // Executegetincidentraw parses raw args and invokes mcp2 get_incident tool
 func (s *orchestratorService) ExecuteGetIncidentRaw(ctx context.Context, rawArgs string) (string, error) {
 	slog.Info("[ORCHESTRATOR] ExecuteGetIncidentRaw triggered", "rawArgs", rawArgs)
@@ -161,6 +172,7 @@ func (s *orchestratorService) ExecuteGetIncidentRaw(ctx context.Context, rawArgs
 		slog.Error("[ORCHESTRATOR] Failed to parse get_incident raw args", "err", err)
 		return "", err
 	}
+	args.IncidentID = normalizeUUID(args.IncidentID)
 	if strings.TrimSpace(args.IncidentID) == "" {
 		return "", fmt.Errorf("incident_id is required")
 	}
@@ -197,9 +209,16 @@ func (s *orchestratorService) ExecuteCreateRunbookRaw(ctx context.Context, rawAr
 		slog.Error("[ORCHESTRATOR] Failed to parse create_runbook raw args", "err", err)
 		return "", err
 	}
-	// If team_id is empty or uuid.Nil, auto-resolve team_id from the specified incident_id
+	// If team_id is empty, nil, or refers to a non-existent team (like placeholder a0000000-...), auto-resolve team_id from incident
 	parsedTeamID, _ := uuid.Parse(strings.TrimSpace(args.TeamID))
-	if (strings.TrimSpace(args.TeamID) == "" || parsedTeamID == uuid.Nil) && s.teamRepo != nil {
+	teamExists := false
+	if parsedTeamID != uuid.Nil && s.teamRepo != nil {
+		if _, err := s.teamRepo.GetTeamByID(ctx, parsedTeamID); err == nil {
+			teamExists = true
+		}
+	}
+
+	if (!teamExists || strings.TrimSpace(args.TeamID) == "" || parsedTeamID == uuid.Nil) && s.teamRepo != nil {
 		if incID, err := uuid.Parse(strings.TrimSpace(args.IncidentID)); err == nil && incID != uuid.Nil {
 			if inc, _, err := s.teamRepo.GetIncidentContext(ctx, incID); err == nil && inc != nil {
 				args.TeamID = inc.TeamID.String()

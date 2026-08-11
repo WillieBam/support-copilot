@@ -46,12 +46,14 @@ var _ = Describe("RunbookRepository", func() {
 
 	Context("CreateRunbook", func() {
 		It("should insert runbook successfully", func() {
+			incID := uuid.New()
 			rb := &models.Runbook{
-				ID:      uuid.New(),
-				TeamID:  uuid.New(),
-				Title:   "Restart Guide",
-				Content: "Run restart command",
-				Status:  "active",
+				ID:         uuid.New(),
+				TeamID:     uuid.New(),
+				IncidentID: &incID,
+				Title:      "Restart Guide",
+				Content:    "Run restart command",
+				Status:     "active",
 			}
 
 			mock.ExpectBegin()

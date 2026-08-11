@@ -26,6 +26,7 @@ func InitDatabase(db *gorm.DB) {
 	}
 
 	db.Exec("ALTER TABLE IF EXISTS team_incidents DROP COLUMN IF EXISTS incident_id")
+	db.Exec("ALTER TABLE IF EXISTS alerts DROP COLUMN IF EXISTS service_name")
 	db.Exec("UPDATE alerts SET incident_id = NULL WHERE incident_id IS NOT NULL AND incident_id NOT IN (SELECT id FROM team_incidents)")
 	db.Exec("UPDATE runbooks SET incident_id = 'a1111111-1111-1111-1111-111111111111' WHERE incident_id NOT IN (SELECT id FROM team_incidents)")
 	db.Exec("UPDATE runbook_logs SET incident_id = 'a1111111-1111-1111-1111-111111111111' WHERE incident_id NOT IN (SELECT id FROM team_incidents)")
@@ -72,7 +73,7 @@ func seedUsers(db *gorm.DB) {
 		{
 			ID:          superAdminID,
 			FirebaseUID: "fb_superadmin_111",
-			Email:       "superadmin@company.com",
+			Email:       "iswilliebam@gmail.com",
 			DisplayName: "System Boss",
 			Scope:       "super_admin",
 		},
@@ -94,8 +95,8 @@ func seedUsers(db *gorm.DB) {
 
 	for _, u := range defaultUsers {
 		err := db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "email"}},
-			DoNothing: true,
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"email", "firebase_uid", "display_name", "scope"}),
 		}).Create(&u).Error
 
 		if err != nil {
@@ -471,11 +472,16 @@ func seedInstructions(db *gorm.DB) {
 	}
 }
 
+func uuidPtr(id string) *uuid.UUID {
+	u := uuid.MustParse(id)
+	return &u
+}
+
 func seedRunbooks(db *gorm.DB) {
 	mockRunbooks := []models.Runbook{
 		{
 			ID:         uuid.MustParse("f1111111-1111-1111-1111-111111111111"),
-			IncidentID: uuid.MustParse("a1111111-1111-1111-1111-111111111111"),
+			IncidentID: uuidPtr("a1111111-1111-1111-1111-111111111111"),
 			TeamID:     teamDevOpsID,
 			CreatedBy:  realUserID,
 			Title:      "Payment Gateway CPU Spike — Scale & Throttle",
@@ -495,7 +501,7 @@ func seedRunbooks(db *gorm.DB) {
 		},
 		{
 			ID:         uuid.MustParse("f2222222-2222-2222-2222-222222222222"),
-			IncidentID: uuid.MustParse("a1111111-1111-1111-1111-111111111111"),
+			IncidentID: uuidPtr("a1111111-1111-1111-1111-111111111111"),
 			TeamID:     teamDevOpsID,
 			CreatedBy:  leadEngineerID,
 			Title:      "Old: Manual Pod Restart (Deprecated)",
@@ -504,7 +510,7 @@ func seedRunbooks(db *gorm.DB) {
 		},
 		{
 			ID:         uuid.MustParse("f3333333-3333-3333-3333-333333333333"),
-			IncidentID: uuid.MustParse("a8888888-8888-8888-8888-888888888888"),
+			IncidentID: uuidPtr("a8888888-8888-8888-8888-888888888888"),
 			TeamID:     teamDevOpsID,
 			CreatedBy:  realUserID,
 			Title:      "PostgreSQL Connection Pool Exhaustion & Recovery",
@@ -521,7 +527,7 @@ func seedRunbooks(db *gorm.DB) {
 		},
 		{
 			ID:         uuid.MustParse("f4444444-4444-4444-4444-444444444444"),
-			IncidentID: uuid.MustParse("a2222222-2222-2222-2222-222222222222"),
+			IncidentID: uuidPtr("a2222222-2222-2222-2222-222222222222"),
 			TeamID:     teamDevOpsID,
 			CreatedBy:  engineerID1,
 			Title:      "Redis Cache Eviction Surge — Memory Remediation",
@@ -539,7 +545,7 @@ func seedRunbooks(db *gorm.DB) {
 		},
 		{
 			ID:         uuid.MustParse("f5555555-5555-5555-5555-555555555555"),
-			IncidentID: uuid.MustParse("b2222222-2222-2222-2222-222222222222"),
+			IncidentID: uuidPtr("b2222222-2222-2222-2222-222222222222"),
 			TeamID:     teamPlatformID,
 			CreatedBy:  leadEngineerID,
 			Title:      "API Gateway Ingress Rate Limiting & Circuit Breaking",
@@ -572,7 +578,7 @@ func seedRunbookLogs(db *gorm.DB) {
 		{
 			ID:           uuid.MustParse("f6666666-6666-6666-6666-666666666666"),
 			RunbookID:    uuid.MustParse("f1111111-1111-1111-1111-111111111111"),
-			IncidentID:   uuid.MustParse("a1111111-1111-1111-1111-111111111111"),
+			IncidentID:   uuidPtr("a1111111-1111-1111-1111-111111111111"),
 			TeamID:       teamDevOpsID,
 			UpdatedBy:    realUserID,
 			OlderTitle:   "Payment Gateway CPU Spike — Initial Version",

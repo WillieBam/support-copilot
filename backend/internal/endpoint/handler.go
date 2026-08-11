@@ -274,6 +274,7 @@ func (h *Handler) Query(c *echo.Context) error {
 
 }
 
+// IngestAlert handles alert webhook ingestion requests
 func (h *Handler) IngestAlert(c *echo.Context) error {
 	var req requests.AlertIngestRequest
 	if err := c.Bind(&req); err != nil {

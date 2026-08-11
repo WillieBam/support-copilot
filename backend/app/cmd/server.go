@@ -45,11 +45,14 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 
 	e.POST("/auth/exchange", h.TokenExchangeHandler)
 
+	// public unauthenticated webhook endpoints for alert ingestion
+	e.POST("/api/alerts/ingest", h.IngestAlert)
+	e.POST("/webhooks/alerts/ingest", h.IngestAlert)
+
 	// api group endpoints
 	apiGroup := e.Group("/api")
 	apiGroup.Use(middlewares.AuthMiddleware(a.AuthService))
 	apiGroup.GET("/auth/me", h.Me)
-	apiGroup.POST("/alerts/ingest", h.IngestAlert)
 
 	// team endpoints
 	apiGroup.POST("/teams", h.CreateTeam)

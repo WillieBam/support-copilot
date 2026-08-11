@@ -17,6 +17,8 @@ var (
 	ErrUserNotInTeam         = errors.New("user is not a member of this team")
 	ErrInvalidIncidentStatus = errors.New("invalid incident status: must be OPEN, IN_PROGRESS, RESOLVED, or CLOSED")
 	ErrIncidentNotFound      = errors.New("incident not found")
+	ErrTeamNotFound          = errors.New("team not found")
+	ErrRunbookNotFound       = errors.New("runbook not found")
 	ErrInstructionTooShort   = errors.New("instruction details must be at least 30 characters long")
 )
 

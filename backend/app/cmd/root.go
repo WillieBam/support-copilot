@@ -24,7 +24,7 @@ var migrateCmd = &cobra.Command{
 	Long:  "Run database auto-migration and seeding",
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := config.Get()
-		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Kuala_Lumpur",
 			cfg.Database.Host,
 			cfg.Database.User,
 			cfg.Database.Password,

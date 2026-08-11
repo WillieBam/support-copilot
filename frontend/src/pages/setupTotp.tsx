@@ -77,6 +77,30 @@ export const SetupTotp: React.FC<SetupTotpProps> = ({ auth }) => {
               </div>
             </form>
           </div>
+        ) : !state.isEmailVerified ? (
+          <div className="setup-body text-center space-y-4">
+            <p className="setup-text">
+              Please verify your email address to enable TOTP setup. Once verified, click <strong>"Check Status"</strong> below.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => void state.checkVerificationStatus()}
+                disabled={state.isBusy}
+                className="setup-btn-submit"
+              >
+                {state.isBusy ? 'Checking...' : 'Check Status'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void state.resendVerification()}
+                disabled={state.isBusy}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border transition-colors cursor-pointer"
+              >
+                Resend Email
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="setup-initializing-container">
             <div className="setup-initializing-text">Initializing TOTP generator...</div>

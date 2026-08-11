@@ -8,6 +8,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type alertRepository struct {
@@ -48,9 +49,20 @@ func (a *alertRepository) RetrieveAlertbyID(ctx context.Context, id string) (*mo
 }
 
 func (a *alertRepository) UpdateAlertIncidentID(ctx context.Context, alertID, incidentID uuid.UUID) error {
+	joinRecord := models.AlertIncident{
+		AlertID:    alertID,
+		IncidentID: incidentID,
+		LinkedBy:   "human_ui",
+	}
+	if err := a.db.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(&joinRecord).Error; err != nil {
+		return err
+	}
+
 	return a.db.WithContext(ctx).
 		Model(&models.Alert{}).
-		Where("id = ?", alertID).
+		Where("id = ? AND incident_id IS NULL", alertID).
 		Update("incident_id", incidentID).Error
 }
 

@@ -16,6 +16,7 @@ export const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState('OPEN');
   const [details, setDetails] = useState('');
+  const [alertId, setAlertId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +35,7 @@ export const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
         title: title.trim(),
         status,
         details: details.trim(),
+        alert_id: alertId.trim() || undefined,
       });
       onSuccess();
       onClose();
@@ -76,6 +78,19 @@ export const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
               disabled={isSubmitting}
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5 text-foreground">Triggering Alert ID (Optional)</label>
+            <input
+              type="text"
+              value={alertId}
+              onChange={(e) => setAlertId(e.target.value)}
+              placeholder="e.g. ALT-100 or alert UUID"
+              className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              disabled={isSubmitting}
+            />
+            <p className="text-xs text-muted-foreground mt-1">Provide alert id(e.g.12345678) to link alert upon creation.</p>
           </div>
 
           <div>

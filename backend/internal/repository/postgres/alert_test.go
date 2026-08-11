@@ -94,7 +94,13 @@ var _ = Describe("AlertRepository", func() {
 			incidentID := uuid.New()
 
 			mock.ExpectBegin()
-			mock.ExpectExec(`UPDATE "alerts" SET "incident_id"=\$1 WHERE id = \$2`).
+			mock.ExpectQuery(`INSERT INTO "alert_incidents"`).
+				WithArgs(alertID, incidentID, "human_ui").
+				WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Now()))
+			mock.ExpectCommit()
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`UPDATE "alerts" SET "incident_id"=\$1 WHERE id = \$2 AND incident_id IS NULL`).
 				WithArgs(incidentID, alertID).
 				WillReturnResult(sqlmock.NewResult(1, 1))
 			mock.ExpectCommit()

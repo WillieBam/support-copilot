@@ -242,6 +242,24 @@ func (_m *ITeamService) GetIncidentContext(ctx context.Context, teamIncidentID u
 	return r0, r1, r2
 }
 
+// LinkAlertsToIncident provides a mock function with given fields: ctx, alertIDStrings, incidentID
+func (_m *ITeamService) LinkAlertsToIncident(ctx context.Context, alertIDStrings []string, incidentID uuid.UUID) error {
+	ret := _m.Called(ctx, alertIDStrings, incidentID)
+
+	if len(ret) == 0 {
+		return nil
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string, uuid.UUID) error); ok {
+		r0 = rf(ctx, alertIDStrings, incidentID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GetRunbook provides a mock function with given fields: ctx, runbookID
 func (_m *ITeamService) GetRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error) {
 	ret := _m.Called(ctx, runbookID)

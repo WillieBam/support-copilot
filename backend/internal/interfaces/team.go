@@ -59,6 +59,7 @@ type ITeamService interface {
 	GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error)
 	ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error)
 	GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error)
+	LinkAlertsToIncident(ctx context.Context, alertIDStrings []string, incidentID uuid.UUID) error
 	// ListAllTeams returns all teams for super_admin
 	ListAllTeams(ctx context.Context, userScope string) ([]models.Team, error)
 }

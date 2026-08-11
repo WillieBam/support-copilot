@@ -17,6 +17,7 @@ type Alert struct {
 	BusinessContext string        `gorm:"type:text"`
 	Metadata        string        `gorm:"type:text"`
 	Incident        *TeamIncident `gorm:"foreignKey:IncidentID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"-"`
+	Incidents       []TeamIncident `gorm:"many2many:alert_incidents;foreignKey:ID;joinForeignKey:AlertID;references:ID;joinReferences:IncidentID" json:"incidents,omitempty"`
 }
 
 

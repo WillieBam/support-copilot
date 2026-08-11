@@ -44,6 +44,7 @@ func InitDatabase(db *gorm.DB) {
 		&models.Runbook{},
 		&models.RunbookLog{},
 		&models.Alert{},
+		&models.AlertIncident{},
 		&models.Conversation{},
 		&models.Message{},
 	)

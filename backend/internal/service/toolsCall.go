@@ -327,8 +327,16 @@ func (s *orchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context,
 		}
 	}
 
-	alertUUID, err := uuid.Parse(alertID)
-	if err != nil {
+	var alertUUID uuid.UUID
+	if parsed, err := uuid.Parse(alertID); err == nil {
+		alertUUID = parsed
+	} else if s.alertRepo != nil {
+		alertRecord, err := s.alertRepo.RetrieveAlertbyID(ctx, alertID)
+		if err != nil || alertRecord == nil {
+			return "", fmt.Errorf("invalid alert_id %q: alert record not found: %v", args.AlertID, err)
+		}
+		alertUUID = alertRecord.ID
+	} else {
 		return "", fmt.Errorf("invalid alert_id %q: %w", args.AlertID, err)
 	}
 

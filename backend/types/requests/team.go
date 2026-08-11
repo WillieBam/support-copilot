@@ -15,6 +15,8 @@ type AssignTeamIncidentRequest struct {
 	Title      string    `json:"title" binding:"required"`
 	Status     string    `json:"status"`
 	Details    string    `json:"details"`
+	AlertID    string    `json:"alert_id,omitempty"`
+	AlertIDs   []string  `json:"alert_ids,omitempty"`
 }
 
 type UpdateIncidentStatusRequest struct {

@@ -349,6 +349,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 		})
 
 		It("should return error on invalid alert_id in ExecuteLinkAlertToIncidentRaw", func() {
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, "invalid").Return(nil, errors.New("record not found"))
 			_, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `{"alert_id": "invalid"}`)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid alert_id"))

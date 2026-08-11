@@ -26,6 +26,8 @@ export interface CreateIncidentPayload {
     title: string;
     status?: string;
     details?: string;
+    alert_id?: string;
+    alert_ids?: string[];
 }
 
 export interface UpdateIncidentPayload {

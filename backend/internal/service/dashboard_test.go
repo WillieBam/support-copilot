@@ -166,4 +166,74 @@ var _ = Describe("DashboardService", func() {
 			Expect(result).To(Equal(expected))
 		})
 	})
+
+	Context("GetAllTeamsIncidentTrend", func() {
+		It("should return ErrSuperAdminRequired for non super_admin scope", func() {
+			result, err := dashSvc.GetAllTeamsIncidentTrend(ctx, "engineer", "month")
+			Expect(err).To(Equal(customErrors.ErrSuperAdminRequired))
+			Expect(result).To(BeNil())
+		})
+
+		It("should return ErrInvalidTimeframe for invalid timeframe", func() {
+			result, err := dashSvc.GetAllTeamsIncidentTrend(ctx, "super_admin", "invalid")
+			Expect(err).To(Equal(customErrors.ErrInvalidTimeframe))
+			Expect(result).To(BeNil())
+		})
+
+		It("should return trend data for super_admin", func() {
+			expected := []types.IncidentTrendPoint{
+				{TimeBucket: "2026-08-01", Status: "OPEN", Count: 10},
+			}
+			dashRepo.On("GetAllTeamsIncidentTrend", ctx, "month").Return(expected, nil)
+
+			result, err := dashSvc.GetAllTeamsIncidentTrend(ctx, "super_admin", "month")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal(expected))
+		})
+	})
+
+	Context("GetAllTeamsMTTR", func() {
+		It("should return ErrSuperAdminRequired for non super_admin scope", func() {
+			result, err := dashSvc.GetAllTeamsMTTR(ctx, "engineer", 30)
+			Expect(err).To(Equal(customErrors.ErrSuperAdminRequired))
+			Expect(result).To(BeNil())
+		})
+
+		It("should return ErrInvalidSLATarget when target is non-positive", func() {
+			result, err := dashSvc.GetAllTeamsMTTR(ctx, "super_admin", 0)
+			Expect(err).To(Equal(customErrors.ErrInvalidSLATarget))
+			Expect(result).To(BeNil())
+		})
+
+		It("should return all teams mttr stats for super_admin", func() {
+			dashRepo.On("GetAllTeamsMTTRStats", ctx).Return(20.0, 5, nil)
+			dashRepo.On("CountAllTeamsBreachedIncidents", ctx, 30).Return(1, nil)
+
+			result, err := dashSvc.GetAllTeamsMTTR(ctx, "super_admin", 30)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.MTTRMinutes).To(Equal(20.0))
+			Expect(result.TotalResolved).To(Equal(5))
+			Expect(result.SLABreaches).To(Equal(1))
+			Expect(result.ComplianceRate).To(BeNumerically("~", 80.0, 0.01))
+		})
+	})
+
+	Context("GetAllTeamsBreachedIncidents", func() {
+		It("should return ErrSuperAdminRequired for non super_admin scope", func() {
+			result, err := dashSvc.GetAllTeamsBreachedIncidents(ctx, "engineer", 30, 50, 0)
+			Expect(err).To(Equal(customErrors.ErrSuperAdminRequired))
+			Expect(result).To(BeNil())
+		})
+
+		It("should return all teams breached incidents for super_admin", func() {
+			expected := []types.BreachedIncident{
+				{ID: uuid.New().String(), Title: "Global Outage", DurationMinutes: 120.0},
+			}
+			dashRepo.On("GetAllTeamsBreachedIncidents", ctx, 30, 50, 0).Return(expected, nil)
+
+			result, err := dashSvc.GetAllTeamsBreachedIncidents(ctx, "super_admin", 30, 50, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal(expected))
+		})
+	})
 })

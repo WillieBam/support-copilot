@@ -139,3 +139,101 @@ func (h *Handler) GetBreachedIncidents(c *echo.Context) error {
 
 	return c.JSON(http.StatusOK, results)
 }
+
+// GetAllTeamsIncidentTrend handles GET /api/admin/dashboard/incidents/trend
+func (h *Handler) GetAllTeamsIncidentTrend(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	timeframe := c.QueryParam("timeframe")
+	if timeframe == "" {
+		timeframe = "month"
+	}
+
+	slog.Info("[dashboard] GetAllTeamsIncidentTrend", "timeframe", timeframe, "requester_id", user.ID)
+	results, err := h.dashboardService.GetAllTeamsIncidentTrend(c.Request().Context(), user.Scope, timeframe)
+	if err != nil {
+		if errors.Is(err, customErrors.ErrInvalidTimeframe) {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
+		if errors.Is(err, customErrors.ErrSuperAdminRequired) {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		slog.Error("[dashboard] GetAllTeamsIncidentTrend failed", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, results)
+}
+
+// GetAllTeamsMTTR handles GET /api/admin/dashboard/mttr
+func (h *Handler) GetAllTeamsMTTR(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	slaTarget, err := parseSLATarget(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	slog.Info("[dashboard] GetAllTeamsMTTR", "sla_target_minutes", slaTarget, "requester_id", user.ID)
+	result, err := h.dashboardService.GetAllTeamsMTTR(c.Request().Context(), user.Scope, slaTarget)
+	if err != nil {
+		if errors.Is(err, customErrors.ErrInvalidSLATarget) {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
+		if errors.Is(err, customErrors.ErrSuperAdminRequired) {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		slog.Error("[dashboard] GetAllTeamsMTTR failed", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, result)
+}
+
+// GetAllTeamsBreachedIncidents handles GET /api/admin/dashboard/incidents/breached
+func (h *Handler) GetAllTeamsBreachedIncidents(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	slaTarget, err := parseSLATarget(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	limit := 50
+	if l := c.QueryParam("limit"); l != "" {
+		if parsed, parseErr := strconv.Atoi(l); parseErr == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	offset := 0
+	if o := c.QueryParam("offset"); o != "" {
+		if parsed, parseErr := strconv.Atoi(o); parseErr == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	slog.Info("[dashboard] GetAllTeamsBreachedIncidents", "sla_target_minutes", slaTarget, "requester_id", user.ID)
+	results, err := h.dashboardService.GetAllTeamsBreachedIncidents(c.Request().Context(), user.Scope, slaTarget, limit, offset)
+	if err != nil {
+		if errors.Is(err, customErrors.ErrInvalidSLATarget) {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
+		if errors.Is(err, customErrors.ErrSuperAdminRequired) {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		slog.Error("[dashboard] GetAllTeamsBreachedIncidents failed", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, results)
+}

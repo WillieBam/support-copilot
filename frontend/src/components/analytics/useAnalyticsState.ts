@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { IncidentTrendPoint, MTTRResult, BreachedIncident } from '@/types/analytics';
-import { fetchIncidentTrend, fetchMTTR, fetchBreachedIncidents } from '@/service/analytics/analyticsService';
+import {
+  fetchIncidentTrend,
+  fetchMTTR,
+  fetchBreachedIncidents,
+  fetchAllTeamsIncidentTrend,
+  fetchAllTeamsMTTR,
+  fetchAllTeamsBreachedIncidents,
+} from '@/service/analytics/analyticsService';
 
 export type Timeframe = 'day' | 'month' | 'year';
 export type SLAFilterOption = 0 | 15 | 30 | 60;
@@ -15,7 +22,7 @@ export interface PivotedTrendPoint {
 }
 
 // useAnalyticsState manages data fetching, timeframe, sla filtering, and trend data transformation
-export function useAnalyticsState(teamId?: string | null) {
+export function useAnalyticsState(teamId?: string | null, isSuperAdmin?: boolean) {
   const [timeframe, setTimeframe] = useState<Timeframe>('month');
   const [slaTarget, setSlaTarget] = useState<SLAFilterOption>(30);
   const [rawTrend, setRawTrend] = useState<IncidentTrendPoint[]>([]);
@@ -25,30 +32,41 @@ export function useAnalyticsState(teamId?: string | null) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isAllTeamsMode = Boolean(isSuperAdmin && !teamId);
+
   const loadData = useCallback(async () => {
-    if (!teamId) {
-      setRawTrend([]);
-      setMttr(null);
-      setBreached([]);
-      return;
-    }
     setIsLoading(true);
     setError(null);
     try {
-      const [trendData, mttrData, breachedData] = await Promise.all([
-        fetchIncidentTrend(teamId, timeframe),
-        fetchMTTR(teamId, slaTarget === 0 ? 30 : slaTarget),
-        fetchBreachedIncidents(teamId, slaTarget),
-      ]);
-      setRawTrend(trendData || []);
-      setMttr(mttrData || null);
-      setBreached(breachedData || []);
+      if (isAllTeamsMode) {
+        const [trendData, mttrData, breachedData] = await Promise.all([
+          fetchAllTeamsIncidentTrend(timeframe),
+          fetchAllTeamsMTTR(slaTarget === 0 ? 30 : slaTarget),
+          fetchAllTeamsBreachedIncidents(slaTarget),
+        ]);
+        setRawTrend(trendData || []);
+        setMttr(mttrData || null);
+        setBreached(breachedData || []);
+      } else if (teamId) {
+        const [trendData, mttrData, breachedData] = await Promise.all([
+          fetchIncidentTrend(teamId, timeframe),
+          fetchMTTR(teamId, slaTarget === 0 ? 30 : slaTarget),
+          fetchBreachedIncidents(teamId, slaTarget),
+        ]);
+        setRawTrend(trendData || []);
+        setMttr(mttrData || null);
+        setBreached(breachedData || []);
+      } else {
+        setRawTrend([]);
+        setMttr(null);
+        setBreached([]);
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to fetch analytics data');
     } finally {
       setIsLoading(false);
     }
-  }, [teamId, timeframe, slaTarget]);
+  }, [teamId, timeframe, slaTarget, isAllTeamsMode]);
 
   useEffect(() => {
     loadData();
@@ -110,6 +128,7 @@ export function useAnalyticsState(teamId?: string | null) {
 
   return {
     teamId,
+    isAllTeamsMode,
     timeframe,
     setTimeframe,
     slaTarget,

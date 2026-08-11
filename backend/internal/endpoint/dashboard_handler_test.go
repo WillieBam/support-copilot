@@ -159,4 +159,86 @@ var _ = Describe("DashboardHandler", func() {
 			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
+
+	Context("GetAllTeamsIncidentTrend", func() {
+		It("should return 403 when user is not super_admin", func() {
+			req := httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/incidents/trend?timeframe=month", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "fb-uid-123")
+
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(testUser, nil)
+			mockDashSvc.On("GetAllTeamsIncidentTrend", mock.Anything, "engineer", "month").
+				Return(nil, customErrors.ErrSuperAdminRequired)
+
+			err := h.GetAllTeamsIncidentTrend(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("should return 200 on successful GetAllTeamsIncidentTrend", func() {
+			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			req := httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/incidents/trend?timeframe=month", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "fb-uid-123")
+
+			trendData := []types.IncidentTrendPoint{
+				{TimeBucket: "2026-08", Status: "OPEN", Count: 10},
+			}
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(adminUser, nil)
+			mockDashSvc.On("GetAllTeamsIncidentTrend", mock.Anything, "super_admin", "month").
+				Return(trendData, nil)
+
+			err := h.GetAllTeamsIncidentTrend(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+	})
+
+	Context("GetAllTeamsMTTR", func() {
+		It("should return 200 on successful GetAllTeamsMTTR", func() {
+			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			req := httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/mttr?sla_target_minutes=30", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "fb-uid-123")
+
+			mttrRes := &types.MTTRResult{
+				MTTRMinutes:    20.0,
+				TotalResolved:  10,
+				SLABreaches:    1,
+				ComplianceRate: 90.0,
+			}
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(adminUser, nil)
+			mockDashSvc.On("GetAllTeamsMTTR", mock.Anything, "super_admin", 30).
+				Return(mttrRes, nil)
+
+			err := h.GetAllTeamsMTTR(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+	})
+
+	Context("GetAllTeamsBreachedIncidents", func() {
+		It("should return 200 on successful GetAllTeamsBreachedIncidents", func() {
+			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			req := httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/incidents/breached?sla_target_minutes=30&limit=10&offset=0", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "fb-uid-123")
+
+			now := time.Now()
+			breached := []types.BreachedIncident{
+				{ID: uuid.New().String(), Title: "Major Incident", CreatedAt: now, DurationMinutes: 90.0},
+			}
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(adminUser, nil)
+			mockDashSvc.On("GetAllTeamsBreachedIncidents", mock.Anything, "super_admin", 30, 10, 0).
+				Return(breached, nil)
+
+			err := h.GetAllTeamsBreachedIncidents(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+	})
 })

@@ -53,6 +53,7 @@ function GlobalHeader({
   onOpenAnalyticsDashboard: () => void;
 }) {
   const { theme, toggleTheme } = useTheme();
+  const { activeTeamId } = useTeam();
 
   return (
     <header className="flex w-full h-[73px] items-center justify-between px-6 bg-card border-b border-border shrink-0 transition-colors duration-350 z-20 sticky top-0">
@@ -71,17 +72,19 @@ function GlobalHeader({
         {auth.isSignedIn && (
           <>
             <TeamSelector />
-            <button
-              onClick={onOpenInstructionModal}
-              className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-foreground hover:bg-muted transition-colors text-sm cursor-pointer"
-            >
-              <FileText className="w-4 h-4 text-muted-foreground" /> Manage Instruction
-            </button>
+            {Boolean(activeTeamId) && (
+              <button
+                onClick={onOpenInstructionModal}
+                className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-foreground hover:bg-muted transition-colors text-sm cursor-pointer"
+              >
+                <FileText className="w-4 h-4 text-muted-foreground" /> Manage Instruction
+              </button>
+            )}
             <button
               onClick={onOpenAnalyticsDashboard}
               className="flex items-center gap-2 bg-transparent border border-border rounded-[20px] px-4 py-1.5 text-foreground hover:bg-muted transition-colors text-sm cursor-pointer"
             >
-              <BarChart2 className="w-4 h-4 text-emerald-500" /> Analytics
+              <BarChart2 className="w-4 h-4 text-emerald-500" /> Dashboard
             </button>
             <button
               onClick={() => void auth.signOut()}

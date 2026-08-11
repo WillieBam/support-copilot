@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchUserTeams, fetchTeamMembers } from '@/service/team/teamService';
+import { fetchUserTeams, fetchTeamMembers, fetchAllTeams } from '@/service/team/teamService';
 import type { UserMembership, TeamRole, TeamMember } from '@/types/team';
 
 // localStorage key for tracking which team IDs this user has already seen
@@ -9,6 +9,7 @@ export const useTeamState = (isSignedIn: boolean, userEmail?: string) => {
   const [memberships, setMemberships] = useState<UserMembership[]>([]);
   const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [userScope, setUserScope] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,12 +25,50 @@ export const useTeamState = (isSignedIn: boolean, userEmail?: string) => {
     setError(null);
     try {
       const data = await fetchUserTeams();
+      setUserScope(data.scope || null);
       const userMemberships = data.memberships || [];
-      setMemberships(userMemberships);
 
-      // default active team to first joined team if not selected
-      if (userMemberships.length > 0 && !activeTeamId) {
-        setActiveTeamId(userMemberships[0].team_id);
+      if (data.scope === 'super_admin') {
+        try {
+          const allTeams = await fetchAllTeams();
+          const existingMap = new Map(userMemberships.map((m) => [m.team_id, m]));
+          const systemMemberships: UserMembership[] = allTeams.map((t) => {
+            const existing = existingMap.get(t.id);
+            if (existing) return existing;
+            return {
+              id: `virtual-${t.id}`,
+              team_id: t.id,
+              user_id: data.id,
+              role: 'admin',
+              team: t,
+            };
+          });
+          const allTeamsOption: UserMembership = {
+            id: 'all-teams-aggregate',
+            team_id: '',
+            user_id: data.id,
+            role: 'admin',
+            team: {
+              id: '',
+              team_name: 'All Teams (Aggregate)',
+              created_at: new Date().toISOString(),
+            },
+          };
+          setMemberships([allTeamsOption, ...systemMemberships]);
+          if (activeTeamId === null) {
+            setActiveTeamId('');
+          }
+        } catch {
+          setMemberships(userMemberships);
+          if (userMemberships.length > 0 && !activeTeamId) {
+            setActiveTeamId(userMemberships[0].team_id);
+          }
+        }
+      } else {
+        setMemberships(userMemberships);
+        if (userMemberships.length > 0 && !activeTeamId) {
+          setActiveTeamId(userMemberships[0].team_id);
+        }
       }
 
       // ── New-team notification detection ──────────────────────────
@@ -108,12 +147,16 @@ export const useTeamState = (isSignedIn: boolean, userEmail?: string) => {
     setNewTeamNames([]);
   }, []);
 
+  const isSuperAdmin = userScope === 'super_admin';
+
   return {
     memberships,
     activeTeamId,
     activeMembership,
     activeRole,
     isOwner,
+    userScope,
+    isSuperAdmin,
     teamMembers,
     getUserDisplayName,
     isLoading,

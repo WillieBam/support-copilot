@@ -172,10 +172,11 @@ func (s *orchestratorService) ExecuteGetIncidentRaw(ctx context.Context, rawArgs
 		slog.Error("[ORCHESTRATOR] Failed to parse get_incident raw args", "err", err)
 		return "", err
 	}
-	args.IncidentID = normalizeUUID(args.IncidentID)
-	if strings.TrimSpace(args.IncidentID) == "" {
+	cleanID := strings.TrimSpace(args.IncidentID)
+	if cleanID == "" {
 		return "", fmt.Errorf("incident_id is required")
 	}
+	args.IncidentID = cleanID
 	return s.mcpClient2.GetIncident(ctx, args)
 }
 
@@ -344,7 +345,16 @@ func (s *orchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context,
 	var parseErr error
 
 	if incidentID != "" {
-		incidentUUID, parseErr = uuid.Parse(incidentID)
+		if parsed, err := uuid.Parse(incidentID); err == nil {
+			incidentUUID = parsed
+		} else if s.teamRepo != nil {
+			if inc, err := s.teamRepo.GetTeamIncidentByIDOrNumber(ctx, incidentID); err == nil && inc != nil {
+				incidentUUID = inc.ID
+				slog.Info("[ORCHESTRATOR] Resolved incident by surrogate key / ID", "incident_id_arg", incidentID, "resolved_uuid", incidentUUID)
+			} else {
+				parseErr = err
+			}
+		}
 	}
 
 	// if incident_id is not a valid UUID, treat it or incident_title as a human readable title to resolve

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/WillieBam/support_copilot/backend/types/models"
@@ -123,6 +124,38 @@ func (t *teamRepository) GetIncidentContext(ctx context.Context, teamIncidentID 
 		Where("id = ?", teamIncidentID).
 		First(&incident).Error; err != nil {
 		return nil, nil, err
+	}
+
+	var alerts []models.Alert
+	if err := t.db.WithContext(ctx).
+		Where("incident_id = ? OR id IN (SELECT alert_id FROM alert_incidents WHERE incident_id = ?)", incident.ID, incident.ID).
+		Order("received_at DESC").
+		Find(&alerts).Error; err != nil {
+		return nil, nil, err
+	}
+	if alerts == nil {
+		alerts = []models.Alert{}
+	}
+	return &incident, alerts, nil
+}
+
+func (t *teamRepository) GetIncidentContextByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, []models.Alert, error) {
+	clean := strings.TrimSpace(idOrNumber)
+	if clean == "" {
+		return nil, nil, errors.New("incident ID or number is required")
+	}
+	var incident models.TeamIncident
+	db := t.db.WithContext(ctx).Preload("History", func(db *gorm.DB) *gorm.DB {
+		return db.Order("updated_at ASC")
+	})
+	if parsedUUID, err := uuid.Parse(clean); err == nil {
+		if err := db.Where("id = ? OR LOWER(incident_number) = LOWER(?)", parsedUUID, clean).First(&incident).Error; err != nil {
+			return nil, nil, err
+		}
+	} else {
+		if err := db.Where("LOWER(incident_number) = LOWER(?)", clean).First(&incident).Error; err != nil {
+			return nil, nil, err
+		}
 	}
 
 	var alerts []models.Alert

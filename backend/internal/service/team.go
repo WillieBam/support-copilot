@@ -553,3 +553,14 @@ func (s *teamService) LinkAlertsToIncident(ctx context.Context, alertIDStrings [
 	}
 	return nil
 }
+
+func (s *teamService) GetIncidentContextByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, []models.Alert, error) {
+	slog.InfoContext(ctx, "[team-svc] GetIncidentContextByIDOrNumber: fetching context", "id_or_number", idOrNumber)
+	inc, alerts, err := s.teamRepo.GetIncidentContextByIDOrNumber(ctx, idOrNumber)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] GetIncidentContextByIDOrNumber: failed", "id_or_number", idOrNumber, "error", err)
+		return nil, nil, err
+	}
+	slog.InfoContext(ctx, "[team-svc] GetIncidentContextByIDOrNumber: success", "id_or_number", idOrNumber, "alert_count", len(alerts))
+	return inc, alerts, nil
+}

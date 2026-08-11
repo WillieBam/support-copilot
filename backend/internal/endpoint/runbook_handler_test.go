@@ -221,7 +221,7 @@ var _ = Describe("RunbookHandler", func() {
 			}
 
 
-			mockTeamSvc.On("GetIncidentContext", mock.Anything, incidentID).Return(inc, alerts, nil)
+			mockTeamSvc.On("GetIncidentContextByIDOrNumber", mock.Anything, incidentID.String()).Return(inc, alerts, nil)
 			mockTeamSvc.On("ListRunbooks", mock.Anything, teamID, "active").Return([]models.Runbook{}, nil)
 
 			err := h.GetIncidentContext(c)

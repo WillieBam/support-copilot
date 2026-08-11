@@ -7,8 +7,9 @@ import (
 )
 
 type TeamIncident struct {
-	ID         uuid.UUID               `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
-	TeamID     uuid.UUID               `gorm:"type:uuid;not null" json:"team_id"`
+	ID             uuid.UUID               `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	IncidentNumber string                  `gorm:"type:varchar(50);uniqueIndex" json:"incident_number,omitempty"`
+	TeamID         uuid.UUID               `gorm:"type:uuid;not null" json:"team_id"`
 	CreatedBy  uuid.UUID               `gorm:"type:uuid;not null" json:"created_by"`
 	Title      string                  `gorm:"type:varchar(255);not null" json:"title"`
 	Status     string                  `gorm:"type:varchar(20)" json:"status"`

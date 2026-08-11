@@ -677,6 +677,45 @@ func (_m *ITeamService) UpdateRunbook(ctx context.Context, updaterID uuid.UUID, 
 	return r0, r1
 }
 
+// GetIncidentContextByIDOrNumber provides a mock function with given fields: ctx, idOrNumber
+func (_m *ITeamService) GetIncidentContextByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, []models.Alert, error) {
+	ret := _m.Called(ctx, idOrNumber)
+	if len(ret) == 0 {
+		panic("no return value specified for GetIncidentContextByIDOrNumber")
+	}
+
+	var r0 *models.TeamIncident
+	var r1 []models.Alert
+	var r2 error
+
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.TeamIncident, []models.Alert, error)); ok {
+		return rf(ctx, idOrNumber)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.TeamIncident); ok {
+		r0 = rf(ctx, idOrNumber)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.TeamIncident)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) []models.Alert); ok {
+		r1 = rf(ctx, idOrNumber)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).([]models.Alert)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
+		r2 = rf(ctx, idOrNumber)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // NewITeamService creates a new instance of ITeamService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewITeamService(t interface {

@@ -90,7 +90,7 @@ func RegisterDefaultTools(registry interfaces.IToolRegistry, orchestrator interf
 				"properties": map[string]interface{}{
 					"incident_id": map[string]interface{}{
 						"type":        "string",
-						"description": "A valid UUIDv4 incident identifier.",
+						"description": "An incident surrogate key (e.g. INC-101) or UUIDv4 identifier.",
 					},
 				},
 				"required":             []string{"incident_id"},
@@ -99,27 +99,6 @@ func RegisterDefaultTools(registry interfaces.IToolRegistry, orchestrator interf
 		},
 	}, func(ctx context.Context, rawArgs string) (string, error) {
 		return orchestrator.ExecuteGetIncidentRaw(ctx, rawArgs)
-	})
-
-	registry.Register("list_incidents", requests.LLMTool{
-		Type: "function",
-		Function: requests.LLMFunction{
-			Name:        "list_incidents",
-			Description: "Lists all team incidents with summary info including id, title, status, and age.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"team_id": map[string]interface{}{
-						"type":        "string",
-						"description": "A valid UUIDv4 team identifier.",
-					},
-				},
-				"required":             []string{"team_id"},
-				"additionalProperties": false,
-			},
-		},
-	}, func(ctx context.Context, rawArgs string) (string, error) {
-		return orchestrator.ExecuteListIncidentsRaw(ctx, rawArgs)
 	})
 
 	registry.Register("create_runbook", requests.LLMTool{
@@ -256,7 +235,7 @@ func RegisterDefaultTools(registry interfaces.IToolRegistry, orchestrator interf
 		Type: "function",
 		Function: requests.LLMFunction{
 			Name:        "link_alert_to_incident",
-			Description: "Associates an existing alert with an incident by UUID or title. If you only have the incident title or service name, call list_incidents first to get the exact incident_id, or pass the title in incident_title.",
+			Description: "Associates an existing alert with an incident by surrogate key INC-xxx, UUID, or title.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -266,7 +245,7 @@ func RegisterDefaultTools(registry interfaces.IToolRegistry, orchestrator interf
 					},
 					"incident_id": map[string]interface{}{
 						"type":        "string",
-						"description": "UUIDv4 of the target incident (if known).",
+						"description": "Surrogate key INC-xxx (e.g. INC-101) or UUIDv4 of the target incident (if known).",
 					},
 					"incident_title": map[string]interface{}{
 						"type":        "string",

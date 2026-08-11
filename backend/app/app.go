@@ -28,7 +28,7 @@ func NewApp() *App {
 	cfg := config.Get()
 
 	// Open DB connection
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Kuala_Lumpur",
 		cfg.Database.Host,
 		cfg.Database.User,
 		cfg.Database.Password,

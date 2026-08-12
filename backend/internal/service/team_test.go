@@ -650,5 +650,34 @@ var _ = Describe("TeamService", func() {
 			_, err = teamSvc.ListRunbooks(ctx, teamID, "active")
 			Expect(err).To(HaveOccurred())
 		})
+
+		It("should return error when SaveTeamInstruction or CreateRunbook fails in repository", func() {
+			tID := uuid.New()
+			uID := uuid.New()
+			incID := uuid.New()
+			rbID := uuid.New()
+
+			existingInst := &models.Instruction{ID: uuid.New(), InstructionDetails: "old instruction details details"}
+			teamRepo.On("GetMemberRole", ctx, tID, uID).Return("owner", nil).Once()
+			teamRepo.On("GetTeamInstruction", ctx, tID).Return(existingInst, []models.InstructionLog{}, nil).Once()
+			teamRepo.On("SaveTeamInstruction", ctx, mock.Anything, mock.Anything).Return(errors.New("instruction db err")).Once()
+			_, err := teamSvc.SaveTeamInstruction(ctx, uID, tID, "This is a detailed instruction content that exceeds thirty characters.")
+			Expect(err).To(HaveOccurred())
+
+			teamRepo.On("ListTeamIncidents", ctx, tID).Return(nil, nil).Once()
+			teamRepo.On("GetTeamByID", ctx, tID).Return(nil, errors.New("team not found")).Once()
+			_, err = teamSvc.CreateRunbook(ctx, uID, tID, uuid.Nil, "Title", "Content")
+			Expect(err).To(HaveOccurred())
+
+			teamRepo.On("GetTeamIncidentByID", ctx, incID).Return(nil, errors.New("inc not found")).Once()
+			_, err = teamSvc.CreateRunbook(ctx, uID, tID, incID, "Title", "Content")
+			Expect(err).To(HaveOccurred())
+
+			teamRepo.On("GetRunbookLogs", ctx, rbID).Return(nil, nil).Once()
+			teamRepo.On("GetRunbookByID", ctx, rbID).Return(&models.Runbook{ID: rbID}, nil).Once()
+			teamRepo.On("UpdateRunbook", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("db update error")).Once()
+			_, err = teamSvc.UpdateRunbook(ctx, uID, rbID, "New Title", "New Content")
+			Expect(err).To(HaveOccurred())
+		})
 	})
 })

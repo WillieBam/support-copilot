@@ -9,6 +9,9 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/WillieBam/support_copilot/backend/app/config"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
@@ -184,6 +187,225 @@ var _ = Describe("AuthService", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(parsedClaims).NotTo(BeNil())
 			Expect(parsedClaims.FirebaseUID).To(Equal("uid-123"))
+		})
+	})
+
+	Context("Register", func() {
+		It("should fail if required fields are missing", func() {
+			user, err := authSvc.Register(ctx, "", "email@test.com", "Pass!1")
+			Expect(err).To(HaveOccurred())
+			Expect(user).To(BeNil())
+		})
+
+		It("should fail if password complexity is invalid", func() {
+			user, err := authSvc.Register(ctx, "john", "email@test.com", "short")
+			Expect(err).To(Equal(customErrors.ErrInvalidPasswordComplexity))
+			Expect(user).To(BeNil())
+		})
+
+		It("should fail if username is already taken", func() {
+			existing := &models.User{Email: "existing@test.com"}
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "john").Return(existing, nil)
+
+			user, err := authSvc.Register(ctx, "john", "new@test.com", "Pass!1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("username already taken"))
+			Expect(user).To(BeNil())
+		})
+
+		It("should fail if email is already registered", func() {
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "john").Return(nil, customErrors.ErrUserNotFound)
+			existingEmail := &models.User{Email: "email@test.com"}
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "email@test.com").Return(existingEmail, nil)
+
+			user, err := authSvc.Register(ctx, "john", "email@test.com", "Pass!1")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("email is already registered"))
+			Expect(user).To(BeNil())
+		})
+
+		It("should fail if CreateUser repository fails", func() {
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "john").Return(nil, customErrors.ErrUserNotFound)
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "email@test.com").Return(nil, customErrors.ErrUserNotFound)
+			userRepo.On("CreateUser", ctx, mock.Anything).Return(errors.New("db error"))
+
+			user, err := authSvc.Register(ctx, "john", "email@test.com", "Pass!1")
+			Expect(err).To(HaveOccurred())
+			Expect(user).To(BeNil())
+		})
+
+		It("should successfully register a new user", func() {
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "john2").Return(nil, customErrors.ErrUserNotFound)
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "john2@test.com").Return(nil, customErrors.ErrUserNotFound)
+			userRepo.On("CreateUser", ctx, mock.Anything).Return(nil)
+
+			user, err := authSvc.Register(ctx, "john2", "john2@test.com", "Pass!1")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(user).NotTo(BeNil())
+			Expect(user.Email).To(Equal("john2@test.com"))
+		})
+	})
+
+	Context("LoginWithPassword", func() {
+		It("should fail if credentials are blank", func() {
+			token, claims, err := authSvc.LoginWithPassword(ctx, "", "Pass!1234", "")
+			Expect(err).To(HaveOccurred())
+			Expect(token).To(BeEmpty())
+			Expect(claims).To(BeNil())
+		})
+
+		It("should fail if user is not found", func() {
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "unknown").Return(nil, customErrors.ErrUserNotFound)
+
+			token, claims, err := authSvc.LoginWithPassword(ctx, "unknown", "Pass!1234", "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("invalid credentials"))
+			Expect(token).To(BeEmpty())
+			Expect(claims).To(BeNil())
+		})
+
+		It("should fail if password does not match", func() {
+			hash, _ := bcrypt.GenerateFromPassword([]byte("CorrectPass!12"), bcrypt.DefaultCost)
+			existingUser := &models.User{
+				Email:        "user@test.com",
+				PasswordHash: string(hash),
+			}
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "user@test.com").Return(existingUser, nil)
+
+			token, claims, err := authSvc.LoginWithPassword(ctx, "user@test.com", "WrongPass!12", "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("invalid credentials"))
+			Expect(token).To(BeEmpty())
+			Expect(claims).To(BeNil())
+		})
+
+		It("should demand 2fa code if TOTP is enabled", func() {
+			hash, _ := bcrypt.GenerateFromPassword([]byte("CorrectPass!12"), bcrypt.DefaultCost)
+			existingUser := &models.User{
+				Email:        "user@test.com",
+				PasswordHash: string(hash),
+				TOTPEnabled:  true,
+				TOTPSecret:   "JBSWY3DPEHPK3PXP",
+			}
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "user@test.com").Return(existingUser, nil)
+
+			token, claims, err := authSvc.LoginWithPassword(ctx, "user@test.com", "CorrectPass!12", "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("mfa required"))
+			Expect(token).To(BeEmpty())
+			Expect(claims).To(BeNil())
+		})
+
+		It("should fail if 2fa code is invalid", func() {
+			hash, _ := bcrypt.GenerateFromPassword([]byte("CorrectPass!12"), bcrypt.DefaultCost)
+			existingUser := &models.User{
+				Email:        "user@test.com",
+				PasswordHash: string(hash),
+				TOTPEnabled:  true,
+				TOTPSecret:   "JBSWY3DPEHPK3PXP",
+			}
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "user@test.com").Return(existingUser, nil)
+
+			token, claims, err := authSvc.LoginWithPassword(ctx, "user@test.com", "CorrectPass!12", "000000")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("invalid 2fa code"))
+			Expect(token).To(BeEmpty())
+			Expect(claims).To(BeNil())
+		})
+
+		It("should successfully login when password matches and MFA is not enabled", func() {
+			hash, _ := bcrypt.GenerateFromPassword([]byte("CorrectPass!12"), bcrypt.DefaultCost)
+			uname := "john"
+			fbUID := "fb-123"
+			existingUser := &models.User{
+				ID:           uuid.New(),
+				Username:     &uname,
+				FirebaseUID:  &fbUID,
+				Email:        "user@test.com",
+				PasswordHash: string(hash),
+			}
+			userRepo.On("GetUserByUsernameOrEmail", ctx, "user@test.com").Return(existingUser, nil)
+
+			token, claims, err := authSvc.LoginWithPassword(ctx, "user@test.com", "CorrectPass!12", "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(token).NotTo(BeEmpty())
+			Expect(claims.Email).To(Equal("user@test.com"))
+		})
+	})
+
+	Context("SetupTOTP, VerifyAndEnableTOTP, DisableTOTP", func() {
+		testID := uuid.New()
+
+		It("should fail SetupTOTP if user is not found", func() {
+			userRepo.On("GetUserByID", ctx, testID).Return(nil, customErrors.ErrUserNotFound)
+
+			secret, qrURI, err := authSvc.SetupTOTP(ctx, testID)
+			Expect(err).To(HaveOccurred())
+			Expect(secret).To(BeEmpty())
+			Expect(qrURI).To(BeEmpty())
+		})
+
+		It("should generate TOTP secret and QR URI on SetupTOTP", func() {
+			user := &models.User{ID: testID, Email: "user@test.com"}
+			userRepo.On("GetUserByID", ctx, testID).Return(user, nil)
+			userRepo.On("UpdateUser", ctx, mock.Anything).Return(nil)
+
+			secret, qrURI, err := authSvc.SetupTOTP(ctx, testID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(secret).NotTo(BeEmpty())
+			Expect(qrURI).To(ContainSubstring("otpauth://totp/SupportCopilot"))
+		})
+
+		It("should fail SetupTOTP if UpdateUser fails", func() {
+			user := &models.User{ID: testID, Email: "user@test.com"}
+			userRepo.On("GetUserByID", ctx, testID).Return(user, nil)
+			userRepo.On("UpdateUser", ctx, mock.Anything).Return(errors.New("db error"))
+
+			secret, qrURI, err := authSvc.SetupTOTP(ctx, testID)
+			Expect(err).To(HaveOccurred())
+			Expect(secret).To(BeEmpty())
+			Expect(qrURI).To(BeEmpty())
+		})
+
+		It("should fail VerifyAndEnableTOTP if user is not found", func() {
+			userRepo.On("GetUserByID", ctx, testID).Return(nil, customErrors.ErrUserNotFound)
+
+			err := authSvc.VerifyAndEnableTOTP(ctx, testID, "123456")
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should fail VerifyAndEnableTOTP if TOTP secret was not initialized", func() {
+			user := &models.User{ID: testID, TOTPSecret: ""}
+			userRepo.On("GetUserByID", ctx, testID).Return(user, nil)
+
+			err := authSvc.VerifyAndEnableTOTP(ctx, testID, "123456")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("totp setup has not been initialized"))
+		})
+
+		It("should fail VerifyAndEnableTOTP if TOTP code is invalid", func() {
+			user := &models.User{ID: testID, TOTPSecret: "JBSWY3DPEHPK3PXP"}
+			userRepo.On("GetUserByID", ctx, testID).Return(user, nil)
+
+			err := authSvc.VerifyAndEnableTOTP(ctx, testID, "000000")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("invalid totp code"))
+		})
+
+		It("should fail DisableTOTP if user is not found", func() {
+			userRepo.On("GetUserByID", ctx, testID).Return(nil, customErrors.ErrUserNotFound)
+
+			err := authSvc.DisableTOTP(ctx, testID)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should successfully DisableTOTP for valid user", func() {
+			user := &models.User{ID: testID, TOTPEnabled: true, TOTPSecret: "JBSWY3DPEHPK3PXP"}
+			userRepo.On("GetUserByID", ctx, testID).Return(user, nil)
+			userRepo.On("UpdateUser", ctx, mock.Anything).Return(nil)
+
+			err := authSvc.DisableTOTP(ctx, testID)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 

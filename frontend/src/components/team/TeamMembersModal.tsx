@@ -1,18 +1,20 @@
-import { X, UserPlus, Loader2, Search, Check, Trash2, Users, Shield } from 'lucide-react';
+import { X, UserPlus, Loader2, Search, Check, Trash2, Users, Shield, UserX } from 'lucide-react';
 import { useTeamMembersModalState } from './useTeamMembersModalState';
 
 interface TeamMembersModalProps {
   teamId: string;
   teamName: string;
   isOwner: boolean;
+  isSuperAdmin?: boolean;
   onClose: () => void;
 }
 
-export const TeamMembersModal = ({ teamId, teamName, isOwner, onClose }: TeamMembersModalProps) => {
+export const TeamMembersModal = ({ teamId, teamName, isOwner, isSuperAdmin, onClose }: TeamMembersModalProps) => {
   const {
     members,
     isLoadingMembers,
     deletingUserId,
+    deactivatingUserId,
     searchQuery,
     setSearchQuery,
     searchResults,
@@ -25,6 +27,7 @@ export const TeamMembersModal = ({ teamId, teamName, isOwner, onClose }: TeamMem
     handleClearSelection,
     handleAddMember,
     handleDeleteMember,
+    handleDeactivateUser,
   } = useTeamMembersModalState(teamId);
 
   return (
@@ -204,6 +207,21 @@ export const TeamMembersModal = ({ teamId, teamName, isOwner, onClose }: TeamMem
                             <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
                           ) : (
                             <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => handleDeactivateUser(member.user_id)}
+                          disabled={deactivatingUserId === member.user_id}
+                          className="p-1.5 text-amber-500/80 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                          title="Deactivate User Account (Superadmin)"
+                        >
+                          {deactivatingUserId === member.user_id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                          ) : (
+                            <UserX className="w-3.5 h-3.5" />
                           )}
                         </button>
                       )}

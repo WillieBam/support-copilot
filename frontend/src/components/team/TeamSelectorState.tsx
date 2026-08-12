@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTeam } from '@/context/TeamContext';
 
 export const useTeamSelectorState = () => {
-  const { memberships, activeMembership, activeTeamId, isOwner, selectTeam, reloadTeams } = useTeam();
+  const { memberships, activeMembership, activeTeamId, isOwner, isSuperAdmin, selectTeam, reloadTeams } = useTeam();
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
@@ -34,6 +34,7 @@ export const useTeamSelectorState = () => {
     activeMembership,
     activeTeamId,
     isOwner,
+    isSuperAdmin,
     isOpen,
     isMembersModalOpen,
     isAddModalOpen: isMembersModalOpen,

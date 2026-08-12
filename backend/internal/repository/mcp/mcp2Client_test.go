@@ -274,5 +274,113 @@ var _ = Describe("McpTwoClient", func() {
 			Expect(err.Error()).To(ContainSubstring("mcp2 rpc error"))
 			Expect(res).To(BeEmpty())
 		})
+
+		It("should handle non-200 HTTP status response", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte("internal server error"))
+			}))
+			defer mockServer.Close()
+
+			u, _ := url.Parse(mockServer.URL)
+			cfg := &config.Config{}
+			cfg.MCP2.Host = u.Hostname()
+			cfg.MCP2.Port = u.Port()
+
+			client := mcp.NewMcpTwoClient(cfg)
+			res, err := client.GetRunbook(context.Background(), requests.MCP2GetRunbookArgs{RunbookID: "rb-1"})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("mcp2 server returned status 500"))
+			Expect(res).To(BeEmpty())
+		})
+
+		It("should handle malformed JSON response body decoding error", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("invalid-json"))
+			}))
+			defer mockServer.Close()
+
+			u, _ := url.Parse(mockServer.URL)
+			cfg := &config.Config{}
+			cfg.MCP2.Host = u.Hostname()
+			cfg.MCP2.Port = u.Port()
+
+			client := mcp.NewMcpTwoClient(cfg)
+			res, err := client.GetRunbook(context.Background(), requests.MCP2GetRunbookArgs{RunbookID: "rb-1"})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed decoding mcp2 json-rpc envelope"))
+			Expect(res).To(BeEmpty())
+		})
+
+		It("should handle tool error result with message content", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      "1",
+					"result": map[string]any{
+						"isError": true,
+						"content": []map[string]any{
+							{"type": "text", "text": "runbook not found"},
+						},
+					},
+				})
+			}))
+			defer mockServer.Close()
+
+			u, _ := url.Parse(mockServer.URL)
+			cfg := &config.Config{}
+			cfg.MCP2.Host = u.Hostname()
+			cfg.MCP2.Port = u.Port()
+
+			client := mcp.NewMcpTwoClient(cfg)
+			res, err := client.GetRunbook(context.Background(), requests.MCP2GetRunbookArgs{RunbookID: "rb-1"})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("runbook not found"))
+			Expect(res).To(BeEmpty())
+		})
+
+		It("should handle tool error result with empty content message", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      "1",
+					"result": map[string]any{
+						"isError": true,
+						"content": []map[string]any{},
+					},
+				})
+			}))
+			defer mockServer.Close()
+
+			u, _ := url.Parse(mockServer.URL)
+			cfg := &config.Config{}
+			cfg.MCP2.Host = u.Hostname()
+			cfg.MCP2.Port = u.Port()
+
+			client := mcp.NewMcpTwoClient(cfg)
+			res, err := client.GetRunbook(context.Background(), requests.MCP2GetRunbookArgs{RunbookID: "rb-1"})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unknown error"))
+			Expect(res).To(BeEmpty())
+		})
+		It("should handle HTTP client connection error when context is canceled", func() {
+			cfg := &config.Config{}
+			cfg.MCP2.Host = "127.0.0.1"
+			cfg.MCP2.Port = "9999"
+
+			client := mcp.NewMcpTwoClient(cfg)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			res, err := client.GetRunbook(ctx, requests.MCP2GetRunbookArgs{RunbookID: "rb-1"})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed communicating with mcp_server_2"))
+			Expect(res).To(BeEmpty())
+		})
 	})
 })

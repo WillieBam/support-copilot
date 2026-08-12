@@ -6,15 +6,16 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	postgresRepo "github.com/WillieBam/support_copilot/backend/internal/repository/postgres"
 	"github.com/WillieBam/support_copilot/backend/types/models"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 )
 
 var _ = Describe("UserRepository", func() {
@@ -47,8 +48,9 @@ var _ = Describe("UserRepository", func() {
 
 	Context("CreateUser", func() {
 		It("should successfully insert a user", func() {
+			fbUID := "uid-123"
 			user := &models.User{
-				FirebaseUID: "uid-123",
+				FirebaseUID: &fbUID,
 				Email:       "user@example.com",
 				DisplayName: "Test User",
 				CreatedAt:   time.Now(),
@@ -57,7 +59,7 @@ var _ = Describe("UserRepository", func() {
 
 			mock.ExpectBegin()
 			mock.ExpectQuery(`INSERT INTO "users"`).
-				WithArgs(user.FirebaseUID, user.Email, user.DisplayName, sqlmock.AnyArg(), user.Scope, sqlmock.AnyArg()).
+				WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 				WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(uuid.New(), time.Now()))
 			mock.ExpectCommit()
 
@@ -66,8 +68,9 @@ var _ = Describe("UserRepository", func() {
 		})
 
 		It("should return an error if insert fails", func() {
+			fbUID := "uid-123"
 			user := &models.User{
-				FirebaseUID: "uid-123",
+				FirebaseUID: &fbUID,
 				Email:       "user@example.com",
 				Scope:       "engineer",
 			}
@@ -88,8 +91,8 @@ var _ = Describe("UserRepository", func() {
 			firebaseUid := "uid-123"
 			uid := uuid.New()
 
-			rows := sqlmock.NewRows([]string{"id", "firebase_uid", "email", "display_name", "scope"}).
-				AddRow(uid, firebaseUid, "user@example.com", "Test User", "engineer")
+			rows := sqlmock.NewRows([]string{"id", "firebase_uid", "username", "password_hash", "totp_secret", "totp_enabled", "email", "display_name", "scope"}).
+				AddRow(uid, firebaseUid, nil, "", "", false, "user@example.com", "Test User", "engineer")
 
 			mock.ExpectQuery(`SELECT \* FROM "users" WHERE firebase_uid = \$1`).
 				WithArgs(firebaseUid, 1).
@@ -98,7 +101,7 @@ var _ = Describe("UserRepository", func() {
 			user, err := userRepo.GetUserByFirebaseUID(ctx, firebaseUid)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(user).NotTo(BeNil())
-			Expect(user.FirebaseUID).To(Equal(firebaseUid))
+			Expect(*user.FirebaseUID).To(Equal(firebaseUid))
 			Expect(user.Email).To(Equal("user@example.com"))
 		})
 
@@ -111,15 +114,16 @@ var _ = Describe("UserRepository", func() {
 
 			user, err := userRepo.GetUserByFirebaseUID(ctx, firebaseUid)
 			Expect(err).To(HaveOccurred())
-			Expect(errors.Is(err, gorm.ErrRecordNotFound)).To(BeTrue())
+			Expect(errors.Is(err, customErrors.ErrUserNotFound)).To(BeTrue())
 			Expect(user).To(BeNil())
 		})
 	})
 
-	Context("UpsertUser", func() {
+	Context("UpsertUser & SearchUsers", func() {
 		It("should execute upsert query successfully", func() {
+			fbUID := "uid-123"
 			user := &models.User{
-				FirebaseUID: "uid-123",
+				FirebaseUID: &fbUID,
 				Email:       "user@example.com",
 				DisplayName: "Updated Name",
 				CreatedAt:   time.Now(),
@@ -128,12 +132,26 @@ var _ = Describe("UserRepository", func() {
 
 			mock.ExpectBegin()
 			mock.ExpectQuery(`INSERT INTO "users"`).
-				WithArgs(user.FirebaseUID, user.Email, user.DisplayName, sqlmock.AnyArg(), user.Scope, sqlmock.AnyArg()).
+				WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
 			mock.ExpectCommit()
 
 			err := userRepo.UpsertUser(ctx, user)
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should search users by email or display name", func() {
+			rows := sqlmock.NewRows([]string{"id", "email", "display_name"}).
+				AddRow(uuid.New(), "john@example.com", "John Doe")
+
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE email ILIKE \$1 OR display_name ILIKE \$2 OR username ILIKE \$3 LIMIT \$4`).
+				WithArgs("%john%", "%john%", "%john%", 10).
+				WillReturnRows(rows)
+
+			users, err := userRepo.SearchUsers(ctx, "john", 10)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(users)).To(Equal(1))
+			Expect(users[0].Email).To(Equal("john@example.com"))
 		})
 	})
 })

@@ -19,7 +19,10 @@ var (
 	ErrIncidentNotFound      = errors.New("incident not found")
 	ErrTeamNotFound          = errors.New("team not found")
 	ErrRunbookNotFound       = errors.New("runbook not found")
-	ErrInstructionTooShort   = errors.New("instruction details must be at least 30 characters long")
+	ErrInstructionTooShort       = errors.New("instruction details must be at least 30 characters long")
+	ErrUserNotFound              = errors.New("User not found")
+	ErrSelfDeactivationNotAllowed = errors.New("self-deactivation is not allowed")
+	ErrUserDeactivated           = errors.New("account is deactivated: please contact system administrator")
 )
 
 // dashboard errors
@@ -27,4 +30,10 @@ var (
 	ErrInvalidTimeframe      = errors.New("invalid timeframe: must be day, month, or year")
 	ErrInvalidSLATarget      = errors.New("sla_target_minutes must be a positive integer")
 	ErrDashboardUnauthorized = errors.New("unauthorized: must be a team member to access dashboard analytics")
+)
+
+// LLM service errors
+var (
+	ErrRateLimitExceeded  = errors.New("rate limit exceeded: AI service is receiving too many requests, please wait a few seconds before retrying")
+	ErrServiceUnavailable = errors.New("service unavailable: AI model service is currently offline or overloaded")
 )

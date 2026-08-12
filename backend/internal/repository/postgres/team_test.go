@@ -193,7 +193,7 @@ var _ = Describe("TeamRepository", func() {
 		})
 	})
 
-	Context("GetTeamInstruction", func() {
+	Context("GetTeamInstruction & SaveTeamInstruction", func() {
 		It("should return empty instruction list when record not found", func() {
 			teamID := uuid.New()
 
@@ -205,6 +205,196 @@ var _ = Describe("TeamRepository", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(inst).To(BeNil())
 			Expect(len(logs)).To(Equal(0))
+		})
+
+		It("should save team instruction in transaction", func() {
+			teamID := uuid.New()
+			userID := uuid.New()
+			inst := &models.Instruction{
+				ID:                 uuid.New(),
+				TeamID:             teamID,
+				CreatedBy:          userID,
+				InstructionDetails: "Always check Redis latency",
+			}
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`SELECT \* FROM "instructions" WHERE team_id = \$1 ORDER BY "instructions"\."id" LIMIT \$2`).
+				WithArgs(teamID, 1).
+				WillReturnError(gorm.ErrRecordNotFound)
+
+			mock.ExpectQuery(`INSERT INTO "instructions"`).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(inst.ID))
+			mock.ExpectCommit()
+
+			err := teamRepo.SaveTeamInstruction(ctx, inst, nil)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should return team instruction and logs when found", func() {
+			teamID := uuid.New()
+			instID := uuid.New()
+
+			mock.ExpectQuery(`SELECT \* FROM "instructions" WHERE team_id = \$1 ORDER BY "instructions"\."id" LIMIT \$2`).
+				WithArgs(teamID, 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "instruction_details"}).AddRow(instID, teamID, "Check logs"))
+
+			mock.ExpectQuery(`SELECT \* FROM "instruction_logs" WHERE instruction_id = \$1 ORDER BY version DESC`).
+				WithArgs(instID).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "instruction_id", "version"}).AddRow(uuid.New(), instID, 1))
+
+			inst, logs, err := teamRepo.GetTeamInstruction(ctx, teamID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(inst).NotTo(BeNil())
+			Expect(len(logs)).To(Equal(1))
+		})
+
+		It("should update existing instruction in transaction", func() {
+			teamID := uuid.New()
+			userID := uuid.New()
+			instID := uuid.New()
+			inst := &models.Instruction{
+				TeamID:             teamID,
+				CreatedBy:          userID,
+				InstructionDetails: "Updated instruction",
+			}
+			log := &models.InstructionLog{
+				OlderInstruction: "Old instruction",
+				Version:          1,
+			}
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`SELECT \* FROM "instructions" WHERE team_id = \$1 ORDER BY "instructions"\."id" LIMIT \$2`).
+				WithArgs(teamID, 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}).AddRow(instID, teamID))
+
+			mock.ExpectQuery(`INSERT INTO "instruction_logs"`).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+
+			mock.ExpectExec(`UPDATE "instructions" SET`).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+
+			err := teamRepo.SaveTeamInstruction(ctx, inst, log)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("Incident & Team Queries", func() {
+		It("should fetch team by ID", func() {
+			teamID := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "team_name"}).AddRow(teamID, "Core Infra")
+
+			mock.ExpectQuery(`SELECT \* FROM "teams" WHERE id = \$1 ORDER BY "teams"\."id" LIMIT \$2`).
+				WithArgs(teamID, 1).
+				WillReturnRows(rows)
+
+			mock.ExpectQuery(`SELECT \* FROM "team_members" WHERE "team_members"\."team_id" = \$1`).
+				WithArgs(teamID).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "team_id"}))
+
+			team, err := teamRepo.GetTeamByID(ctx, teamID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(team.ID).To(Equal(teamID))
+		})
+
+		It("should assign team incident in transaction", func() {
+			incID := uuid.New()
+			teamID := uuid.New()
+			creatorID := uuid.New()
+			inc := &models.TeamIncident{
+				ID:             incID,
+				TeamID:         teamID,
+				CreatedBy:      creatorID,
+				Title:          "Memory Leak",
+				Status:         "OPEN",
+				IncidentNumber: "INC-101",
+			}
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`INSERT INTO "team_incidents"`).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(incID))
+			mock.ExpectQuery(`INSERT INTO "incident_status_histories"`).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+			mock.ExpectCommit()
+
+			err := teamRepo.AssignTeamIncident(ctx, inc)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should list team incidents", func() {
+			teamID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "team_incidents" WHERE team_id = \$1 ORDER BY assigned_at DESC`).
+				WithArgs(teamID).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).AddRow(uuid.New(), "High CPU"))
+
+			mock.ExpectQuery(`SELECT \* FROM "incident_status_histories" WHERE "incident_status_histories"\."team_incident_id" = \$1 ORDER BY updated_at DESC`).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+			incidents, err := teamRepo.ListTeamIncidents(ctx, teamID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(incidents)).To(Equal(1))
+		})
+
+		It("should get team incident by ID or surrogate key INC-101", func() {
+			incID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "team_incidents" WHERE LOWER\(incident_number\) = LOWER\(\$1\) ORDER BY "team_incidents"\."id" LIMIT \$2`).
+				WithArgs("INC-101", 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "incident_number"}).AddRow(incID, "INC-101"))
+
+			mock.ExpectQuery(`SELECT \* FROM "incident_status_histories" WHERE "incident_status_histories"\."team_incident_id" = \$1 ORDER BY updated_at DESC`).
+				WithArgs(incID).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+			inc, err := teamRepo.GetTeamIncidentByIDOrNumber(ctx, "INC-101")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(inc.IncidentNumber).To(Equal("INC-101"))
+		})
+
+		It("should get team incident by ID", func() {
+			incID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "team_incidents" WHERE id = \$1 ORDER BY "team_incidents"\."id" LIMIT \$2`).
+				WithArgs(incID, 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).AddRow(incID, "Incident 1"))
+
+			mock.ExpectQuery(`SELECT \* FROM "incident_status_histories" WHERE "incident_status_histories"\."team_incident_id" = \$1 ORDER BY updated_at DESC`).
+				WithArgs(incID).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+			inc, err := teamRepo.GetTeamIncidentByID(ctx, incID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(inc.ID).To(Equal(incID))
+		})
+
+		It("should update team incident status in transaction", func() {
+			incID := uuid.New()
+			history := &models.IncidentStatusHistory{
+				ID:             uuid.New(),
+				TeamIncidentID: incID,
+				NewStatus:      "RESOLVED",
+			}
+			inc := &models.TeamIncident{
+				ID:     incID,
+				Status: "RESOLVED",
+			}
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`UPDATE "team_incidents" SET`).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectQuery(`INSERT INTO "incident_status_histories"`).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(history.ID))
+			mock.ExpectCommit()
+
+			err := teamRepo.UpdateTeamIncidentStatus(ctx, history, inc)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should list all teams", func() {
+			mock.ExpectQuery(`SELECT \* FROM "teams" ORDER BY team_name ASC`).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "team_name"}).AddRow(uuid.New(), "Core Infra"))
+
+			teams, err := teamRepo.ListAllTeams(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(teams)).To(Equal(1))
 		})
 	})
 })

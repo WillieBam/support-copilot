@@ -251,14 +251,13 @@ func normalizeUUID(input string) string {
 // metrics noise-filtered, timestamps as relative strings
 func (h *Handler) GetIncidentContext(c *echo.Context) error {
 	rawID := normalizeUUID(c.Param("id"))
-	incidentID, err := uuid.Parse(rawID)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid incident id"})
+	if rawID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "incident id is required"})
 	}
 
-	inc, alerts, err := h.teamService.GetIncidentContext(c.Request().Context(), incidentID)
+	inc, alerts, err := h.teamService.GetIncidentContextByIDOrNumber(c.Request().Context(), rawID)
 	if err != nil {
-		slog.Error("[runbook] GetIncidentContext failed", "incident_id", incidentID, "error", err)
+		slog.Error("[runbook] GetIncidentContext failed", "id_or_number", rawID, "error", err)
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "incident not found"})
 	}
 

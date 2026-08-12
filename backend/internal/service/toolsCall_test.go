@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -156,6 +157,17 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(jsonResult).To(ContainSubstring("payment-service"))
 			Expect(jsonResult).To(ContainSubstring("Normal"))
+		})
+
+		It("should normalize UUID with extra hyphens and quotes in ExecuteValidateAlertRaw", func() {
+			rawIDNoHyphens := strings.ReplaceAll(testAlertID.String(), "-", "")
+			rawArgs := `{"alert_id": "\"` + rawIDNoHyphens + `\""}`
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, testAlertID.String()).Return(testAlert, nil)
+			mockMcpOne.On("DetectAnomalies", mock.Anything, mock.Anything).Return(&requests.AnomalyDetectionResponse{Status: 1, Label: "Normal"}, nil)
+
+			res, err := orchestratorSvc.ExecuteValidateAlertRaw(ctx, rawArgs)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(ContainSubstring("payment-service"))
 		})
 
 		It("should fail on empty or dummy alert_id in raw args", func() {
@@ -349,6 +361,7 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 		})
 
 		It("should return error on invalid alert_id in ExecuteLinkAlertToIncidentRaw", func() {
+			mockAlertRepo.On("RetrieveAlertbyID", mock.Anything, "invalid").Return(nil, errors.New("record not found"))
 			_, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `{"alert_id": "invalid"}`)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid alert_id"))
@@ -371,6 +384,59 @@ var _ = Describe("OrchestratorService (Tools Calling Gateway)", func() {
 			_, err := orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `{"alert_id": "`+alertID.String()+`", "incident_id": "`+incidentID.String()+`"}`)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to link alert to incident"))
+		})
+
+		It("should return error when MCP2 client tool calls fail", func() {
+			mockMcpTwo.On("GetIncident", mock.Anything, mock.Anything).Return("", errors.New("mcp2 error")).Once()
+			_, err := orchestratorSvc.ExecuteGetIncidentRaw(ctx, `{"incident_id":"INC-101"}`)
+			Expect(err).To(HaveOccurred())
+
+			mockMcpTwo.On("ListIncidents", mock.Anything, mock.Anything).Return("", errors.New("mcp2 error")).Once()
+			_, err = orchestratorSvc.ExecuteListIncidentsRaw(ctx, `{"team_id":"team-1"}`)
+			Expect(err).To(HaveOccurred())
+
+			mockMcpTwo.On("CreateRunbook", mock.Anything, mock.Anything).Return("", errors.New("mcp2 error")).Once()
+			_, err = orchestratorSvc.ExecuteCreateRunbookRaw(ctx, `{"team_id":"t-1","incident_id":"i-1","title":"t","content":"c"}`)
+			Expect(err).To(HaveOccurred())
+
+			mockMcpTwo.On("UpdateRunbook", mock.Anything, mock.Anything).Return("", errors.New("mcp2 error")).Once()
+			_, err = orchestratorSvc.ExecuteUpdateRunbookRaw(ctx, `{"runbook_id":"rb-1","title":"t","content":"c"}`)
+			Expect(err).To(HaveOccurred())
+
+			mockMcpTwo.On("DeprecateRunbook", mock.Anything, mock.Anything).Return("", errors.New("mcp2 error")).Once()
+			_, err = orchestratorSvc.ExecuteDeprecateRunbookRaw(ctx, `{"runbook_id":"rb-1"}`)
+			Expect(err).To(HaveOccurred())
+
+			mockMcpTwo.On("GetRunbook", mock.Anything, mock.Anything).Return("", errors.New("mcp2 error")).Once()
+			_, err = orchestratorSvc.ExecuteGetRunbookRaw(ctx, `{"runbook_id":"rb-1"}`)
+			Expect(err).To(HaveOccurred())
+
+			mockMcpTwo.On("ListRunbooks", mock.Anything, mock.Anything).Return("", errors.New("mcp2 error")).Once()
+			_, err = orchestratorSvc.ExecuteListRunbooksRaw(ctx, `{"team_id":"t-1"}`)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should return error on invalid JSON in all raw tool calls", func() {
+			_, err := orchestratorSvc.ExecuteListIncidentsRaw(ctx, `invalid json`)
+			Expect(err).To(HaveOccurred())
+
+			_, err = orchestratorSvc.ExecuteCreateRunbookRaw(ctx, `invalid json`)
+			Expect(err).To(HaveOccurred())
+
+			_, err = orchestratorSvc.ExecuteUpdateRunbookRaw(ctx, `invalid json`)
+			Expect(err).To(HaveOccurred())
+
+			_, err = orchestratorSvc.ExecuteDeprecateRunbookRaw(ctx, `invalid json`)
+			Expect(err).To(HaveOccurred())
+
+			_, err = orchestratorSvc.ExecuteGetRunbookRaw(ctx, `invalid json`)
+			Expect(err).To(HaveOccurred())
+
+			_, err = orchestratorSvc.ExecuteListRunbooksRaw(ctx, `invalid json`)
+			Expect(err).To(HaveOccurred())
+
+			_, err = orchestratorSvc.ExecuteLinkAlertToIncidentRaw(ctx, `invalid json`)
+			Expect(err).To(HaveOccurred())
 		})
 	})
 })

@@ -32,11 +32,18 @@ func normalizeIncidentStatus(status string) (string, error) {
 }
 
 type teamService struct {
-	teamRepo interfaces.ITeamRepository
+	teamRepo  interfaces.ITeamRepository
+	alertRepo interfaces.IAlertRepository
 }
 
-func NewTeamService(teamRepo interfaces.ITeamRepository) interfaces.ITeamService {
-	return &teamService{teamRepo: teamRepo}
+func NewTeamService(teamRepo interfaces.ITeamRepository, opts ...interface{}) interfaces.ITeamService {
+	svc := &teamService{teamRepo: teamRepo}
+	for _, opt := range opts {
+		if ar, ok := opt.(interfaces.IAlertRepository); ok && ar != nil {
+			svc.alertRepo = ar
+		}
+	}
+	return svc
 }
 
 func (s *teamService) CreateTeam(ctx context.Context, teamName string, creatorID uuid.UUID) (*models.Team, error) {
@@ -519,5 +526,41 @@ func (s *teamService) GetIncidentContext(ctx context.Context, teamIncidentID uui
 		return nil, nil, err
 	}
 	slog.InfoContext(ctx, "[team-svc] GetIncidentContext: success", "team_incident_id", teamIncidentID, "alert_count", len(alerts))
+	return inc, alerts, nil
+}
+
+func (s *teamService) LinkAlertsToIncident(ctx context.Context, alertIDStrings []string, incidentID uuid.UUID) error {
+	if s.alertRepo == nil {
+		slog.WarnContext(ctx, "[team-svc] LinkAlertsToIncident: alertRepo is nil")
+		return nil
+	}
+	slog.InfoContext(ctx, "[team-svc] LinkAlertsToIncident: linking alerts", "count", len(alertIDStrings), "incident_id", incidentID)
+	for _, rawID := range alertIDStrings {
+		rawID = strings.TrimSpace(rawID)
+		if rawID == "" {
+			continue
+		}
+		alertRecord, err := s.alertRepo.RetrieveAlertbyID(ctx, rawID)
+		if err != nil || alertRecord == nil {
+			slog.WarnContext(ctx, "[team-svc] LinkAlertsToIncident: failed to resolve alert ID", "raw_id", rawID, "err", err)
+			continue
+		}
+		if err := s.alertRepo.UpdateAlertIncidentID(ctx, alertRecord.ID, incidentID); err != nil {
+			slog.ErrorContext(ctx, "[team-svc] LinkAlertsToIncident: failed to update alert incident_id", "alert_db_id", alertRecord.ID, "incident_id", incidentID, "err", err)
+		} else {
+			slog.InfoContext(ctx, "[team-svc] LinkAlertsToIncident: successfully linked alert", "raw_id", rawID, "alert_db_id", alertRecord.ID, "incident_id", incidentID)
+		}
+	}
+	return nil
+}
+
+func (s *teamService) GetIncidentContextByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, []models.Alert, error) {
+	slog.InfoContext(ctx, "[team-svc] GetIncidentContextByIDOrNumber: fetching context", "id_or_number", idOrNumber)
+	inc, alerts, err := s.teamRepo.GetIncidentContextByIDOrNumber(ctx, idOrNumber)
+	if err != nil {
+		slog.ErrorContext(ctx, "[team-svc] GetIncidentContextByIDOrNumber: failed", "id_or_number", idOrNumber, "error", err)
+		return nil, nil, err
+	}
+	slog.InfoContext(ctx, "[team-svc] GetIncidentContextByIDOrNumber: success", "id_or_number", idOrNumber, "alert_count", len(alerts))
 	return inc, alerts, nil
 }

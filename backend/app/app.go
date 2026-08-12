@@ -44,6 +44,7 @@ func NewApp() *App {
 	alertRepo := postgresRepo.NewAlertRepository(gormDB)
 	teamRepo := postgresRepo.NewTeamRepository(gormDB)
 	convRepo := postgresRepo.NewConversationRepository(gormDB)
+	dashboardRepo := postgresRepo.NewDashboardRepository(gormDB)
 	llmClient := llm.NewLLMClient(cfg)
 	mcpOneClient := mcp.NewMcpOneClient(cfg)
 	mcpTwoClient := mcp.NewMcpTwoClient(cfg)
@@ -62,9 +63,9 @@ func NewApp() *App {
 	})
 
 	appService := service.NewAppService(appRepository.Alert, appRepository.LLM, mcpOneClient, mcpTwoClient, convRepo, appRepository.Team)
-	teamService := service.NewTeamService(appRepository.Team)
+	teamService := service.NewTeamService(appRepository.Team, appRepository.Alert)
 	userService := service.NewUserService(appRepository.User)
-	dashboardRepo := postgresRepo.NewDashboardRepository(gormDB)
+
 	dashboardService := service.NewDashboardService(dashboardRepo, appRepository.Team)
 
 	return &App{

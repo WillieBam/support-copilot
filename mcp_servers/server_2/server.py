@@ -54,7 +54,7 @@ def list_runbooks(team_id: str, status: Optional[str] = "active") -> list:
 
 
 @mcp.tool(description=(
-    "Retrieve a cleansed incident context optimised for runbook generation. "
+    "Retrieve a cleansed incident context by surrogate key (e.g. INC-101) or UUID. "
     "Returns: incident summary, affected services with key metrics (noise-filtered), "
     "a timeline of up to 3 recent status transitions, and any existing runbooks for this incident. "
     "Use this before calling create_runbook()."
@@ -63,20 +63,3 @@ def get_incident(incident_id: str) -> dict:
     _logger.info("tool=get_incident incident_id=%s", incident_id)
     return _client.get_incident_context(incident_id)
 
-
-@mcp.tool(description=(
-    "List all team incidents with summary info (id, title, status, age). "
-    "Use get_incident() on a specific ID to get the full enriched context."
-))
-def list_incidents(team_id: str) -> list:
-    _logger.info("tool=list_incidents team_id=%s", team_id)
-    raw_incidents = _client.list_incidents(team_id)
-    return [
-        {
-            "id": inc.get("id"),
-            "title": inc.get("title"),
-            "status": inc.get("status"),
-            "created_at": inc.get("created_at") or inc.get("assigned_at"),
-        }
-        for inc in raw_incidents
-    ]

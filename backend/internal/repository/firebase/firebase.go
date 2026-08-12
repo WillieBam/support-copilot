@@ -3,6 +3,7 @@ package firebase
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
@@ -19,15 +20,22 @@ type FirebaseRepository struct {
 func NewFirebaseRepository(cfg *config.Config) (interfaces.IFirebaseRepository, error) {
 	ctx := context.Background()
 
-	opt := option.WithCredentialsFile(cfg.Firebase.ServiceAccountPath)
+	if cfg == nil || cfg.Firebase.ServiceAccountPath == "" {
+		slog.Warn("[firebase] missing service account path in config, firebase auth disabled")
+		return &FirebaseRepository{authClient: nil}, nil
+	}
+
+	opt := option.WithAuthCredentialsFile(option.ServiceAccount, cfg.Firebase.ServiceAccountPath)
 
 	app, err := firebase.NewApp(ctx, nil, opt)
 	if err != nil {
+		slog.Warn("[firebase] failed to initialize firebase app (credentials file missing or invalid); firebase auth disabled", "error", err)
 		return nil, err
 	}
 
 	authClient, err := app.Auth(ctx)
 	if err != nil {
+		slog.Warn("[firebase] failed to initialize firebase app; firebase auth disabled", "error", err)
 		return nil, err
 	}
 
@@ -47,9 +55,5 @@ func (r *FirebaseRepository) VerifyIDToken(ctx context.Context, idToken string) 
 		return nil, err
 	}
 
-	// email, _ := token.Claims["email"].(string)
-	// name, _ := token.Claims["name"].(string)
-
-	// return token.UID, email, name, nil
 	return token, nil
 }

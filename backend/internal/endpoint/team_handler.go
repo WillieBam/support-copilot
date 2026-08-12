@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"strings"
+
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
 	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
@@ -286,6 +288,18 @@ func (h *Handler) AssignTeamIncident(c *echo.Context) error {
 	}
 
 	slog.Info("[team] AssignTeamIncident: incident assigned successfully", "team_incident_id", inc.ID, "team_id", teamID)
+
+	var alertsToLink []string
+	if strings.TrimSpace(req.AlertID) != "" {
+		alertsToLink = append(alertsToLink, req.AlertID)
+	}
+	if len(req.AlertIDs) > 0 {
+		alertsToLink = append(alertsToLink, req.AlertIDs...)
+	}
+	if len(alertsToLink) > 0 {
+		_ = h.teamService.LinkAlertsToIncident(c.Request().Context(), alertsToLink, inc.ID)
+	}
+
 	return c.JSON(http.StatusCreated, inc)
 }
 

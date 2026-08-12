@@ -128,7 +128,7 @@ func (s *orchestratorService) ExecuteValidateAlertRaw(ctx context.Context, rawAr
 		return "", err
 	}
 
-	cleanAlertID := strings.TrimSpace(alertIDStr)
+	cleanAlertID := normalizeUUID(alertIDStr)
 	if cleanAlertID == "" || cleanAlertID == "null" || cleanAlertID == "none" || cleanAlertID == "undefined" {
 		slog.Warn("[ORCHESTRATOR] Empty or dummy alert_id provided", "alertID", alertIDStr)
 		return "", fmt.Errorf("no valid alert_id provided: %q", alertIDStr)
@@ -172,10 +172,11 @@ func (s *orchestratorService) ExecuteGetIncidentRaw(ctx context.Context, rawArgs
 		slog.Error("[ORCHESTRATOR] Failed to parse get_incident raw args", "err", err)
 		return "", err
 	}
-	args.IncidentID = normalizeUUID(args.IncidentID)
-	if strings.TrimSpace(args.IncidentID) == "" {
+	cleanID := strings.TrimSpace(args.IncidentID)
+	if cleanID == "" {
 		return "", fmt.Errorf("incident_id is required")
 	}
+	args.IncidentID = cleanID
 	return s.mcpClient2.GetIncident(ctx, args)
 }
 
@@ -327,8 +328,16 @@ func (s *orchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context,
 		}
 	}
 
-	alertUUID, err := uuid.Parse(alertID)
-	if err != nil {
+	var alertUUID uuid.UUID
+	if parsed, err := uuid.Parse(alertID); err == nil {
+		alertUUID = parsed
+	} else if s.alertRepo != nil {
+		alertRecord, err := s.alertRepo.RetrieveAlertbyID(ctx, alertID)
+		if err != nil || alertRecord == nil {
+			return "", fmt.Errorf("invalid alert_id %q: alert record not found: %v", args.AlertID, err)
+		}
+		alertUUID = alertRecord.ID
+	} else {
 		return "", fmt.Errorf("invalid alert_id %q: %w", args.AlertID, err)
 	}
 
@@ -336,7 +345,16 @@ func (s *orchestratorService) ExecuteLinkAlertToIncidentRaw(ctx context.Context,
 	var parseErr error
 
 	if incidentID != "" {
-		incidentUUID, parseErr = uuid.Parse(incidentID)
+		if parsed, err := uuid.Parse(incidentID); err == nil {
+			incidentUUID = parsed
+		} else if s.teamRepo != nil {
+			if inc, err := s.teamRepo.GetTeamIncidentByIDOrNumber(ctx, incidentID); err == nil && inc != nil {
+				incidentUUID = inc.ID
+				slog.Info("[ORCHESTRATOR] Resolved incident by surrogate key / ID", "incident_id_arg", incidentID, "resolved_uuid", incidentUUID)
+			} else {
+				parseErr = err
+			}
+		}
 	}
 
 	// if incident_id is not a valid UUID, treat it or incident_title as a human readable title to resolve

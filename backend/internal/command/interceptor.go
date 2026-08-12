@@ -8,6 +8,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/domain/data"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
+	"github.com/google/uuid"
 )
 
 // CommandHandler is the function signature for slash command handlers.
@@ -56,8 +57,7 @@ func handleQuitCommand(ctx context.Context, prompt string) (*types.CommandResult
 }
 
 func (ci *CommandInterceptor) handleIncidentCommand(ctx context.Context, prompt string) (*types.CommandResult, error) {
-	arg := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(prompt),
-		"/incident"))
+	arg := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(prompt), "/incident"))
 
 	if ci.orchestrator == nil {
 		return &types.CommandResult{
@@ -66,13 +66,13 @@ func (ci *CommandInterceptor) handleIncidentCommand(ctx context.Context, prompt 
 		}, nil
 	}
 
-	// case 1 no argument provided retrieve active session incident
 	if arg == "" {
 		incidentID, ok := GetActiveIncidentID(ctx)
 		if !ok {
 			return &types.CommandResult{
 				Handled: true,
-				Message: "no active incident found in session context, provide a search query like /incident redis latency"}, nil
+				Message: "no active incident found in session context, provide a search query like /incident redis latency",
+			}, nil
 		}
 
 		rawArgs := fmt.Sprintf(`{"incident_id": "%s"}`, incidentID.String())
@@ -83,7 +83,22 @@ func (ci *CommandInterceptor) handleIncidentCommand(ctx context.Context, prompt 
 		return &types.CommandResult{Handled: true, Message: details}, nil
 	}
 
-	// argument provided search team incidents
+	// Direct lookup for surrogate key (e.g. INC-101) or UUID
+	if strings.HasPrefix(strings.ToUpper(arg), "INC-") {
+		rawArgs := fmt.Sprintf(`{"incident_id": "%s"}`, arg)
+		details, err := ci.orchestrator.ExecuteGetIncidentRaw(ctx, rawArgs)
+		if err == nil {
+			return &types.CommandResult{Handled: true, Message: details}, nil
+		}
+	} else if _, err := uuid.Parse(arg); err == nil {
+		rawArgs := fmt.Sprintf(`{"incident_id": "%s"}`, arg)
+		details, err := ci.orchestrator.ExecuteGetIncidentRaw(ctx, rawArgs)
+		if err == nil {
+			return &types.CommandResult{Handled: true, Message: details}, nil
+		}
+	}
+
+	// Argument provided: search team incidents
 	teamID, ok := GetTeamID(ctx)
 	if !ok {
 		return &types.CommandResult{
@@ -230,7 +245,11 @@ func filterIncidentsByQuery(jsonStr string, query string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("found %d matching incident(s) for '%s':\n\n", len(matches), query))
 	for _, inc := range matches {
-		sb.WriteString(fmt.Sprintf("- **%s** [%s] — %s\n", inc.Title, inc.Status, inc.ID))
+		key := inc.IncidentNumber
+		if key == "" {
+			key = inc.ID
+		}
+		sb.WriteString(fmt.Sprintf("- **%s** [%s] — %s\n", inc.Title, inc.Status, key))
 	}
 	return sb.String()
 }

@@ -36,6 +36,11 @@ export const deleteTeam = async (teamId: string): Promise<void> => {
     await apiClient.delete(`/api/admin/teams/${teamId}`);
 }
 
+// deactivateUser deactivates a user account (super_admin only)
+export const deactivateUser = async (userId: string): Promise<void> => {
+    await apiClient.post(`/api/admin/users/${userId}/deactivate`);
+}
+
 // fetchAllTeams retrieves all system teams for super_admin
 export const fetchAllTeams = async (): Promise<Team[]> => {
     const response = await apiClient.get<Team[]>('/api/admin/teams');

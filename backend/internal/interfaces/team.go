@@ -19,6 +19,7 @@ type ITeamRepository interface {
 	AssignTeamIncident(ctx context.Context, incident *models.TeamIncident) error
 	ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error)
 	GetTeamIncidentByID(ctx context.Context, incidentID uuid.UUID) (*models.TeamIncident, error)
+	GetTeamIncidentByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, error)
 	UpdateTeamIncidentStatus(ctx context.Context, history *models.IncidentStatusHistory, updatedInc *models.TeamIncident) error
 	GetTeamInstruction(ctx context.Context, teamID uuid.UUID) (*models.Instruction, []models.InstructionLog, error)
 	SaveTeamInstruction(ctx context.Context, instruction *models.Instruction, log *models.InstructionLog) error
@@ -32,6 +33,7 @@ type ITeamRepository interface {
 	GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error)
 	// Enriched incident context for MCP KB tools
 	GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error)
+	GetIncidentContextByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, []models.Alert, error)
 	// ListAllTeams returns all teams in database
 	ListAllTeams(ctx context.Context) ([]models.Team, error)
 }
@@ -59,6 +61,8 @@ type ITeamService interface {
 	GetRunbookLogs(ctx context.Context, runbookID uuid.UUID) ([]models.RunbookLog, error)
 	ListTeamIncidents(ctx context.Context, teamID uuid.UUID) ([]models.TeamIncident, error)
 	GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error)
+	GetIncidentContextByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, []models.Alert, error)
+	LinkAlertsToIncident(ctx context.Context, alertIDStrings []string, incidentID uuid.UUID) error
 	// ListAllTeams returns all teams for super_admin
 	ListAllTeams(ctx context.Context, userScope string) ([]models.Team, error)
 }

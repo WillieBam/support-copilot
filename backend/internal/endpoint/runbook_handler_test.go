@@ -6,12 +6,14 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"time"
 
 	"github.com/WillieBam/support_copilot/backend/internal/endpoint"
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 	. "github.com/onsi/ginkgo/v2"
@@ -99,6 +101,33 @@ var _ = Describe("RunbookHandler", func() {
 			err := h.CreateRunbook(c)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(rec.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should handle CreateRunbook validation and service error paths", func() {
+			// empty content
+			bodyEmptyContent, _ := json.Marshal(requests.CreateRunbookRequest{Title: "Title", Content: ""})
+			c1 := e.NewContext(httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyEmptyContent)), httptest.NewRecorder())
+			c1.Request().Header.Set("Content-Type", "application/json")
+			c1.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			err := h.CreateRunbook(c1)
+			Expect(err).NotTo(HaveOccurred())
+
+			// ErrTeamNotFound (400)
+			bodyValid, _ := json.Marshal(requests.CreateRunbookRequest{Title: "Title", Content: "Content"})
+			c2 := e.NewContext(httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyValid)), httptest.NewRecorder())
+			c2.Request().Header.Set("Content-Type", "application/json")
+			c2.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			mockTeamSvc.On("CreateRunbook", mock.Anything, uuid.Nil, teamID, uuid.Nil, "Title", "Content").Return(nil, customErrors.ErrTeamNotFound).Once()
+			err = h.CreateRunbook(c2)
+			Expect(err).NotTo(HaveOccurred())
+
+			// generic error (500)
+			c3 := e.NewContext(httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyValid)), httptest.NewRecorder())
+			c3.Request().Header.Set("Content-Type", "application/json")
+			c3.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			mockTeamSvc.On("CreateRunbook", mock.Anything, uuid.Nil, teamID, uuid.Nil, "Title", "Content").Return(nil, errors.New("db error")).Once()
+			err = h.CreateRunbook(c3)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
@@ -221,12 +250,131 @@ var _ = Describe("RunbookHandler", func() {
 			}
 
 
-			mockTeamSvc.On("GetIncidentContext", mock.Anything, incidentID).Return(inc, alerts, nil)
+			mockTeamSvc.On("GetIncidentContextByIDOrNumber", mock.Anything, incidentID.String()).Return(inc, alerts, nil)
 			mockTeamSvc.On("ListRunbooks", mock.Anything, teamID, "active").Return([]models.Runbook{}, nil)
 
 			err := h.GetIncidentContext(c)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 400 on GetIncidentContext when id param is empty", func() {
+			req := httptest.NewRequest(http.MethodGet, "/internal/incidents//context", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPathValues(echo.PathValues{{Name: "id", Value: ""}})
+
+			err := h.GetIncidentContext(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should ListIncidentsInternal successfully and handle invalid team_id", func() {
+			cBad := e.NewContext(httptest.NewRequest(http.MethodGet, "/internal/incidents/invalid", nil), httptest.NewRecorder())
+			cBad.SetPathValues(echo.PathValues{{Name: "team_id", Value: "invalid"}})
+			err := h.ListIncidentsInternal(cBad)
+			Expect(err).NotTo(HaveOccurred())
+
+			recOk := httptest.NewRecorder()
+			cOk := e.NewContext(httptest.NewRequest(http.MethodGet, "/internal/incidents/"+teamID.String(), nil), recOk)
+			cOk.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			mockTeamSvc.On("ListTeamIncidents", mock.Anything, teamID).Return([]models.TeamIncident{{ID: incidentID}}, nil)
+			err = h.ListIncidentsInternal(cOk)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(recOk.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should handle error paths in DeprecateRunbook, UpdateRunbook, GetRunbookLogs, and ListRunbooks", func() {
+			// DeprecateRunbook invalid id & service error
+			cBadDep := e.NewContext(httptest.NewRequest(http.MethodPatch, "/", nil), httptest.NewRecorder())
+			cBadDep.SetPathValues(echo.PathValues{{Name: "id", Value: "invalid"}})
+			err := h.DeprecateRunbook(cBadDep)
+			Expect(err).NotTo(HaveOccurred())
+
+			cErrDep := e.NewContext(httptest.NewRequest(http.MethodPatch, "/", nil), httptest.NewRecorder())
+			cErrDep.SetPathValues(echo.PathValues{{Name: "id", Value: runbookID.String()}})
+			mockTeamSvc.On("DeprecateRunbook", mock.Anything, runbookID).Return(nil, errors.New("db error")).Once()
+			err = h.DeprecateRunbook(cErrDep)
+			Expect(err).NotTo(HaveOccurred())
+
+			// UpdateRunbook invalid id & bind error & service error
+			cBadUpd := e.NewContext(httptest.NewRequest(http.MethodPatch, "/", nil), httptest.NewRecorder())
+			cBadUpd.SetPathValues(echo.PathValues{{Name: "id", Value: "invalid"}})
+			err = h.UpdateRunbook(cBadUpd)
+			Expect(err).NotTo(HaveOccurred())
+
+			cErrUpd := e.NewContext(httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(`{"title":"T","content":"C"}`)), httptest.NewRecorder())
+			cErrUpd.Request().Header.Set("Content-Type", "application/json")
+			cErrUpd.SetPathValues(echo.PathValues{{Name: "id", Value: runbookID.String()}})
+			mockTeamSvc.On("UpdateRunbook", mock.Anything, mock.Anything, runbookID, "T", "C").Return(nil, errors.New("db error")).Once()
+			err = h.UpdateRunbook(cErrUpd)
+			Expect(err).NotTo(HaveOccurred())
+
+			// GetRunbookLogs invalid id & service error
+			cBadLog := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cBadLog.SetPathValues(echo.PathValues{{Name: "id", Value: "invalid"}})
+			err = h.GetRunbookLogs(cBadLog)
+			Expect(err).NotTo(HaveOccurred())
+
+			cErrLog := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cErrLog.SetPathValues(echo.PathValues{{Name: "id", Value: runbookID.String()}})
+			mockTeamSvc.On("GetRunbookLogs", mock.Anything, runbookID).Return(nil, errors.New("db error")).Once()
+			err = h.GetRunbookLogs(cErrLog)
+			Expect(err).NotTo(HaveOccurred())
+
+			// ListRunbooks invalid team_id & service error
+			cBadList := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cBadList.SetPathValues(echo.PathValues{{Name: "team_id", Value: "invalid"}})
+			err = h.ListRunbooks(cBadList)
+			Expect(err).NotTo(HaveOccurred())
+
+			cErrList := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cErrList.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			mockTeamSvc.On("ListRunbooks", mock.Anything, teamID, mock.Anything).Return(nil, errors.New("db error")).Once()
+			err = h.ListRunbooks(cErrList)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should test relativeTime, parseAndCleanseMetrics, and normalizeUUID in GetIncidentContext", func() {
+			cCtx := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cCtx.SetPathValues(echo.PathValues{{Name: "id", Value: "12345678-1234-1234-1234-1234567890ab"}})
+
+			now := time.Now()
+			inc := &models.TeamIncident{
+				ID:        incidentID,
+				TeamID:    teamID,
+				Title:     "Test Inc",
+				Status:    "OPEN",
+				CreatedAt: now.Add(-50 * 24 * time.Hour),
+			}
+			alerts := []models.Alert{
+				{ReceivedAt: now.Add(10 * time.Second), Metrics: ""},
+				{ReceivedAt: now.Add(-10 * time.Minute), Metrics: "invalid json"},
+				{ReceivedAt: now.Add(-2 * time.Hour), Metrics: `{"container.cpu.usage": 0.001, "runtime.go.mem_stats.total_alloc": 50000000.0, "custom.hits": 100.0}`},
+				{ReceivedAt: now.Add(-48 * time.Hour), Metrics: `{"error_rate": 0.05}`},
+			}
+
+			mockTeamSvc.On("GetIncidentContextByIDOrNumber", mock.Anything, "12345678-1234-1234-1234-1234567890ab").Return(inc, alerts, nil).Once()
+			mockTeamSvc.On("ListRunbooks", mock.Anything, teamID, "active").Return([]models.Runbook{}, nil).Once()
+
+			err := h.GetIncidentContext(cCtx)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should handle 500 errors in ListIncidentsInternal and GetIncidentContext", func() {
+			// ListIncidentsInternal 500
+			cListIncErr := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cListIncErr.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			mockTeamSvc.On("ListTeamIncidents", mock.Anything, teamID).Return(nil, errors.New("db error")).Once()
+			err := h.ListIncidentsInternal(cListIncErr)
+			Expect(err).NotTo(HaveOccurred())
+
+			// GetIncidentContext 404
+			cCtxErr := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cCtxErr.SetPathValues(echo.PathValues{{Name: "id", Value: incidentID.String()}})
+			mockTeamSvc.On("GetIncidentContextByIDOrNumber", mock.Anything, incidentID.String()).Return(nil, nil, errors.New("not found")).Once()
+			err = h.GetIncidentContext(cCtxErr)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })

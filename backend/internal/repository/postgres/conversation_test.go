@@ -131,4 +131,41 @@ var _ = Describe("ConversationRepository", func() {
 			Expect(len(convs)).To(Equal(1))
 		})
 	})
+
+	Context("GetConversationByID", func() {
+		It("should fetch conversation by ID successfully", func() {
+			convID := uuid.New()
+			userID := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "user_id", "title"}).
+				AddRow(convID, userID, "Test Conv")
+
+			mock.ExpectQuery(`SELECT \* FROM "conversations" WHERE id = \$1 ORDER BY "conversations"\."id" LIMIT \$2`).
+				WithArgs(convID, 1).
+				WillReturnRows(rows)
+
+			mock.ExpectQuery(`SELECT \* FROM "messages" WHERE "messages"\."conversation_id" = \$1 ORDER BY created_at ASC`).
+				WithArgs(convID).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "conversation_id"}))
+
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE "users"\."id" = \$1`).
+				WithArgs(userID).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).AddRow(userID, "test@example.com"))
+
+			conv, err := convRepo.GetConversationByID(ctx, convID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(conv).NotTo(BeNil())
+			Expect(conv.ID).To(Equal(convID))
+		})
+
+		It("should return error when conversation not found", func() {
+			convID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "conversations" WHERE id = \$1 ORDER BY "conversations"\."id" LIMIT \$2`).
+				WithArgs(convID, 1).
+				WillReturnError(gorm.ErrRecordNotFound)
+
+			conv, err := convRepo.GetConversationByID(ctx, convID)
+			Expect(err).To(HaveOccurred())
+			Expect(conv).To(BeNil())
+		})
+	})
 })

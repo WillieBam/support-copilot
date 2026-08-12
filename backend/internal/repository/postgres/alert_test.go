@@ -94,7 +94,13 @@ var _ = Describe("AlertRepository", func() {
 			incidentID := uuid.New()
 
 			mock.ExpectBegin()
-			mock.ExpectExec(`UPDATE "alerts" SET "incident_id"=\$1 WHERE id = \$2`).
+			mock.ExpectQuery(`INSERT INTO "alert_incidents"`).
+				WithArgs(alertID, incidentID, "human_ui").
+				WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Now()))
+			mock.ExpectCommit()
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`UPDATE "alerts" SET "incident_id"=\$1 WHERE id = \$2 AND incident_id IS NULL`).
 				WithArgs(incidentID, alertID).
 				WillReturnResult(sqlmock.NewResult(1, 1))
 			mock.ExpectCommit()
@@ -164,6 +170,59 @@ var _ = Describe("AlertRepository", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("Internal Server Error"))
 			Expect(alert).To(BeNil())
+		})
+
+		It("should return record not found error for non-UUID string", func() {
+			customAlertID := "99999"
+
+			mock.ExpectQuery(`SELECT \* FROM "alerts" WHERE alert_info LIKE \$1 ORDER BY "alerts"\."id" LIMIT \$2`).
+				WithArgs("%\"id\":\""+customAlertID+"\"%", 1).
+				WillReturnError(gorm.ErrRecordNotFound)
+
+			alert, err := alertRepo.RetrieveAlertbyID(ctx, customAlertID)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, gorm.ErrRecordNotFound)).To(BeTrue())
+			Expect(alert).To(BeNil())
+		})
+
+		It("should return generic internal server error for non-UUID string database error", func() {
+			customAlertID := "99999"
+
+			mock.ExpectQuery(`SELECT \* FROM "alerts" WHERE alert_info LIKE \$1 ORDER BY "alerts"\."id" LIMIT \$2`).
+				WithArgs("%\"id\":\""+customAlertID+"\"%", 1).
+				WillReturnError(errors.New("db error"))
+
+			alert, err := alertRepo.RetrieveAlertbyID(ctx, customAlertID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("Internal Server Error"))
+			Expect(alert).To(BeNil())
+		})
+	})
+
+	Context("ListAlerts", func() {
+		It("should list alerts ordered by received_at desc", func() {
+			alertID := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "alert_info", "resource_info", "received_at"}).
+				AddRow(alertID, `{"severity":"high"}`, `{"service":"payment-service"}`, time.Now())
+
+			mock.ExpectQuery(`SELECT \* FROM "alerts" ORDER BY received_at DESC LIMIT \$1`).
+				WithArgs(10).
+				WillReturnRows(rows)
+
+			alerts, err := alertRepo.ListAlerts(ctx, 10)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(alerts).To(HaveLen(1))
+			Expect(alerts[0].ID).To(Equal(alertID))
+		})
+
+		It("should return error on ListAlerts query failure", func() {
+			mock.ExpectQuery(`SELECT \* FROM "alerts" ORDER BY received_at DESC LIMIT \$1`).
+				WithArgs(5).
+				WillReturnError(errors.New("db query error"))
+
+			alerts, err := alertRepo.ListAlerts(ctx, 5)
+			Expect(err).To(HaveOccurred())
+			Expect(alerts).To(BeNil())
 		})
 	})
 })

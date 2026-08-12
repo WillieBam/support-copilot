@@ -51,6 +51,7 @@ export const useLoginState = (auth: ReturnType<typeof useFirebaseTotpAuth>) => {
     isBusy: auth.isBusy,
     isSignedIn: auth.isSignedIn,
     isEmailVerified: auth.isEmailVerified,
+    resendCooldown: auth.resendCooldown,
     handleEmailChange,
     handlePasswordChange,
     handleSubmit,

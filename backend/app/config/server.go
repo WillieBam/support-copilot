@@ -4,9 +4,13 @@ import (
 	"github.com/WillieBam/support_copilot/backend/utils/server"
 )
 
-type IServer = server.IServer
-
-func NewServerConfig(name string) *server.ServerConfig {
+// NewServerConfig builds a server config from current app settings
+func NewServerConfig(name string) server.Config {
 	c := Get()
-	return server.NewServerConfig(name, c.Http.Port, c.Http.ShutdownTimeOut)
+	return server.Config{
+		Name:            name,
+		Port:            c.Http.Port,
+		ShutdownTimeout: c.Http.ShutdownTimeOut,
+	}
 }
+

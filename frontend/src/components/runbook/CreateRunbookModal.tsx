@@ -64,10 +64,10 @@ export const CreateRunbookModal: React.FC<CreateRunbookModalProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Associated Incident ID (Optional)</label>
+            <label className="text-xs font-medium text-muted-foreground">Associated Incident Key (Optional)</label>
             <input
               type="text"
-              placeholder="e.g. inc-123 or UUID"
+              placeholder="e.g. INC-101 or UUID"
               value={incidentId}
               onChange={(e) => setIncidentId(e.target.value)}
               className="w-full bg-background border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono"

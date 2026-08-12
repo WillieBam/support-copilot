@@ -18,6 +18,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 )
 
 type openAIClient struct {
@@ -245,32 +246,75 @@ func (c *openAIClient) QueryStreamWithTools(ctx context.Context, req requests.LL
 		return nil, fmt.Errorf("failed to marshal OpenAI chat request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(payloadBytes))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request context for LLM: %w", err)
-	}
+	var resp *http.Response
+	var lastErr error
+	maxRetries := 2
 
-	httpReq.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	}
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			slog.Error("[OPENAI CLIENT] Stream context canceled", "err", err)
-			return nil, fmt.Errorf("[STREAM ERROR]: client aborted stream")
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(attempt*500) * time.Millisecond
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(backoff):
+			}
 		}
-		slog.Error("[OPENAI CLIENT] HTTP request to LLM failed", "url", c.baseURL, "err", err)
-		return nil, fmt.Errorf("failed communicating with LLM API: %w", err)
+
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(payloadBytes))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request context for LLM: %w", err)
+		}
+
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("User-Agent", "SupportCopilot/1.0")
+		if c.apiKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+		}
+
+		resp, lastErr = c.httpClient.Do(httpReq)
+		if lastErr != nil {
+			if errors.Is(lastErr, context.Canceled) {
+				slog.Error("[OPENAI CLIENT] Stream context canceled", "err", lastErr)
+				return nil, fmt.Errorf("[STREAM ERROR]: client aborted stream")
+			}
+			continue
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
+			resp.Body.Close()
+			lastErr = fmt.Errorf("LLM status %d", resp.StatusCode)
+			continue
+		}
+
+		break
 	}
-	defer resp.Body.Close()
+
+	if lastErr != nil && resp == nil {
+		slog.Error("[OPENAI CLIENT] HTTP request to LLM failed after retries", "url", c.baseURL, "err", lastErr)
+		return nil, fmt.Errorf("failed communicating with LLM API: %w", lastErr)
+	}
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		slog.Error("[OPENAI CLIENT] Rate limit exceeded", "status", resp.StatusCode, "body", string(body))
+		return nil, customErrors.ErrRateLimitExceeded
+	}
+
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		slog.Error("[OPENAI CLIENT] Service unavailable", "status", resp.StatusCode, "body", string(body))
+		return nil, customErrors.ErrServiceUnavailable
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
 		slog.Error("[OPENAI CLIENT] LLM API error response", "status", resp.StatusCode, "body", string(body))
 		return nil, fmt.Errorf("LLM API returned status code %d: %s", resp.StatusCode, string(body))
 	}
+	defer resp.Body.Close()
 
 	reader := bufio.NewReader(resp.Body)
 	var fullContent strings.Builder

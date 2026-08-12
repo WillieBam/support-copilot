@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
-import { addTeamMember, removeTeamMember, fetchTeamMembers, searchUsers } from '@/service/team/teamService';
+import { addTeamMember, removeTeamMember, fetchTeamMembers, searchUsers, deactivateUser } from '@/service/team/teamService';
 import type { TeamMember } from '@/types/team';
 import type { UserSearchResult } from '@/types/user';
 
@@ -7,6 +7,7 @@ export const useTeamMembersModalState = (teamId: string) => {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState<boolean>(true);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [deactivatingUserId, setDeactivatingUserId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
@@ -104,10 +105,30 @@ export const useTeamMembersModalState = (teamId: string) => {
     }
   };
 
+  const handleDeactivateUser = async (targetUserId: string) => {
+    if (!window.confirm('Are you sure you want to deactivate this user account? The user will immediately be disabled from logging in.')) {
+      return;
+    }
+    setDeactivatingUserId(targetUserId);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      await deactivateUser(targetUserId);
+      setSuccessMsg('User account deactivated successfully');
+      await loadMembers();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'failed to deactivate user account');
+    } finally {
+      setDeactivatingUserId(null);
+    }
+  };
+
   return {
     members,
     isLoadingMembers,
     deletingUserId,
+    deactivatingUserId,
     searchQuery,
     setSearchQuery,
     searchResults,
@@ -120,6 +141,7 @@ export const useTeamMembersModalState = (teamId: string) => {
     handleClearSelection,
     handleAddMember,
     handleDeleteMember,
+    handleDeactivateUser,
     refreshMembers: loadMembers,
   };
 };

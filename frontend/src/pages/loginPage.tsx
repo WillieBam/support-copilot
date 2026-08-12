@@ -23,8 +23,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ auth }) => {
             <span className="login-eyebrow">Support Copilot</span>
             <h1 className="login-title">Verify Email</h1>
             <p className="login-desc">
-              We sent a verification email to <strong className="text-white">{state.email}</strong>.
+              We sent a verification email to:
             </p>
+            <div className="my-2 inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold text-xs tracking-wide mx-auto">
+              {state.email || 'Your Registered Email'}
+            </div>
             <p className="login-subdesc">
               Please check your inbox and spam folder, then verify your email before continuing.
             </p>
@@ -43,10 +46,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ auth }) => {
             <button
               type="button"
               onClick={() => void state.resendVerification()}
-              disabled={state.isBusy}
-              className="login-btn-outline"
+              disabled={state.isBusy || state.resendCooldown > 0}
+              className="login-btn-outline disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Resend Verification Email
+              {state.resendCooldown > 0
+                ? `Resend Email (${state.resendCooldown}s)`
+                : 'Resend Verification Email'}
             </button>
 
             <button
@@ -58,6 +63,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ auth }) => {
               Sign Out
             </button>
           </div>
+
+          <p className="text-[11px] text-center text-muted-foreground/80 italic mt-1">
+            💡 Returning to this tab will auto-check your email verification status.
+          </p>
 
           {state.submitError && (
             <p className="login-error">{state.submitError}</p>

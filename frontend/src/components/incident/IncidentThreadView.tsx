@@ -78,9 +78,16 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
 
         <div className="flex items-center gap-2">
           {incident && (
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadgeClass(incident.status)}`}>
-              Incident ({incident.status})
-            </span>
+            <div className="flex items-center gap-2">
+              {incident.incident_number && (
+                <span className="px-2.5 py-0.5 text-xs font-mono font-bold rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                  {incident.incident_number}
+                </span>
+              )}
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadgeClass(incident.status)}`}>
+                Incident ({incident.status})
+              </span>
+            </div>
           )}
         </div>
       </div>
@@ -116,8 +123,15 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                     <AlertTriangle className="w-6 h-6" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-foreground tracking-tight">{incident.title}</h1>
-                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      {incident.incident_number && (
+                        <span className="px-2 py-0.5 text-xs font-mono font-bold rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                          {incident.incident_number}
+                        </span>
+                      )}
+                      <h1 className="text-xl font-bold text-foreground tracking-tight">{incident.title}</h1>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                       <User className="w-3.5 h-3.5" /> Created by: <span className="text-foreground font-medium">{getUserDisplayName(incident.created_by)}</span>
                     </p>
                   </div>

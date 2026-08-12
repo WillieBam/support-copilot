@@ -34,6 +34,17 @@ export function useFirebaseTotpAuth() {
   const [loginEmail, setLoginEmail] = useState('');
   const [userEmail, setUserEmail] = useState('');
   
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  // Countdown timer for resend cooldown
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [resendCooldown])
+
   const checkVerificationStatus = async () => {
     const user = firebaseAuth.currentUser
     if (!user) return
@@ -157,10 +168,19 @@ export function useFirebaseTotpAuth() {
       })
     }
 
+    const handleWindowFocus = () => {
+      const user = firebaseAuth.currentUser
+      if (user && !user.emailVerified) {
+        checkVerificationStatus()
+      }
+    }
+    window.addEventListener('focus', handleWindowFocus)
+
     initAuth()
 
     return () => {
       isMounted = false;
+      window.removeEventListener('focus', handleWindowFocus)
       if (unsubscribe) {
         unsubscribe()
       }
@@ -336,7 +356,7 @@ export function useFirebaseTotpAuth() {
   }
 
   const resendVerification = async () => {
-    if (isBusy) return
+    if (isBusy || resendCooldown > 0) return
     const user = firebaseAuth.currentUser
     if (!user) {
       setAuthError('Sign in first to resend verification email')
@@ -351,6 +371,7 @@ export function useFirebaseTotpAuth() {
     setIsBusy(true)
     try {
       await sendVerificationEmail(user)
+      setResendCooldown(60)
       setAuthStatus('Verification email sent. Check your inbox and spam folder.')
     } catch (error) {
       setAuthError(toErrorMessage(error, 'Failed to resend verification email'))
@@ -399,6 +420,7 @@ export function useFirebaseTotpAuth() {
     hasTotpEnabled,
     isEmailVerified,
     isAuthReady,
+    resendCooldown,
     needsTotpSignIn: totpResolver !== null && totpHint !== null,
     needsTotpEnrollment: enrollSecret !== null,
     canStartTotpEnrollment: isSignedIn && isEmailVerified && !hasTotpEnabled && enrollSecret === null,

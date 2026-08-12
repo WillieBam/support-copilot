@@ -17,6 +17,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 	"github.com/google/uuid"
 )
 
@@ -193,6 +194,14 @@ func formatFallbackMarkdown(toolName, toolResult string) string {
 			sb.WriteString("\n---\n\n")
 			sb.WriteString(rb.Content)
 			return sb.String()
+		}
+	}
+	if strings.Contains(toolResult, `"error"`) {
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(toolResult), &errResp); err == nil && errResp.Error != "" {
+			return fmt.Sprintf("\n\n**Operational Request Failed** (`%s`): %s\n", toolName, errResp.Error)
 		}
 	}
 	if len(toolResult) > 0 && len(toolResult) < 2000 {
@@ -386,6 +395,13 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	assistantMsg, err := s.llmClient.QueryStreamWithTools(ctx, req, streamChan)
 	if err != nil {
 		slog.Error("[APP SERVICE] First pass QueryStreamWithTools failed", "err", err)
+		if errors.Is(err, customErrors.ErrRateLimitExceeded) || errors.Is(err, customErrors.ErrServiceUnavailable) {
+			streamChan <- types.StreamEvent{
+				Type:    "text",
+				Content: fmt.Sprintf("\n\n⚠️ **Service Notice**: %s\n", err.Error()),
+			}
+			return nil
+		}
 		return err
 	}
 

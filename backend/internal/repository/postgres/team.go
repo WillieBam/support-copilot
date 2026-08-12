@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types/models"
@@ -95,6 +97,11 @@ func (t *teamRepository) ListTeamMembers(ctx context.Context, teamID uuid.UUID) 
 
 func (t *teamRepository) AssignTeamIncident(ctx context.Context, incident *models.TeamIncident) error {
 	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if strings.TrimSpace(incident.IncidentNumber) == "" {
+			var count int64
+			_ = tx.Model(&models.TeamIncident{}).Count(&count)
+			incident.IncidentNumber = fmt.Sprintf("INC-%d", 101+count)
+		}
 		if err := tx.Create(incident).Error; err != nil {
 			return err
 		}
@@ -130,6 +137,26 @@ func (t *teamRepository) GetTeamIncidentByID(ctx context.Context, incidentID uui
 		return db.Order("updated_at DESC")
 	}).Where("id = ?", incidentID).First(&incident).Error
 	if err != nil {
+		return nil, err
+	}
+	return &incident, nil
+}
+
+func (t *teamRepository) GetTeamIncidentByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, error) {
+	clean := strings.TrimSpace(idOrNumber)
+	if clean == "" {
+		return nil, errors.New("incident ID or number is required")
+	}
+	var incident models.TeamIncident
+	db := t.db.WithContext(ctx).Preload("History", func(db *gorm.DB) *gorm.DB {
+		return db.Order("updated_at DESC")
+	})
+	if parsedUUID, err := uuid.Parse(clean); err == nil {
+		if err := db.Where("id = ? OR LOWER(incident_number) = LOWER(?)", parsedUUID, clean).First(&incident).Error; err == nil {
+			return &incident, nil
+		}
+	}
+	if err := db.Where("LOWER(incident_number) = LOWER(?)", clean).First(&incident).Error; err != nil {
 		return nil, err
 	}
 	return &incident, nil

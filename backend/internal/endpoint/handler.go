@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
@@ -47,50 +46,50 @@ func NewHandler(a interfaces.IAppService, authService interfaces.IAuthService, o
 }
 
 // TokenExchangeHandler converts a validated Firebase token into a JWT session token
-func (h *Handler) TokenExchangeHandler(c *echo.Context) error {
-	var req requests.TokenExchangeRequest
-	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing request payload"})
-	}
+// func (h *Handler) TokenExchangeHandler(c *echo.Context) error {
+// 	var req requests.TokenExchangeRequest
+// 	if err := c.Bind(&req); err != nil {
+// 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing request payload"})
+// 	}
 
-	if req.FirebaseToken == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing firebase request"})
-	}
+// 	if req.FirebaseToken == "" {
+// 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing firebase request"})
+// 	}
 
-	verified, claims, err := h.authService.ExchangeToken(c.Request().Context(), req.FirebaseToken)
-	if err != nil {
-		if err.Error() == "mfa_required" {
-			return c.JSON(http.StatusForbidden, map[string]string{
-				"error":   "mfa_required",
-				"message": "TOTP verification required",
-			})
-		}
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
-	}
+// 	verified, claims, err := h.authService.ExchangeToken(c.Request().Context(), req.FirebaseToken)
+// 	if err != nil {
+// 		if err.Error() == "mfa_required" {
+// 			return c.JSON(http.StatusForbidden, map[string]string{
+// 				"error":   "mfa_required",
+// 				"message": "TOTP verification required",
+// 			})
+// 		}
+// 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+// 	}
 
-	var expires time.Time
-	if claims != nil && claims.ExpiresAt != nil {
-		expires = claims.ExpiresAt.Time
-	} else {
-		expires = time.Now().Add(1 * time.Hour)
-	}
+// 	var expires time.Time
+// 	if claims != nil && claims.ExpiresAt != nil {
+// 		expires = claims.ExpiresAt.Time
+// 	} else {
+// 		expires = time.Now().Add(1 * time.Hour)
+// 	}
 
-	cookie := &http.Cookie{
-		Name:     "support_copilot_session",
-		Value:    verified,
-		Expires:  expires,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-	}
-	c.SetCookie(cookie)
-	slog.Info("Successfully created and attached HttpOnly session cookie",
-		"user_uid", claims.FirebaseUID,
-		"expires_at", expires.Format(time.RFC3339),
-	)
-	return c.JSON(http.StatusOK, map[string]string{"status": "authenticated"})
-}
+// 	cookie := &http.Cookie{
+// 		Name:     "support_copilot_session",
+// 		Value:    verified,
+// 		Expires:  expires,
+// 		Path:     "/",
+// 		HttpOnly: true,
+// 		Secure:   false,
+// 		SameSite: http.SameSiteLaxMode,
+// 	}
+// 	c.SetCookie(cookie)
+// 	slog.Info("Successfully created and attached HttpOnly session cookie",
+// 		"user_uid", claims.FirebaseUID,
+// 		"expires_at", expires.Format(time.RFC3339),
+// 	)
+// 	return c.JSON(http.StatusOK, map[string]string{"status": "authenticated"})
+// }
 
 func (h *Handler) Me(c *echo.Context) error {
 	uidVal := c.Get("user_uid")
@@ -274,6 +273,7 @@ func (h *Handler) Query(c *echo.Context) error {
 
 }
 
+// IngestAlert handles alert webhook ingestion requests
 func (h *Handler) IngestAlert(c *echo.Context) error {
 	var req requests.AlertIngestRequest
 	if err := c.Bind(&req); err != nil {

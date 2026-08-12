@@ -13,11 +13,12 @@ const (
 )
 
 type IncidentRecord struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Status    string `json:"status"`
-	Summary   string `json:"summary,omitempty"`
-	CreatedAt string `json:"created_at,omitempty"`
+	ID             string `json:"id"`
+	IncidentNumber string `json:"incident_number,omitempty"`
+	Title          string `json:"title"`
+	Status         string `json:"status"`
+	Summary        string `json:"summary,omitempty"`
+	CreatedAt      string `json:"created_at,omitempty"`
 }
 
 type RunbookRecord struct {

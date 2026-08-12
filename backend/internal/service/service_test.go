@@ -269,6 +269,135 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 			mockCls.AssertExpectations(GinkgoT())
 			mockLLM.AssertExpectations(GinkgoT())
 		})
+
+		It("should execute tool calls during first pass and stream second pass LLM response", func() {
+			mockToolReg := &mocks.IToolRegistry{}
+			mockToolReg.On("GetTools").Return([]requests.LLMTool{})
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockToolReg)
+
+			firstPassMsg := &requests.OllamaMessage{
+				Role: "assistant",
+				ToolCalls: []requests.OllamaToolCall{
+					{
+						Function: requests.OllamaFunctionCall{
+							Name:      "get_incident",
+							Arguments: map[string]interface{}{"incident_id": "INC-101"},
+						},
+					},
+				},
+			}
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(firstPassMsg, nil).Once()
+
+			mockToolReg.On("Execute", mock.Anything, "get_incident", mock.Anything).Return(`{"incident_id":"INC-101","title":"CPU Spike","status":"OPEN"}`, nil)
+
+			secondPassMsg := &requests.OllamaMessage{Role: "assistant", Content: "Incident INC-101 details retrieved"}
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(secondPassMsg, nil).Once()
+
+			streamChan := make(chan types.StreamEvent, 10)
+			err := customAppSvc.QueryStreamWithTools(ctx, "get incident INC-101", nil, streamChan)
+			Expect(err).NotTo(HaveOccurred())
+			close(streamChan)
+		})
+
+		It("should format fallback markdown when second pass returns empty content", func() {
+			mockToolReg := &mocks.IToolRegistry{}
+			mockToolReg.On("GetTools").Return([]requests.LLMTool{})
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockToolReg)
+
+			firstPassMsg := &requests.OllamaMessage{
+				Role: "assistant",
+				ToolCalls: []requests.OllamaToolCall{
+					{
+						Function: requests.OllamaFunctionCall{
+							Name:      "get_incident",
+							Arguments: map[string]interface{}{"incident_id": "INC-101"},
+						},
+					},
+				},
+			}
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(firstPassMsg, nil).Once()
+
+			mockToolReg.On("Execute", mock.Anything, "get_incident", mock.Anything).Return(`{"incident_id":"INC-101","title":"CPU Spike","status":"OPEN","age":"1h","details":"telemetry","existing_runbooks":[{"id":"RB-1","title":"Restart Guide"}]}`, nil)
+
+			secondPassMsg := &requests.OllamaMessage{Role: "assistant", Content: ""}
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(secondPassMsg, nil).Once()
+
+			streamChan := make(chan types.StreamEvent, 10)
+			err := customAppSvc.QueryStreamWithTools(ctx, "get incident INC-101", nil, streamChan)
+			Expect(err).NotTo(HaveOccurred())
+			close(streamChan)
+
+			var events []types.StreamEvent
+			for ev := range streamChan {
+				events = append(events, ev)
+			}
+			Expect(len(events)).To(BeNumerically(">", 0))
+		})
+
+		It("should format fallback markdown for list_incidents and create_runbook tool calls", func() {
+			mockToolReg := &mocks.IToolRegistry{}
+			mockToolReg.On("GetTools").Return([]requests.LLMTool{})
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockToolReg)
+
+			// Spec for list_incidents fallback
+			firstPassMsgList := &requests.OllamaMessage{
+				Role: "assistant",
+				ToolCalls: []requests.OllamaToolCall{
+					{Function: requests.OllamaFunctionCall{Name: "list_incidents", Arguments: map[string]interface{}{"team_id": "team-1"}}},
+				},
+			}
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(firstPassMsgList, nil).Once()
+			mockToolReg.On("Execute", mock.Anything, "list_incidents", mock.Anything).Return(`[{"id":"INC-101","title":"Memory Spike","status":"OPEN","created_at":"2026-08-11"}]`, nil)
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(&requests.OllamaMessage{Role: "assistant", Content: ""}, nil).Once()
+
+			streamChanList := make(chan types.StreamEvent, 10)
+			err := customAppSvc.QueryStreamWithTools(ctx, "list team incidents", nil, streamChanList)
+			Expect(err).NotTo(HaveOccurred())
+			close(streamChanList)
+
+			// Spec for create_runbook fallback
+			firstPassMsgRb := &requests.OllamaMessage{
+				Role: "assistant",
+				ToolCalls: []requests.OllamaToolCall{
+					{Function: requests.OllamaFunctionCall{Name: "create_runbook", Arguments: map[string]interface{}{"team_id": "t-1", "incident_id": "i-1", "title": "Guide", "content": "steps"}}},
+				},
+			}
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(firstPassMsgRb, nil).Once()
+			mockToolReg.On("Execute", mock.Anything, "create_runbook", mock.Anything).Return(`{"id":"RB-101","incident_id":"INC-1","title":"Guide","status":"active","content":"rollout"}` , nil)
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(&requests.OllamaMessage{Role: "assistant", Content: ""}, nil).Once()
+
+			streamChanRb := make(chan types.StreamEvent, 10)
+			err = customAppSvc.QueryStreamWithTools(ctx, "create runbook guide", nil, streamChanRb)
+			Expect(err).NotTo(HaveOccurred())
+			close(streamChanRb)
+		})
+
+		It("should skip tool execution when tool call arguments are invalid or dummy", func() {
+			// Spec for validate_alert invalid alert_id (non-string, undefined, zero-uuid)
+			dummyMsg := &requests.OllamaMessage{
+				Role: "assistant",
+				ToolCalls: []requests.OllamaToolCall{
+					{Function: requests.OllamaFunctionCall{Name: "validate_alert", Arguments: map[string]interface{}{}}},
+					{Function: requests.OllamaFunctionCall{Name: "validate_alert", Arguments: map[string]interface{}{"alert_id": nil}}},
+					{Function: requests.OllamaFunctionCall{Name: "validate_alert", Arguments: map[string]interface{}{"alert_id": 12345}}},
+					{Function: requests.OllamaFunctionCall{Name: "validate_alert", Arguments: map[string]interface{}{"alert_id": "none"}}},
+					{Function: requests.OllamaFunctionCall{Name: "validate_alert", Arguments: map[string]interface{}{"alert_id": "{alert_id}"}}},
+					{Function: requests.OllamaFunctionCall{Name: "validate_alert", Arguments: map[string]interface{}{"alert_id": "00000000-0000-0000-0000-000000000000"}}},
+					{Function: requests.OllamaFunctionCall{Name: "link_alert_to_incident", Arguments: map[string]interface{}{"alert_id": "invalid-uuid"}}},
+					{Function: requests.OllamaFunctionCall{Name: "link_alert_to_incident", Arguments: map[string]interface{}{"alert_id": uuid.New().String()}}}, // missing incident_id and incident_title
+					{Function: requests.OllamaFunctionCall{Name: "get_incident", Arguments: map[string]interface{}{"incident_id": "  "}}},
+					{Function: requests.OllamaFunctionCall{Name: "create_runbook", Arguments: map[string]interface{}{"title": ""}}},
+					{Function: requests.OllamaFunctionCall{Name: "create_runbook", Arguments: map[string]interface{}{"team_id": "not-a-uuid"}}},
+				},
+			}
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(dummyMsg, nil).Once()
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(&requests.OllamaMessage{Role: "assistant", Content: "Fallback text"}, nil).Once()
+
+			streamChan := make(chan types.StreamEvent, 10)
+			err := appSvc.QueryStreamWithTools(ctx, "do task", nil, streamChan)
+			Expect(err).NotTo(HaveOccurred())
+			close(streamChan)
+		})
 	})
 
 	Context("Conversation helpers", func() {
@@ -294,6 +423,41 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 			conv, err := appSvc.CreateConversation(ctx, uuid.New(), uuid.New())
 			Expect(err).To(HaveOccurred())
 			Expect(conv).To(BeNil())
+
+			c, err := appSvc.GetConversationByID(ctx, uuid.New())
+			Expect(err).To(HaveOccurred())
+			Expect(c).To(BeNil())
+
+			convs, err := appSvc.ListTeamConversations(ctx, uuid.New(), 10)
+			Expect(err).To(HaveOccurred())
+			Expect(convs).To(BeNil())
+
+			msgs, err := appSvc.ListMessagesByConversation(ctx, uuid.New())
+			Expect(err).To(HaveOccurred())
+			Expect(msgs).To(BeNil())
+		})
+
+		It("should retrieve conversation, team conversations, and messages when repository is configured", func() {
+			mockConvRepo := &mocks.IConversationRepository{}
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockConvRepo)
+			convID := uuid.New()
+			teamID := uuid.New()
+
+			mockConvRepo.On("GetConversationByID", mock.Anything, convID).Return(&models.Conversation{ID: convID, Title: "Test Conv"}, nil)
+			mockConvRepo.On("ListTeamConversations", mock.Anything, teamID, 10).Return([]models.Conversation{{ID: convID, Title: "Test Conv"}}, nil)
+			mockConvRepo.On("ListMessagesByConversation", mock.Anything, convID).Return([]models.Message{{ID: uuid.New(), Content: "Hello"}}, nil)
+
+			conv, err := customAppSvc.GetConversationByID(ctx, convID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(conv.Title).To(Equal("Test Conv"))
+
+			convs, err := customAppSvc.ListTeamConversations(ctx, teamID, 10)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(convs)).To(Equal(1))
+
+			msgs, err := customAppSvc.ListMessagesByConversation(ctx, convID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(msgs)).To(Equal(1))
 		})
 
 		It("should save messages and generate a title when the repository and LLM are available", func() {
@@ -312,6 +476,16 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 			title, err := customAppSvc.GenerateAndSaveTitle(ctx, convID, "hello", "hi")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(title).To(Equal("Summarized topic"))
+		})
+
+		It("should return error when SaveMessage or GenerateAndSaveTitle is called without convRepo or llmClient", func() {
+			msg, err := appSvc.SaveMessage(ctx, uuid.New(), "user", "content", "")
+			Expect(err).To(HaveOccurred())
+			Expect(msg).To(BeNil())
+
+			title, err := appSvc.GenerateAndSaveTitle(ctx, uuid.New(), "prompt", "resp")
+			Expect(err).To(HaveOccurred())
+			Expect(title).To(BeEmpty())
 		})
 	})
 

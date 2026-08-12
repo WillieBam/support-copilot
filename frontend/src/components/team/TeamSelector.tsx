@@ -8,6 +8,7 @@ export const TeamSelector = () => {
     memberships,
     activeMembership,
     isOwner,
+    isSuperAdmin,
     isOpen,
     isMembersModalOpen,
     isCreateModalOpen,
@@ -126,6 +127,7 @@ export const TeamSelector = () => {
           teamId={activeMembership?.team_id || ''}
           teamName={activeMembership?.team?.team_name || ''}
           isOwner={isOwner}
+          isSuperAdmin={isSuperAdmin}
           onClose={closeMembersModal}
         />
       )}

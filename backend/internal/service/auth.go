@@ -30,7 +30,7 @@ var specialCharRegex = regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`)
 
 // ValidatePasswordComplexity validates that password satisfies complexity policy
 func ValidatePasswordComplexity(password string) error {
-	if len(password) < 6 || len(password) > 30 {
+	if len(password) < 6 || len(password) > 8 {
 		return customErrors.ErrInvalidPasswordComplexity
 	}
 	if !specialCharRegex.MatchString(password) {

@@ -112,6 +112,10 @@ func (s *authService) LoginWithPassword(ctx context.Context, usernameOrEmail, pa
 		return "", nil, errors.New("invalid credentials")
 	}
 
+	if user.DeactivatedAt != nil {
+		return "", nil, customErrors.ErrUserDeactivated
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return "", nil, errors.New("invalid credentials")
 	}
@@ -171,6 +175,10 @@ func (s *authService) ExchangeToken(ctx context.Context, firebaseToken string, t
 			slog.ErrorContext(ctx, "database repository failure during user sync", "error", err)
 			return "", nil, errors.New("internal server database error")
 		}
+	}
+
+	if user != nil && user.DeactivatedAt != nil {
+		return "", nil, customErrors.ErrUserDeactivated
 	}
 
 	if user != nil && user.TOTPEnabled {
@@ -257,6 +265,11 @@ func (s *authService) ParseAndValidateAuthToken(ctx context.Context, tokenString
 	}
 
 	if claims, ok := token.Claims.(*types.Claims); ok && token.Valid {
+		if claims.UserID != uuid.Nil && s.userRepo != nil {
+			if u, err := s.userRepo.GetUserByID(ctx, claims.UserID); err == nil && u != nil && u.DeactivatedAt != nil {
+				return nil, customErrors.ErrUserDeactivated
+			}
+		}
 		return claims, nil
 	}
 

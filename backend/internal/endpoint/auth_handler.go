@@ -1,11 +1,14 @@
 package endpoint
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/WillieBam/support_copilot/backend/types/requests"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 )
 
@@ -121,6 +124,31 @@ func (h *Handler) DisableTOTPHandler(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"status": "2fa_disabled"})
+}
+
+func (h *Handler) DeactivateUserHandler(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil || user == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+	}
+
+	targetIDStr := c.Param("id")
+	targetID, err := uuid.Parse(targetIDStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
+	}
+
+	if err := h.userService.DeactivateUser(c.Request().Context(), user.ID, targetID); err != nil {
+		if errors.Is(err, customErrors.ErrSuperAdminRequired) || errors.Is(err, customErrors.ErrSelfDeactivationNotAllowed) {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		if errors.Is(err, customErrors.ErrUserNotFound) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
+		}
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"status": "deactivated", "message": "User account deactivated successfully"})
 }
 
 func setSessionCookie(c *echo.Context, token string, expires time.Time) {

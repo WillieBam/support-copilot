@@ -475,4 +475,56 @@ var _ = Describe("Handler", func() {
 
 	})
 
+	Context("DeactivateUserHandler", func() {
+		var mockUserSvc *mocks.IUserService
+
+		BeforeEach(func() {
+			mockUserSvc = &mocks.IUserService{}
+			h = endpoint.NewHandler(mockAppSvc, mockAuthSvc, mockUserSvc)
+		})
+
+		It("should return 401 if user is unauthenticated", func() {
+			req := httptest.NewRequest(http.MethodPost, "/admin/users/123/deactivate", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			err := h.DeactivateUserHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
+		})
+
+		It("should return 400 if target user ID is invalid", func() {
+			reqID := uuid.New()
+			req := httptest.NewRequest(http.MethodPost, "/admin/users/invalid-uuid/deactivate", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "fb-admin-123")
+			c.SetPathValues(echo.PathValues{{Name: "id", Value: "invalid-uuid"}})
+
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-admin-123").Return(&models.User{ID: reqID, Scope: "super_admin"}, nil)
+
+			err := h.DeactivateUserHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should return 200 on successful deactivation", func() {
+			reqID := uuid.New()
+			targetID := uuid.New()
+			req := httptest.NewRequest(http.MethodPost, "/admin/users/"+targetID.String()+"/deactivate", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "fb-admin-123")
+			c.SetPathValues(echo.PathValues{{Name: "id", Value: targetID.String()}})
+
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-admin-123").Return(&models.User{ID: reqID, Scope: "super_admin"}, nil)
+			mockUserSvc.On("DeactivateUser", mock.Anything, reqID, targetID).Return(nil)
+
+			err := h.DeactivateUserHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			mockUserSvc.AssertExpectations(GinkgoT())
+		})
+	})
+
 })

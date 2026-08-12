@@ -103,6 +103,7 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 	adminGroup.GET("/dashboard/incidents/breached", h.GetAllTeamsBreachedIncidents)
 	adminGroup.GET("/teams", h.ListAllTeams)
 	adminGroup.DELETE("/teams/:team_id", h.DeleteTeam)
+	adminGroup.POST("/users/:id/deactivate", h.DeactivateUserHandler)
 
 	// query group endpoints
 	g := e.Group("/query")

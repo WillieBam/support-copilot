@@ -426,7 +426,7 @@ var _ = Describe("AuthService", func() {
 		})
 
 		It("should succeed when password satisfies complexity policy", func() {
-			err := service.ValidatePasswordComplexity("Pass!1234")
+			err := service.ValidatePasswordComplexity("Pass!12")
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})

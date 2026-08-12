@@ -266,6 +266,7 @@ func (c *openAIClient) QueryStreamWithTools(ctx context.Context, req requests.LL
 		}
 
 		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("User-Agent", "SupportCopilot/1.0")
 		if c.apiKey != "" {
 			httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 		}

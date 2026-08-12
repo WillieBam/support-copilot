@@ -84,6 +84,7 @@ func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.LL
 			return nil, fmt.Errorf("failed to create LLM request context: %w", err)
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("User-Agent", "SupportCopilot/1.0")
 
 		resp, lastErr = c.httpClient.Do(httpReq)
 		if lastErr != nil {

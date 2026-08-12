@@ -115,4 +115,139 @@ var _ = Describe("RunbookRepository", func() {
 			Expect(len(logs)).To(Equal(1))
 		})
 	})
+
+	Context("UpdateRunbook & DeprecateRunbook", func() {
+		It("should update runbook and create version log in transaction", func() {
+			rbID := uuid.New()
+			teamID := uuid.New()
+			incID := uuid.New()
+
+			mock.ExpectBegin()
+			// query first runbook
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE id = \$1 ORDER BY "runbooks"\."id" LIMIT \$2`).
+				WithArgs(rbID, 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "incident_id", "title", "content"}).AddRow(rbID, teamID, incID, "Old Title", "Old Content"))
+
+			// create log
+			mock.ExpectQuery(`INSERT INTO "runbook_logs"`).
+				WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+
+			// update runbook
+			mock.ExpectExec(`UPDATE "runbooks" SET`).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+
+			mock.ExpectCommit()
+
+			log := &models.RunbookLog{
+				OlderTitle:   "Old Title",
+				OlderContent: "Old Content",
+				Version:      1,
+			}
+			updated, err := teamRepo.UpdateRunbook(ctx, rbID, "New Title", "New Content", log)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Title).To(Equal("New Title"))
+			Expect(updated.Content).To(Equal("New Content"))
+		})
+
+		It("should deprecate a runbook successfully", func() {
+			rbID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE id = \$1 ORDER BY "runbooks"\."id" LIMIT \$2`).
+				WithArgs(rbID, 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow(rbID, "active"))
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`UPDATE "runbooks" SET`).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+
+			deprecated, err := teamRepo.DeprecateRunbook(ctx, rbID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(deprecated.Status).To(Equal("deprecated"))
+		})
+	})
+
+	Context("GetRunbooksByIncidentID & GetIncidentContextByIDOrNumber", func() {
+		It("should get active runbooks by incident ID", func() {
+			incID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE incident_id = \$1 AND status = 'active' ORDER BY created_at DESC`).
+				WithArgs(incID).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).AddRow(uuid.New(), "Inc Runbook"))
+
+			rbs, err := teamRepo.GetRunbooksByIncidentID(ctx, incID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(rbs)).To(Equal(1))
+		})
+
+		It("should get incident context by surrogate key INC-101", func() {
+			incID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "team_incidents" WHERE LOWER\(incident_number\) = LOWER\(\$1\) ORDER BY "team_incidents"\."id" LIMIT \$2`).
+				WithArgs("INC-101", 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "incident_number", "title"}).AddRow(incID, "INC-101", "Database Latency"))
+
+			mock.ExpectQuery(`SELECT \* FROM "incident_status_histories" WHERE "incident_status_histories"\."team_incident_id" = \$1 ORDER BY updated_at ASC`).
+				WithArgs(incID).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "team_incident_id"}))
+
+			mock.ExpectQuery(`SELECT \* FROM "alerts" WHERE incident_id = \$1 OR id IN \(SELECT alert_id FROM alert_incidents WHERE incident_id = \$2\) ORDER BY received_at DESC`).
+				WithArgs(incID, incID).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "alert_info"}))
+
+			inc, alerts, err := teamRepo.GetIncidentContextByIDOrNumber(ctx, "INC-101")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(inc).NotTo(BeNil())
+			Expect(inc.IncidentNumber).To(Equal("INC-101"))
+			Expect(alerts).NotTo(BeNil())
+		})
+
+		It("should get incident context by UUID", func() {
+			incID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "team_incidents" WHERE id = \$1 ORDER BY "team_incidents"\."id" LIMIT \$2`).
+				WithArgs(incID, 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).AddRow(incID, "Context Test"))
+
+			mock.ExpectQuery(`SELECT \* FROM "incident_status_histories" WHERE "incident_status_histories"\."team_incident_id" = \$1 ORDER BY updated_at ASC`).
+				WithArgs(incID).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+			mock.ExpectQuery(`SELECT \* FROM "alerts" WHERE incident_id = \$1 OR id IN \(SELECT alert_id FROM alert_incidents WHERE incident_id = \$2\) ORDER BY received_at DESC`).
+				WithArgs(incID, incID).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+			inc, alerts, err := teamRepo.GetIncidentContext(ctx, incID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(inc).NotTo(BeNil())
+			Expect(alerts).NotTo(BeNil())
+		})
+
+		It("should return error when GetIncidentContextByIDOrNumber received empty string", func() {
+			_, _, err := teamRepo.GetIncidentContextByIDOrNumber(ctx, "   ")
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should return record not found error when deprecating non-existent runbook", func() {
+			rbID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE id = \$1 ORDER BY "runbooks"\."id" LIMIT \$2`).
+				WithArgs(rbID, 1).
+				WillReturnError(gorm.ErrRecordNotFound)
+
+			deprecated, err := teamRepo.DeprecateRunbook(ctx, rbID)
+			Expect(err).To(Equal(gorm.ErrRecordNotFound))
+			Expect(deprecated).To(BeNil())
+		})
+
+		It("should list all runbooks when status filter is empty or 'all'", func() {
+			teamID := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "team_id", "title"}).
+				AddRow(uuid.New(), teamID, "All Status Guide")
+
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE team_id = \$1 ORDER BY created_at DESC`).
+				WithArgs(teamID).
+				WillReturnRows(rows)
+
+			rbs, err := teamRepo.ListRunbooks(ctx, teamID, "all")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(rbs)).To(Equal(1))
+		})
+	})
 })

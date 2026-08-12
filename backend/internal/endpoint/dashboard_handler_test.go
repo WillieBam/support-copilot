@@ -1,6 +1,7 @@
 package endpoint_test
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"time"
@@ -239,6 +240,73 @@ var _ = Describe("DashboardHandler", func() {
 			err := h.GetAllTeamsBreachedIncidents(c)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 400 when query params are invalid across dashboard handlers", func() {
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(testUser, nil)
+
+			// GetBreachedIncidents invalid team_id
+			c1 := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/dashboard/incidents/breached?team_id=invalid", nil), httptest.NewRecorder())
+			c1.Set("user_uid", "fb-uid-123")
+			err := h.GetBreachedIncidents(c1)
+			Expect(err).NotTo(HaveOccurred())
+
+			// GetAllTeamsMTTR invalid sla
+			c2 := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/mttr?sla_target_minutes=-5", nil), httptest.NewRecorder())
+			c2.Set("user_uid", "fb-uid-123")
+			err = h.GetAllTeamsMTTR(c2)
+			Expect(err).NotTo(HaveOccurred())
+
+			// GetAllTeamsBreachedIncidents invalid sla
+			c3 := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/incidents/breached?sla_target_minutes=-5", nil), httptest.NewRecorder())
+			c3.Set("user_uid", "fb-uid-123")
+			err = h.GetAllTeamsBreachedIncidents(c3)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should return 500 when dashboard service returns error", func() {
+			adminUser := &models.User{ID: userID, FirebaseUID: "admin-uid", Scope: "super_admin"}
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "admin-uid").Return(adminUser, nil)
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(testUser, nil)
+
+			// GetIncidentTrend 500
+			cTrend1 := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/dashboard/incidents/trend?team_id="+teamID.String()+"&timeframe=month", nil), httptest.NewRecorder())
+			cTrend1.Set("user_uid", "fb-uid-123")
+			mockDashSvc.On("GetIncidentTrend", mock.Anything, userID, teamID, "engineer", "month").Return(nil, errors.New("db error")).Once()
+			err := h.GetIncidentTrend(cTrend1)
+			Expect(err).NotTo(HaveOccurred())
+
+			// GetMTTR 500
+			cMTTR1 := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/dashboard/mttr?team_id="+teamID.String()+"&sla_target_minutes=30", nil), httptest.NewRecorder())
+			cMTTR1.Set("user_uid", "fb-uid-123")
+			mockDashSvc.On("GetMTTR", mock.Anything, userID, teamID, "engineer", 30).Return(nil, errors.New("db error")).Once()
+			err = h.GetMTTR(cMTTR1)
+			Expect(err).NotTo(HaveOccurred())
+
+			// GetBreachedIncidents 500
+			cBreach1 := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/dashboard/incidents/breached?team_id="+teamID.String()+"&sla_target_minutes=30", nil), httptest.NewRecorder())
+			cBreach1.Set("user_uid", "fb-uid-123")
+			mockDashSvc.On("GetBreachedIncidents", mock.Anything, userID, teamID, "engineer", 30, 50, 0).Return(nil, errors.New("db error")).Once()
+			err = h.GetBreachedIncidents(cBreach1)
+			Expect(err).NotTo(HaveOccurred())
+
+			cTrend := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/incidents/trend?timeframe=month", nil), httptest.NewRecorder())
+			cTrend.Set("user_uid", "admin-uid")
+			mockDashSvc.On("GetAllTeamsIncidentTrend", mock.Anything, "super_admin", "month").Return(nil, errors.New("db error")).Once()
+			err = h.GetAllTeamsIncidentTrend(cTrend)
+			Expect(err).NotTo(HaveOccurred())
+
+			cMTTR := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/mttr?sla_target_minutes=30", nil), httptest.NewRecorder())
+			cMTTR.Set("user_uid", "admin-uid")
+			mockDashSvc.On("GetAllTeamsMTTR", mock.Anything, "super_admin", 30).Return(nil, errors.New("db error")).Once()
+			err = h.GetAllTeamsMTTR(cMTTR)
+			Expect(err).NotTo(HaveOccurred())
+
+			cBreach := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/incidents/breached?sla_target_minutes=30", nil), httptest.NewRecorder())
+			cBreach.Set("user_uid", "admin-uid")
+			mockDashSvc.On("GetAllTeamsBreachedIncidents", mock.Anything, "super_admin", 30, 50, 0).Return(nil, errors.New("db error")).Once()
+			err = h.GetAllTeamsBreachedIncidents(cBreach)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })

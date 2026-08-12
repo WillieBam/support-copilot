@@ -183,5 +183,131 @@ var _ = Describe("McpOneClient", func() {
 			Expect(err.Error()).To(ContainSubstring("failed decoding MCP JSON-RPC envelope"))
 			Expect(res).To(BeNil())
 		})
+
+		It("should handle tool result with IsError true and content message", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      "1",
+					"result": map[string]any{
+						"isError": true,
+						"content": []map[string]any{
+							{"type": "text", "text": "invalid feature input"},
+						},
+					},
+				})
+			}))
+			defer mockServer.Close()
+
+			u, _ := url.Parse(mockServer.URL)
+			cfg := &config.Config{}
+			cfg.MCP1.Host = u.Hostname()
+			cfg.MCP1.Port = u.Port()
+
+			client := mcp.NewMcpOneClient(cfg)
+			res, err := client.DetectAnomalies(context.Background(), requests.AnomalyDetectionRequest{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid feature input"))
+			Expect(res).To(BeNil())
+		})
+
+		It("should handle tool result with IsError true and empty content message", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      "1",
+					"result": map[string]any{
+						"isError": true,
+						"content": []map[string]any{},
+					},
+				})
+			}))
+			defer mockServer.Close()
+
+			u, _ := url.Parse(mockServer.URL)
+			cfg := &config.Config{}
+			cfg.MCP1.Host = u.Hostname()
+			cfg.MCP1.Port = u.Port()
+
+			client := mcp.NewMcpOneClient(cfg)
+			res, err := client.DetectAnomalies(context.Background(), requests.AnomalyDetectionRequest{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unknown error"))
+			Expect(res).To(BeNil())
+		})
+
+		It("should handle empty content in successful result", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      "1",
+					"result": map[string]any{
+						"isError": false,
+						"content": []map[string]any{},
+					},
+				})
+			}))
+			defer mockServer.Close()
+
+			u, _ := url.Parse(mockServer.URL)
+			cfg := &config.Config{}
+			cfg.MCP1.Host = u.Hostname()
+			cfg.MCP1.Port = u.Port()
+
+			client := mcp.NewMcpOneClient(cfg)
+			res, err := client.DetectAnomalies(context.Background(), requests.AnomalyDetectionRequest{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("mcp tool returned empty content"))
+			Expect(res).To(BeNil())
+		})
+
+		It("should handle decoding failure for malformed text content in result", func() {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      "1",
+					"result": map[string]any{
+						"isError": false,
+						"content": []map[string]any{
+							{"type": "text", "text": "invalid json payload"},
+						},
+					},
+				})
+			}))
+			defer mockServer.Close()
+
+			u, _ := url.Parse(mockServer.URL)
+			cfg := &config.Config{}
+			cfg.MCP1.Host = u.Hostname()
+			cfg.MCP1.Port = u.Port()
+
+			client := mcp.NewMcpOneClient(cfg)
+			res, err := client.DetectAnomalies(context.Background(), requests.AnomalyDetectionRequest{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed decoding anomaly response payload"))
+			Expect(res).To(BeNil())
+		})
+		It("should handle HTTP client connection error when context is canceled", func() {
+			cfg := &config.Config{}
+			cfg.MCP1.Host = "127.0.0.1"
+			cfg.MCP1.Port = "9999"
+
+			client := mcp.NewMcpOneClient(cfg)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			res, err := client.DetectAnomalies(ctx, requests.AnomalyDetectionRequest{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed communicating with mcp_server_1"))
+			Expect(res).To(BeNil())
+		})
 	})
 })

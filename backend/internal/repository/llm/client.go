@@ -109,9 +109,11 @@ func (c *ollamaClient) QueryStreamWithTools(ctx context.Context, req requests.LL
 
 		if chunk.Message.Content != "" {
 			fullContent.WriteString(chunk.Message.Content)
-			streamChan <- types.StreamEvent{
-				Type:    "text",
-				Content: chunk.Message.Content,
+			if streamChan != nil {
+				streamChan <- types.StreamEvent{
+					Type:    "text",
+					Content: chunk.Message.Content,
+				}
 			}
 		}
 

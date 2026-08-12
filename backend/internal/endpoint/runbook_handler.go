@@ -250,7 +250,7 @@ func normalizeUUID(input string) string {
 // returns a cleansed, llm-optimised incident context - timeline capped at 3 entries
 // metrics noise-filtered, timestamps as relative strings
 func (h *Handler) GetIncidentContext(c *echo.Context) error {
-	rawID := strings.TrimSpace(c.Param("id"))
+	rawID := normalizeUUID(c.Param("id"))
 	if rawID == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "incident id is required"})
 	}

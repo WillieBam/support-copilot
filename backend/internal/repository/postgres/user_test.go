@@ -116,7 +116,7 @@ var _ = Describe("UserRepository", func() {
 		})
 	})
 
-	Context("UpsertUser", func() {
+	Context("UpsertUser & SearchUsers", func() {
 		It("should execute upsert query successfully", func() {
 			user := &models.User{
 				FirebaseUID: "uid-123",
@@ -134,6 +134,20 @@ var _ = Describe("UserRepository", func() {
 
 			err := userRepo.UpsertUser(ctx, user)
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should search users by email or display name", func() {
+			rows := sqlmock.NewRows([]string{"id", "email", "display_name"}).
+				AddRow(uuid.New(), "john@example.com", "John Doe")
+
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE email ILIKE \$1 OR display_name ILIKE \$2 LIMIT \$3`).
+				WithArgs("%john%", "%john%", 10).
+				WillReturnRows(rows)
+
+			users, err := userRepo.SearchUsers(ctx, "john", 10)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(users)).To(Equal(1))
+			Expect(users[0].Email).To(Equal("john@example.com"))
 		})
 	})
 })

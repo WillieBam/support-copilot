@@ -253,6 +253,146 @@ var _ = Describe("Handler", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
+
+		It("should handle error paths in Query, CreateConversation, ListTeamConversations, GetConversationMessages, and SearchUsers", func() {
+			// Query invalid body
+			cQueryBad := e.NewContext(httptest.NewRequest(http.MethodPost, "/api/query", strings.NewReader("invalid")), httptest.NewRecorder())
+			err := h.Query(cQueryBad)
+			Expect(err).NotTo(HaveOccurred())
+
+			// CreateConversation invalid body
+			cConvBad := e.NewContext(httptest.NewRequest(http.MethodPost, "/api/conversations", strings.NewReader("invalid")), httptest.NewRecorder())
+			err = h.CreateConversation(cConvBad)
+			Expect(err).NotTo(HaveOccurred())
+
+			// ListTeamConversations invalid team_id
+			cListBad := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cListBad.SetPathValues(echo.PathValues{{Name: "team_id", Value: "invalid"}})
+			err = h.ListTeamConversations(cListBad)
+			Expect(err).NotTo(HaveOccurred())
+
+			// GetConversationMessages invalid id
+			cMsgBad := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cMsgBad.SetPathValues(echo.PathValues{{Name: "id", Value: "invalid"}})
+			err = h.GetConversationMessages(cMsgBad)
+			Expect(err).NotTo(HaveOccurred())
+
+			// SearchUsers q too short
+			cSearchBad := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/users/search?q=a", nil), httptest.NewRecorder())
+			cSearchBad.Set("user_uid", "uid-123")
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
+			err = hWithUser.SearchUsers(cSearchBad)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should execute Query streaming with conversation creation, title generation, and SSE events", func() {
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
+
+			teamID := uuid.New()
+			convID := uuid.New()
+			incID := uuid.New()
+			userID := uuid.New()
+			user := &models.User{ID: userID, FirebaseUID: "uid-123"}
+
+			userSvc.On("GetUserByFirebaseUID", mock.Anything, "uid-123").Return(user, nil)
+			mockAppSvc.On("CreateConversation", mock.Anything, teamID, userID).Return(&models.Conversation{ID: convID, TeamID: teamID, UserID: userID}, nil)
+			mockAppSvc.On("SaveMessage", mock.Anything, convID, "user", "What is the CPU usage?", "").Return(&models.Message{}, nil)
+			mockAppSvc.On("SaveMessage", mock.Anything, convID, "assistant", "High usage", "").Return(&models.Message{}, nil)
+			mockAppSvc.On("GenerateAndSaveTitle", mock.Anything, convID, "What is the CPU usage?", "High usage").Return("CPU Usage Query", nil)
+
+			mockAppSvc.On("QueryStreamWithTools", mock.Anything, "What is the CPU usage?", mock.Anything, mock.Anything, teamID, incID).Run(func(args mock.Arguments) {
+				ch := args.Get(3).(chan<- types.StreamEvent)
+				ch <- types.StreamEvent{Type: "reasoning", Content: "Reasoning details"}
+				ch <- types.StreamEvent{Type: "text", Content: "High usage"}
+				ch <- types.StreamEvent{Type: "drain", Content: ""}
+				ch <- types.StreamEvent{Type: "text", Content: "High usage"}
+			}).Return(nil)
+
+			reqBody := requests.ChatQueryRequest{
+				Input:      "What is the CPU usage?",
+				TeamID:     &teamID,
+				IncidentID: &incID,
+			}
+			body, _ := json.Marshal(reqBody)
+			req := httptest.NewRequest(http.MethodPost, "/api/query", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "uid-123")
+
+			err := hWithUser.Query(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should handle QueryStreamWithTools error in Query handler", func() {
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
+			convID := uuid.New()
+			teamID := uuid.New()
+			userID := uuid.New()
+			user := &models.User{ID: userID, FirebaseUID: "uid-123"}
+
+			userSvc.On("GetUserByFirebaseUID", mock.Anything, "uid-123").Return(user, nil)
+			mockAppSvc.On("SaveMessage", mock.Anything, convID, "user", "error prompt", "").Return(&models.Message{}, nil)
+			mockAppSvc.On("GetConversationByID", mock.Anything, convID).Return(&models.Conversation{ID: convID, TeamID: teamID}, nil)
+
+			mockAppSvc.On("QueryStreamWithTools", mock.Anything, "error prompt", mock.Anything, mock.Anything, teamID).Return(errors.New("LLM timeout"))
+
+			reqBody := requests.ChatQueryRequest{
+				Input:          "error prompt",
+				ConversationID: &convID,
+			}
+			body, _ := json.Marshal(reqBody)
+			req := httptest.NewRequest(http.MethodPost, "/api/query", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", "uid-123")
+
+			err := hWithUser.Query(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should handle 500 errors for CreateConversation, GetConversationMessages, and SearchUsers", func() {
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
+			userID := uuid.New()
+			userSvc.On("GetUserByFirebaseUID", mock.Anything, "uid-123").Return(&models.User{ID: userID}, nil)
+
+			// CreateConversation invalid team_id or service error
+			cConvBadTeam := e.NewContext(httptest.NewRequest(http.MethodPost, "/api/conversations", strings.NewReader(`{"team_id":"invalid"}`)), httptest.NewRecorder())
+			cConvBadTeam.Request().Header.Set("Content-Type", "application/json")
+			cConvBadTeam.Set("user_uid", "uid-123")
+			err := hWithUser.CreateConversation(cConvBadTeam)
+			Expect(err).NotTo(HaveOccurred())
+
+			teamID := uuid.New()
+			cConvErr := e.NewContext(httptest.NewRequest(http.MethodPost, "/api/conversations", strings.NewReader(`{"team_id":"`+teamID.String()+`"}`)), httptest.NewRecorder())
+			cConvErr.Request().Header.Set("Content-Type", "application/json")
+			cConvErr.Set("user_uid", "uid-123")
+			mockAppSvc.On("CreateConversation", mock.Anything, teamID, userID).Return(nil, errors.New("db error")).Once()
+			err = hWithUser.CreateConversation(cConvErr)
+			Expect(err).NotTo(HaveOccurred())
+
+			// GetConversationMessages 500
+			convID := uuid.New()
+			cMsgErr := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cMsgErr.SetPathValues(echo.PathValues{{Name: "id", Value: convID.String()}})
+			mockAppSvc.On("ListMessagesByConversation", mock.Anything, convID).Return(nil, errors.New("db error")).Once()
+			err = h.GetConversationMessages(cMsgErr)
+			Expect(err).NotTo(HaveOccurred())
+
+			// SearchUsers 500
+			cSearchErr := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/users/search?q=engineer", nil), httptest.NewRecorder())
+			cSearchErr.Set("user_uid", "uid-123")
+			userSvc.On("SearchUsers", mock.Anything, "engineer", 10).Return(nil, errors.New("db error")).Once()
+			err = hWithUser.SearchUsers(cSearchErr)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
 	Context("IngestAlert", func() {

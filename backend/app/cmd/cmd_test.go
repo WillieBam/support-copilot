@@ -23,6 +23,12 @@ var _ = Describe("Cmd Package", func() {
 			Expect(supportCopilotCmd).NotTo(BeNil())
 			Expect(supportCopilotCmd.Use).To(Equal("server"))
 		})
+
+		It("should execute root command with help flag without errors", func() {
+			rootCmd.SetArgs([]string{"--help"})
+			err := rootCmd.Execute()
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
 	Context("SPA Static Handler", func() {

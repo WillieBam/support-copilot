@@ -128,7 +128,7 @@ func (s *orchestratorService) ExecuteValidateAlertRaw(ctx context.Context, rawAr
 		return "", err
 	}
 
-	cleanAlertID := strings.TrimSpace(alertIDStr)
+	cleanAlertID := normalizeUUID(alertIDStr)
 	if cleanAlertID == "" || cleanAlertID == "null" || cleanAlertID == "none" || cleanAlertID == "undefined" {
 		slog.Warn("[ORCHESTRATOR] Empty or dummy alert_id provided", "alertID", alertIDStr)
 		return "", fmt.Errorf("no valid alert_id provided: %q", alertIDStr)

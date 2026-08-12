@@ -190,6 +190,18 @@ var _ = Describe("DashboardService", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(Equal(expected))
 		})
+		It("should return error when GetMTTRStats or CountBreachedIncidents fails", func() {
+			teamRepo.On("GetMemberRole", ctx, teamID, requesterID).Return("member", nil).Twice()
+			dashRepo.On("GetMTTRStats", ctx, teamID).Return(0.0, 0, gorm.ErrInvalidDB).Once()
+
+			_, err := dashSvc.GetMTTR(ctx, requesterID, teamID, "engineer", 30)
+			Expect(err).To(Equal(gorm.ErrInvalidDB))
+
+			dashRepo.On("GetMTTRStats", ctx, teamID).Return(10.0, 5, nil).Once()
+			dashRepo.On("CountBreachedIncidents", ctx, teamID, 30).Return(0, gorm.ErrInvalidDB).Once()
+			_, err = dashSvc.GetMTTR(ctx, requesterID, teamID, "engineer", 30)
+			Expect(err).To(Equal(gorm.ErrInvalidDB))
+		})
 	})
 
 	Context("GetAllTeamsMTTR", func() {
@@ -203,6 +215,27 @@ var _ = Describe("DashboardService", func() {
 			result, err := dashSvc.GetAllTeamsMTTR(ctx, "super_admin", 0)
 			Expect(err).To(Equal(customErrors.ErrInvalidSLATarget))
 			Expect(result).To(BeNil())
+		})
+
+		It("should return zero compliance rate when total resolved is zero for super_admin", func() {
+			dashRepo.On("GetAllTeamsMTTRStats", ctx).Return(0.0, 0, nil)
+			dashRepo.On("CountAllTeamsBreachedIncidents", ctx, 30).Return(0, nil)
+
+			result, err := dashSvc.GetAllTeamsMTTR(ctx, "super_admin", 30)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.TotalResolved).To(Equal(0))
+			Expect(result.ComplianceRate).To(Equal(0.0))
+		})
+
+		It("should return error when GetAllTeamsMTTRStats or CountAllTeamsBreachedIncidents fails", func() {
+			dashRepo.On("GetAllTeamsMTTRStats", ctx).Return(0.0, 0, gorm.ErrInvalidDB).Once()
+			_, err := dashSvc.GetAllTeamsMTTR(ctx, "super_admin", 30)
+			Expect(err).To(Equal(gorm.ErrInvalidDB))
+
+			dashRepo.On("GetAllTeamsMTTRStats", ctx).Return(10.0, 2, nil).Once()
+			dashRepo.On("CountAllTeamsBreachedIncidents", ctx, 30).Return(0, gorm.ErrInvalidDB).Once()
+			_, err = dashSvc.GetAllTeamsMTTR(ctx, "super_admin", 30)
+			Expect(err).To(Equal(gorm.ErrInvalidDB))
 		})
 
 		It("should return all teams mttr stats for super_admin", func() {
@@ -225,13 +258,19 @@ var _ = Describe("DashboardService", func() {
 			Expect(result).To(BeNil())
 		})
 
-		It("should return all teams breached incidents for super_admin", func() {
+		It("should return ErrInvalidSLATarget for negative SLA target", func() {
+			result, err := dashSvc.GetAllTeamsBreachedIncidents(ctx, "super_admin", -5, 50, 0)
+			Expect(err).To(Equal(customErrors.ErrInvalidSLATarget))
+			Expect(result).To(BeNil())
+		})
+
+		It("should return all teams breached incidents for super_admin and normalise limit 0 to 50", func() {
 			expected := []types.BreachedIncident{
 				{ID: uuid.New().String(), Title: "Global Outage", DurationMinutes: 120.0},
 			}
 			dashRepo.On("GetAllTeamsBreachedIncidents", ctx, 30, 50, 0).Return(expected, nil)
 
-			result, err := dashSvc.GetAllTeamsBreachedIncidents(ctx, "super_admin", 30, 50, 0)
+			result, err := dashSvc.GetAllTeamsBreachedIncidents(ctx, "super_admin", 30, 0, 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(Equal(expected))
 		})

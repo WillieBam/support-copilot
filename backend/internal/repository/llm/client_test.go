@@ -2,6 +2,7 @@ package llm_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	llm "github.com/WillieBam/support_copilot/backend/internal/repository/llm"
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/requests"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
 )
 
 var _ = Describe("OllamaClient", func() {
@@ -600,6 +602,42 @@ var _ = Describe("OllamaClient", func() {
 			msg, err := client.QueryStreamWithTools(context.Background(), req, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(msg.ToolCalls)).To(Equal(1))
+		})
+
+		It("should return custom error sentinels for status 429 and 503 responses", func() {
+			// Status 429 Rate Limit
+			mockRateLimitServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusTooManyRequests)
+				w.Write([]byte(`{"error": "rate limit exceeded"}`))
+			}))
+			defer mockRateLimitServer.Close()
+
+			cfg429 := &config.Config{}
+			cfg429.LLM.BaseURL = mockRateLimitServer.URL
+			client429 := llm.NewOllamaClient(cfg429)
+			_, err := client429.QueryStreamWithTools(context.Background(), requests.LLMChatRequest{}, nil)
+			Expect(errors.Is(err, customErrors.ErrRateLimitExceeded)).To(BeTrue())
+
+			clientOpenAI429 := llm.NewOpenAIClient(cfg429)
+			_, err = clientOpenAI429.QueryStreamWithTools(context.Background(), requests.LLMChatRequest{}, nil)
+			Expect(errors.Is(err, customErrors.ErrRateLimitExceeded)).To(BeTrue())
+
+			// Status 503 Service Unavailable
+			mock503Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				w.Write([]byte(`{"error": "service unavailable"}`))
+			}))
+			defer mock503Server.Close()
+
+			cfg503 := &config.Config{}
+			cfg503.LLM.BaseURL = mock503Server.URL
+			client503 := llm.NewOllamaClient(cfg503)
+			_, err = client503.QueryStreamWithTools(context.Background(), requests.LLMChatRequest{}, nil)
+			Expect(errors.Is(err, customErrors.ErrServiceUnavailable)).To(BeTrue())
+
+			clientOpenAI503 := llm.NewOpenAIClient(cfg503)
+			_, err = clientOpenAI503.QueryStreamWithTools(context.Background(), requests.LLMChatRequest{}, nil)
+			Expect(errors.Is(err, customErrors.ErrServiceUnavailable)).To(BeTrue())
 		})
 	})
 })

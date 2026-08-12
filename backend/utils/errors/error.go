@@ -20,6 +20,7 @@ var (
 	ErrTeamNotFound          = errors.New("team not found")
 	ErrRunbookNotFound       = errors.New("runbook not found")
 	ErrInstructionTooShort   = errors.New("instruction details must be at least 30 characters long")
+	ErrUserNotFound          = errors.New("User not found")
 )
 
 // dashboard errors

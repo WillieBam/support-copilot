@@ -56,9 +56,10 @@ var _ = Describe("TeamHandler", func() {
 		teamID = uuid.New()
 		incidentID = uuid.New()
 
+		fbUID := "fb-uid-123"
 		testUser = &models.User{
 			ID:          userID,
-			FirebaseUID: "fb-uid-123",
+			FirebaseUID: &fbUID,
 			Email:       "engineer@test.com",
 			DisplayName: "Test Engineer",
 			Scope:       "engineer",
@@ -385,7 +386,8 @@ var _ = Describe("TeamHandler", func() {
 		})
 
 		It("should return 200 when user scope is super_admin", func() {
-			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			fbUID := "fb-uid-123"
+			adminUser := &models.User{ID: userID, FirebaseUID: &fbUID, Scope: "super_admin"}
 			req := httptest.NewRequest(http.MethodDelete, "/api/admin/teams/"+teamID.String(), nil)
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
@@ -417,7 +419,8 @@ var _ = Describe("TeamHandler", func() {
 		})
 
 		It("should return 200 when user scope is super_admin", func() {
-			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			fbUID := "fb-uid-123"
+			adminUser := &models.User{ID: userID, FirebaseUID: &fbUID, Scope: "super_admin"}
 			req := httptest.NewRequest(http.MethodGet, "/api/admin/teams", nil)
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
@@ -650,7 +653,8 @@ var _ = Describe("TeamHandler", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// DeleteTeam 500
-			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			fbUID := "fb-uid-123"
+			adminUser := &models.User{ID: userID, FirebaseUID: &fbUID, Scope: "super_admin"}
 			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "admin-uid").Return(adminUser, nil)
 			cDelErr := e.NewContext(httptest.NewRequest(http.MethodDelete, "/", nil), httptest.NewRecorder())
 			cDelErr.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})

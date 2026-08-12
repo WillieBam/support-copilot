@@ -70,7 +70,7 @@ var _ = Describe("Handler", func() {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			mockAuthSvc.On("ExchangeToken", mock.Anything, "mfa-token").Return("", nil, errors.New("mfa_required"))
+			mockAuthSvc.On("ExchangeToken", mock.Anything, "mfa-token", "").Return("", nil, errors.New("mfa_required"))
 
 			err := h.TokenExchangeHandler(c)
 			Expect(err).NotTo(HaveOccurred())
@@ -90,7 +90,7 @@ var _ = Describe("Handler", func() {
 					ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
 				},
 			}
-			mockAuthSvc.On("ExchangeToken", mock.Anything, "valid-token").Return("backend-token", claims, nil)
+			mockAuthSvc.On("ExchangeToken", mock.Anything, "valid-token", "").Return("backend-token", claims, nil)
 
 			err := h.TokenExchangeHandler(c)
 			Expect(err).NotTo(HaveOccurred())
@@ -294,7 +294,8 @@ var _ = Describe("Handler", func() {
 			convID := uuid.New()
 			incID := uuid.New()
 			userID := uuid.New()
-			user := &models.User{ID: userID, FirebaseUID: "uid-123"}
+			fbUID := "uid-123"
+			user := &models.User{ID: userID, FirebaseUID: &fbUID}
 
 			userSvc.On("GetUserByFirebaseUID", mock.Anything, "uid-123").Return(user, nil)
 			mockAppSvc.On("CreateConversation", mock.Anything, teamID, userID).Return(&models.Conversation{ID: convID, TeamID: teamID, UserID: userID}, nil)
@@ -333,7 +334,8 @@ var _ = Describe("Handler", func() {
 			convID := uuid.New()
 			teamID := uuid.New()
 			userID := uuid.New()
-			user := &models.User{ID: userID, FirebaseUID: "uid-123"}
+			fbUID := "uid-123"
+			user := &models.User{ID: userID, FirebaseUID: &fbUID}
 
 			userSvc.On("GetUserByFirebaseUID", mock.Anything, "uid-123").Return(user, nil)
 			mockAppSvc.On("SaveMessage", mock.Anything, convID, "user", "error prompt", "").Return(&models.Message{}, nil)

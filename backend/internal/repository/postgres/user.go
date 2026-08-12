@@ -2,9 +2,12 @@ package postgres
 
 import (
 	"context"
+	"errors"
 
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types/models"
+	customErrors "github.com/WillieBam/support_copilot/backend/utils/errors"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -26,10 +29,42 @@ func (u *userRepository) GetUserByFirebaseUID(ctx context.Context, firebaseUid s
 	err := u.db.Where("firebase_uid = ?", firebaseUid).First(&user).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, customErrors.ErrUserNotFound
+		}
 		return nil, err
 	}
 
 	return &user, nil
+}
+
+func (u *userRepository) GetUserByUsernameOrEmail(ctx context.Context, identifier string) (*models.User, error) {
+	var user models.User
+	err := u.db.WithContext(ctx).Where("username = ? OR email = ?", identifier, identifier).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, customErrors.ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (u *userRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	var user models.User
+	err := u.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, customErrors.ErrUserNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (u *userRepository) UpdateUser(ctx context.Context, user *models.User) error {
+	return u.db.WithContext(ctx).Save(user).Error
 }
 
 func (u *userRepository) UpsertUser(ctx context.Context, user *models.User) error {
@@ -46,7 +81,7 @@ func (u *userRepository) SearchUsers(ctx context.Context, query string, limit in
 	var users []models.User
 	searchPattern := "%" + query + "%"
 	err := u.db.WithContext(ctx).
-		Where("email ILIKE ? OR display_name ILIKE ?", searchPattern, searchPattern).
+		Where("email ILIKE ? OR display_name ILIKE ? OR username ILIKE ?", searchPattern, searchPattern, searchPattern).
 		Limit(limit).
 		Find(&users).Error
 	return users, err

@@ -8,7 +8,11 @@ import (
 
 type User struct {
 	ID            uuid.UUID    `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
-	FirebaseUID   string       `gorm:"type:varchar(255);not null;unique" json:"firebase_uid"`
+	FirebaseUID   *string      `gorm:"type:varchar(255);unique;default:null" json:"firebase_uid,omitempty"`
+	Username      *string      `gorm:"type:varchar(255);unique;default:null" json:"username,omitempty"`
+	PasswordHash  string       `gorm:"type:varchar(255)" json:"-"`
+	TOTPSecret    string       `gorm:"type:varchar(255)" json:"-"`
+	TOTPEnabled   bool         `gorm:"default:false" json:"totp_enabled"`
 	Email         string       `gorm:"type:varchar(255);not null;unique" json:"email"`
 	DisplayName   string       `gorm:"type:varchar(100)" json:"display_name"`
 	CreatedAt     time.Time    `gorm:"type:timestamp(0);default:CURRENT_TIMESTAMP" json:"created_at"`

@@ -48,9 +48,10 @@ var _ = Describe("DashboardHandler", func() {
 		userID = uuid.New()
 		teamID = uuid.New()
 
+		fbUID := "fb-uid-123"
 		testUser = &models.User{
 			ID:          userID,
-			FirebaseUID: "fb-uid-123",
+			FirebaseUID: &fbUID,
 			Email:       "engineer@test.com",
 			Scope:       "engineer",
 		}
@@ -178,7 +179,8 @@ var _ = Describe("DashboardHandler", func() {
 		})
 
 		It("should return 200 on successful GetAllTeamsIncidentTrend", func() {
-			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			fbUID := "fb-uid-123"
+			adminUser := &models.User{ID: userID, FirebaseUID: &fbUID, Scope: "super_admin"}
 			req := httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/incidents/trend?timeframe=month", nil)
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
@@ -199,7 +201,8 @@ var _ = Describe("DashboardHandler", func() {
 
 	Context("GetAllTeamsMTTR", func() {
 		It("should return 200 on successful GetAllTeamsMTTR", func() {
-			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			fbUID := "fb-uid-123"
+			adminUser := &models.User{ID: userID, FirebaseUID: &fbUID, Scope: "super_admin"}
 			req := httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/mttr?sla_target_minutes=30", nil)
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
@@ -223,7 +226,8 @@ var _ = Describe("DashboardHandler", func() {
 
 	Context("GetAllTeamsBreachedIncidents", func() {
 		It("should return 200 on successful GetAllTeamsBreachedIncidents", func() {
-			adminUser := &models.User{ID: userID, FirebaseUID: "fb-uid-123", Scope: "super_admin"}
+			fbUID := "fb-uid-123"
+			adminUser := &models.User{ID: userID, FirebaseUID: &fbUID, Scope: "super_admin"}
 			req := httptest.NewRequest(http.MethodGet, "/api/admin/dashboard/incidents/breached?sla_target_minutes=30&limit=10&offset=0", nil)
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
@@ -265,7 +269,8 @@ var _ = Describe("DashboardHandler", func() {
 		})
 
 		It("should return 500 when dashboard service returns error", func() {
-			adminUser := &models.User{ID: userID, FirebaseUID: "admin-uid", Scope: "super_admin"}
+			adminUID := "admin-uid"
+			adminUser := &models.User{ID: userID, FirebaseUID: &adminUID, Scope: "super_admin"}
 			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "admin-uid").Return(adminUser, nil)
 			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(testUser, nil)
 

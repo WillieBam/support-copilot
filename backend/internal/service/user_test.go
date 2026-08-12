@@ -28,9 +28,10 @@ var _ = Describe("UserService", func() {
 
 	Context("GetUserByFirebaseUID", func() {
 		It("should delegate GetUserByFirebaseUID to user repository", func() {
+			fbUID := "fb-123"
 			expectedUser := &models.User{
 				ID:          uuid.New(),
-				FirebaseUID: "fb-123",
+				FirebaseUID: &fbUID,
 				Email:       "test@example.com",
 			}
 			mockUserRepo.On("GetUserByFirebaseUID", ctx, "fb-123").Return(expectedUser, nil)

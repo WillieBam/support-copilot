@@ -63,31 +63,36 @@ func InitDatabase(db *gorm.DB) {
 }
 
 func seedUsers(db *gorm.DB) {
+	fbReal := "PrzOYbxjkQZU5pzmudAXXQrlf2G3"
+	fbAdmin := "fb_superadmin_111"
+	fbLead := "fb_lead_engineer_222"
+	fbEng1 := "fb_an_engineer_1"
+
 	defaultUsers := []models.User{
 		{
 			ID:          realUserID,
-			FirebaseUID: "PrzOYbxjkQZU5pzmudAXXQrlf2G3",
+			FirebaseUID: &fbReal,
 			Email:       "meilin.22@1utar.my",
 			DisplayName: "Meilin",
 			Scope:       "engineer",
 		},
 		{
 			ID:          superAdminID,
-			FirebaseUID: "fb_superadmin_111",
+			FirebaseUID: &fbAdmin,
 			Email:       "iswilliebam@gmail.com",
 			DisplayName: "System Boss",
 			Scope:       "super_admin",
 		},
 		{
 			ID:          leadEngineerID,
-			FirebaseUID: "fb_lead_engineer_222",
+			FirebaseUID: &fbLead,
 			Email:       "lead.engineer@company.com",
 			DisplayName: "Copper Lead",
 			Scope:       "engineer",
 		},
 		{
 			ID:          engineerID1,
-			FirebaseUID: "fb_an_engineer_1",
+			FirebaseUID: &fbEng1,
 			Email:       "an.engineer@company.com",
 			DisplayName: "An En",
 			Scope:       "engineer",

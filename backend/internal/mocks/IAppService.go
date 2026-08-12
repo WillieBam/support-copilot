@@ -8,6 +8,7 @@ import (
 	mock "github.com/stretchr/testify/mock"
 
 	models "github.com/WillieBam/support_copilot/backend/types/models"
+
 	requests "github.com/WillieBam/support_copilot/backend/types/requests"
 
 	types "github.com/WillieBam/support_copilot/backend/types"

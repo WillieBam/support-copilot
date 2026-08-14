@@ -5,6 +5,7 @@ package mocks
 import (
 	context "context"
 
+	interfaces "github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	mock "github.com/stretchr/testify/mock"
 
 	types "github.com/WillieBam/support_copilot/backend/types"
@@ -43,6 +44,11 @@ func (_m *ICommandInterceptor) Intercept(ctx context.Context, prompt string) (*t
 	}
 
 	return r0, r1
+}
+
+// RegisterHandler provides a mock function with given fields: handler
+func (_m *ICommandInterceptor) RegisterHandler(handler interfaces.ICommandHandler) {
+	_m.Called(handler)
 }
 
 // NewICommandInterceptor creates a new instance of ICommandInterceptor. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

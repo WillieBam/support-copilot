@@ -8,4 +8,5 @@ import (
 
 type ICommandInterceptor interface {
 	Intercept(ctx context.Context, prompt string) (*types.CommandResult, error)
+	RegisterHandler(handler ICommandHandler)
 }

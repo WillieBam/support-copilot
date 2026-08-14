@@ -6,6 +6,9 @@
 .venv/
 __pycache__/
 *.pyc
+/mcp_servers/data
+/mcp_servers/server_1/archive
+
 
 # Node
 node_modules/
@@ -19,3 +22,6 @@ bin/
 
 # Firebase
 *serviceAccountKey*.json
+
+
+*.out

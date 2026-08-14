@@ -5,6 +5,7 @@ package mocks
 import (
 	context "context"
 
+	interfaces "github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	mock "github.com/stretchr/testify/mock"
 
 	requests "github.com/WillieBam/support_copilot/backend/types/requests"
@@ -66,6 +67,11 @@ func (_m *IToolRegistry) GetTools() []requests.LLMTool {
 // Register provides a mock function with given fields: name, tool, handler
 func (_m *IToolRegistry) Register(name string, tool requests.LLMTool, handler func(context.Context, string) (string, error)) {
 	_m.Called(name, tool, handler)
+}
+
+// RegisterTool provides a mock function with given fields: tool
+func (_m *IToolRegistry) RegisterTool(tool interfaces.ITool) {
+	_m.Called(tool)
 }
 
 // NewIToolRegistry creates a new instance of IToolRegistry. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

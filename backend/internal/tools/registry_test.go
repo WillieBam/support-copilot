@@ -42,6 +42,30 @@ func TestToolRegistry_RegisterAndExecute(t *testing.T) {
 	}
 }
 
+// test RegisterTool with concrete ITool
+func TestToolRegistry_RegisterTool(t *testing.T) {
+	tr := tools.NewToolRegistry()
+	mockOrchestrator := mocks.NewIOrchestratorService(t)
+
+	tool := tools.NewValidateAlertTool(mockOrchestrator)
+	tr.RegisterTool(tool)
+
+	if len(tr.GetTools()) != 1 {
+		t.Fatalf("expected 1 tool, got %d", len(tr.GetTools()))
+	}
+	if tr.GetTools()[0].Function.Name != "validate_alert" {
+		t.Fatalf("expected validate_alert, got %s", tr.GetTools()[0].Function.Name)
+	}
+
+	ctx := context.Background()
+	mockOrchestrator.On("ExecuteValidateAlertRaw", ctx, `{"alert_id":"123"}`).Return("valid", nil)
+
+	res, err := tr.Execute(ctx, "validate_alert", `{"alert_id":"123"}`)
+	if err != nil || res != "valid" {
+		t.Fatalf("unexpected result: %s, error: %v", res, err)
+	}
+}
+
 // TestRegisterDefaultTools tests default tool handler execution
 func TestRegisterDefaultTools(t *testing.T) {
 	tr := tools.NewToolRegistry()

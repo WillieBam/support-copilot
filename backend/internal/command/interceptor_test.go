@@ -291,8 +291,22 @@ var _ = Describe("CommandInterceptor", func() {
 		})
 	})
 
+	Context("Intercept /help", func() {
+		It("should list all available registered slash commands", func() {
+			res, err := ci.Intercept(ctx, "/help")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(ContainSubstring("Available slash commands:"))
+			Expect(res.Message).To(ContainSubstring("/quit"))
+			Expect(res.Message).To(ContainSubstring("/incident"))
+			Expect(res.Message).To(ContainSubstring("/runbook"))
+			Expect(res.Message).To(ContainSubstring("/alert"))
+			Expect(res.Message).To(ContainSubstring("/help"))
+		})
+	})
+
 	Context("Register custom command", func() {
-		It("should allow registering custom slash command handlers", func() {
+		It("should allow registering custom slash command handlers via RegisterCommand", func() {
 			realCi := command.NewCommandInterceptor().(*command.CommandInterceptor)
 			realCi.RegisterCommand("/ping", func(ctx context.Context, prompt string) (*types.CommandResult, error) {
 				return &types.CommandResult{
@@ -305,6 +319,22 @@ var _ = Describe("CommandInterceptor", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
 			Expect(res.Message).To(Equal("pong"))
+		})
+
+		It("should allow registering custom slash command handlers via RegisterHandler", func() {
+			realCi := command.NewCommandInterceptor().(*command.CommandInterceptor)
+			customHandler := command.NewFuncCommandHandler("/echo", "Echoes the input", func(ctx context.Context, prompt string) (*types.CommandResult, error) {
+				return &types.CommandResult{
+					Handled: true,
+					Message: prompt,
+				}, nil
+			})
+			realCi.RegisterHandler(customHandler)
+
+			res, err := realCi.Intercept(ctx, "/echo hello world")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.Handled).To(BeTrue())
+			Expect(res.Message).To(Equal("/echo hello world"))
 		})
 	})
 

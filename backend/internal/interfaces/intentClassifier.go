@@ -1,7 +1,6 @@
 package interfaces
 
 import (
-	"github.com/WillieBam/support_copilot/backend/internal/classifier"
 	"github.com/WillieBam/support_copilot/backend/types"
 )
 
@@ -9,6 +8,6 @@ import (
 // The concrete implementation lives in internal/classifier; this interface allows
 // AppService to accept mock classifiers in tests.
 type IIntentClassifier interface {
-	Classify(prompt string) classifier.Intent
-	ClassifyWithHistory(prompt string, history []types.HistoryMessage) classifier.Intent
+	Classify(prompt string) types.Intent
+	ClassifyWithHistory(prompt string, history []types.HistoryMessage) types.Intent
 }

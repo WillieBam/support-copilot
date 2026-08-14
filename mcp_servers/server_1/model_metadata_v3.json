@@ -1,0 +1,67 @@
+{
+  "model_version": "v3.0_balanced",
+  "description": "Novelty Isolation Forest calibrated for Precision >= 80% with maximal Recall",
+  "split_strategy": "time_sliced_70_15_15",
+  "split_sizes": {
+    "train": 700,
+    "val": 150,
+    "test": 150
+  },
+  "feature_columns": [
+    "robust_z_max",
+    "robust_z_top2_mean",
+    "robust_z_top3_mean",
+    "robust_z_mean",
+    "robust_z_p90",
+    "max_abs_rel_change",
+    "top2_mean_rel_change",
+    "mild_outlier_count",
+    "mild_outlier_ratio",
+    "strong_outlier_count",
+    "strong_outlier_ratio",
+    "top3_anomaly_energy",
+    "group_availability_max_z",
+    "group_cpu_max_z",
+    "group_errors_max_z",
+    "group_latency_max_z",
+    "group_logs_max_z",
+    "group_memory_max_z",
+    "group_traffic_max_z"
+  ],
+  "balanced_threshold": -0.018817377409805935,
+  "val_precision": 0.8594,
+  "val_recall": 0.7746,
+  "val_f1_score": 0.8148,
+  "test_roc_auc": 0.8404,
+  "test_precision": 0.8209,
+  "test_recall": 0.7534,
+  "test_f1_score": 0.7857,
+  "metric_groups": {
+    "cpu": [
+      "cpu_usage"
+    ],
+    "memory": [
+      "memory_usage"
+    ],
+    "traffic": [
+      "incoming_traffic",
+      "outgoing_traffic",
+      "network_throughput",
+      "request_rate"
+    ],
+    "errors": [
+      "error_rate",
+      "retry_rate",
+      "timeout_count"
+    ],
+    "latency": [
+      "response_latency"
+    ],
+    "availability": [
+      "availability_percent"
+    ],
+    "logs": [
+      "log_repetition_count"
+    ]
+  }
+}

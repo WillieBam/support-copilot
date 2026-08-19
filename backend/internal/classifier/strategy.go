@@ -13,7 +13,7 @@ var uuidPattern = regexp.MustCompile(
 )
 
 // conversationalPatterns is the ordered list of regex rules used to detect
-// conversational prompts.
+// conversational prompts
 var conversationalPatterns = []*regexp.Regexp{
 	// pattern1: ok, okay, alright, got it, sure, fine, noted
 	regexp.MustCompile(`(?i)^(ok(ay)?|alright|got\s+it|sure|fine|noted)(\s+[\w\s'!,.]{0,20})?$`),
@@ -50,7 +50,7 @@ var taskKeywords = []string{
 	"list", "show", "get",
 }
 
-// RegexRuleStrategy implements IClassificationStrategy using regular expressions and heuristics.
+// RegexRuleStrategy implements IClassificationStrategy using regular expressions and heuristics
 type RegexRuleStrategy struct{}
 
 func NewRegexRuleStrategy() interfaces.IClassificationStrategy {

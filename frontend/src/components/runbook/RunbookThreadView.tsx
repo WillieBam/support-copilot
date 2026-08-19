@@ -128,7 +128,7 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
                             <Edit3 className="w-3 h-3 text-emerald-500" /> Edited by: <strong className="text-foreground font-medium">{getUserDisplayName(latestLog.updated_by)}</strong>
                           </span>
                           <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" /> {formatDate(latestLog.updated_at)}
+                            <Calendar className="w-3 h-3" /> {formatDate(runbook.updated_at)}
                           </span>
                         </>
                       ) : (
@@ -141,6 +141,7 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
                           </span>
                         </>
                       )}
+
                     </div>
                   </div>
 
@@ -206,30 +207,40 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
 
                 {showHistory && (
                   <div className="space-y-3 pt-2 border-t border-border/60">
-                    {runbookLogs.map((log) => (
-                      <div key={log.id} className="bg-background/80 border border-border/80 rounded-xl p-3.5 space-y-2 text-xs">
-                        <div className="flex items-center justify-between text-muted-foreground">
-                          <span className="font-semibold text-emerald-500">Version #{log.version}</span>
-                          <div className="flex items-center gap-3 text-[11px]">
-                            <span>
-                              {log.version === 1 ? 'Created by:' : 'Edited by:'}{' '}
-                              <strong className="text-foreground">
-                                {getUserDisplayName(log.version === 1 ? runbook.created_by : log.updated_by)}
-                              </strong>
-                            </span>
-                            <span>{formatDate(log.updated_at)}</span>
+                    {runbookLogs.map((log, idx) => {
+                      const authorId = log.version === 1 || idx === runbookLogs.length - 1
+                        ? runbook.created_by
+                        : runbookLogs[idx + 1]?.updated_by;
+                      const versionTime = log.version === 1 || idx === runbookLogs.length - 1
+                        ? runbook.created_at
+                        : log.updated_at;
+
+                      return (
+                        <div key={log.id} className="bg-background/80 border border-border/80 rounded-xl p-3.5 space-y-2 text-xs">
+                          <div className="flex items-center justify-between text-muted-foreground">
+                            <span className="font-semibold text-emerald-500">Version #{log.version}</span>
+                            <div className="flex items-center gap-3 text-[11px]">
+                              <span>
+                                {log.version === 1 ? 'Created by:' : 'Edited by:'}{' '}
+                                <strong className="text-foreground">
+                                  {getUserDisplayName(authorId)}
+                                </strong>
+                              </span>
+                              <span>{formatDate(versionTime)}</span>
+                            </div>
+                          </div>
+                          {log.older_title && (
+                            <p className="font-bold text-foreground truncate">Previous Title: {log.older_title}</p>
+                          )}
+                          <div className="p-2.5 bg-muted/40 rounded-lg text-muted-foreground whitespace-pre-wrap font-mono text-[11px] max-h-40 overflow-y-auto">
+                            {log.older_content}
                           </div>
                         </div>
-                        {log.older_title && (
-                          <p className="font-bold text-foreground truncate">Previous Title: {log.older_title}</p>
-                        )}
-                        <div className="p-2.5 bg-muted/40 rounded-lg text-muted-foreground whitespace-pre-wrap font-mono text-[11px] max-h-40 overflow-y-auto">
-                          {log.older_content}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
+
               </div>
             )}
           </div>

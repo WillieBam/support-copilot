@@ -139,7 +139,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
 
               <div className="flex items-center gap-4 pt-3 border-t border-border/60 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" /> Created: {formatDate(incident.assigned_at)}
+                  <Clock className="w-3.5 h-3.5" /> Created: {formatDate(incident.created_at)}
                 </span>
               </div>
             </div>

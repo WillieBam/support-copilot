@@ -9,7 +9,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/types"
 )
 
-// CommandHandler is the function signature for legacy slash command handlers.
+// CommandHandler is the function signature for legacy slash command handlers
 type CommandHandler func(ctx context.Context, prompt string) (*types.CommandResult, error)
 
 type CommandInterceptor struct {

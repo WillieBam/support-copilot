@@ -204,21 +204,31 @@ export const ManageInstructionModal: React.FC<ManageInstructionModalProps> = ({
                   </p>
                 ) : (
                   <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
-                    {logs.map((log) => (
-                      <div key={log.id} className="p-3 bg-muted/30 border border-border rounded-xl text-xs space-y-1">
-                        <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-                          <span className="font-bold text-foreground">Version #{log.version}</span>
-                          <span>{formatDate(log.updated_at)}</span>
+                    {logs.map((log, idx) => {
+                      const authorId = log.version === 1 || idx === logs.length - 1
+                        ? instruction?.created_by
+                        : logs[idx + 1]?.updated_by;
+                      const versionTime = log.version === 1 || idx === logs.length - 1
+                        ? instruction?.created_at
+                        : log.updated_at;
+
+                      return (
+                        <div key={log.id} className="p-3 bg-muted/30 border border-border rounded-xl text-xs space-y-1">
+                          <div className="flex items-center justify-between text-muted-foreground text-[11px]">
+                            <span className="font-bold text-foreground">Version #{log.version}</span>
+                            <span>{formatDate(versionTime)}</span>
+                          </div>
+                          <p className="font-mono text-muted-foreground bg-background/50 p-2 rounded-lg whitespace-pre-wrap text-[11px]">
+                            {log.older_instruction}
+                          </p>
+                          <span className="text-[10px] text-muted-foreground/70 block">
+                            {log.version === 1 ? 'Created by:' : 'Edited by:'} {getUserDisplayName(authorId)}
+                          </span>
                         </div>
-                        <p className="font-mono text-muted-foreground bg-background/50 p-2 rounded-lg whitespace-pre-wrap text-[11px]">
-                          {log.older_instruction}
-                        </p>
-                        <span className="text-[10px] text-muted-foreground/70 block">
-                          {log.version === 1 ? 'Created by:' : 'Edited by:'} {getUserDisplayName(log.updated_by)}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+
                 )}
               </div>
             )}

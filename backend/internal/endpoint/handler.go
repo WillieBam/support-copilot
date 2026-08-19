@@ -45,51 +45,7 @@ func NewHandler(a interfaces.IAppService, authService interfaces.IAuthService, o
 	return h
 }
 
-// TokenExchangeHandler converts a validated Firebase token into a JWT session token
-// func (h *Handler) TokenExchangeHandler(c *echo.Context) error {
-// 	var req requests.TokenExchangeRequest
-// 	if err := c.Bind(&req); err != nil {
-// 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing request payload"})
-// 	}
 
-// 	if req.FirebaseToken == "" {
-// 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing firebase request"})
-// 	}
-
-// 	verified, claims, err := h.authService.ExchangeToken(c.Request().Context(), req.FirebaseToken)
-// 	if err != nil {
-// 		if err.Error() == "mfa_required" {
-// 			return c.JSON(http.StatusForbidden, map[string]string{
-// 				"error":   "mfa_required",
-// 				"message": "TOTP verification required",
-// 			})
-// 		}
-// 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
-// 	}
-
-// 	var expires time.Time
-// 	if claims != nil && claims.ExpiresAt != nil {
-// 		expires = claims.ExpiresAt.Time
-// 	} else {
-// 		expires = time.Now().Add(1 * time.Hour)
-// 	}
-
-// 	cookie := &http.Cookie{
-// 		Name:     "support_copilot_session",
-// 		Value:    verified,
-// 		Expires:  expires,
-// 		Path:     "/",
-// 		HttpOnly: true,
-// 		Secure:   false,
-// 		SameSite: http.SameSiteLaxMode,
-// 	}
-// 	c.SetCookie(cookie)
-// 	slog.Info("Successfully created and attached HttpOnly session cookie",
-// 		"user_uid", claims.FirebaseUID,
-// 		"expires_at", expires.Format(time.RFC3339),
-// 	)
-// 	return c.JSON(http.StatusOK, map[string]string{"status": "authenticated"})
-// }
 
 func (h *Handler) Me(c *echo.Context) error {
 	uidVal := c.Get("user_uid")
@@ -401,9 +357,9 @@ func (h *Handler) CreateConversation(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	if req.TeamID != uuid.Nil && user.Scope != "super_admin" && h.teamService != nil {
-		if _, err := h.teamService.GetMemberRole(c.Request().Context(), req.TeamID, user.ID); err != nil {
-			return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: not a member of this team"})
+	if req.TeamID != uuid.Nil {
+		if !h.checkTeamMembership(c, user, req.TeamID) {
+			return nil
 		}
 	}
 
@@ -427,10 +383,8 @@ func (h *Handler) ListTeamConversations(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid team id"})
 	}
 
-	if user.Scope != "super_admin" && h.teamService != nil {
-		if _, err := h.teamService.GetMemberRole(c.Request().Context(), teamID, user.ID); err != nil {
-			return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: not a member of this team"})
-		}
+	if !h.checkTeamMembership(c, user, teamID) {
+		return nil
 	}
 
 	limit := 0
@@ -469,12 +423,11 @@ func (h *Handler) GetConversationMessages(c *echo.Context) error {
 	}
 
 	if user.Scope != "super_admin" && conv.UserID != user.ID {
-		if conv.TeamID != uuid.Nil && h.teamService != nil {
-			if _, err := h.teamService.GetMemberRole(c.Request().Context(), conv.TeamID, user.ID); err != nil {
-				return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: access denied"})
-			}
-		} else {
+		if conv.TeamID == uuid.Nil {
 			return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: access denied"})
+		}
+		if !h.checkTeamMembership(c, user, conv.TeamID) {
+			return nil
 		}
 	}
 

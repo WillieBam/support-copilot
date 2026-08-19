@@ -16,7 +16,6 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import (
-    classification_report, confusion_matrix, roc_auc_score, precision_recall_curve,
     f1_score, precision_score, recall_score, accuracy_score
 )
 

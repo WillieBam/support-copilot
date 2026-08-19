@@ -39,70 +39,7 @@ var _ = Describe("Handler", func() {
 		h = endpoint.NewHandler(mockAppSvc, mockAuthSvc)
 	})
 
-	Context("TokenExchangeHandler", func() {
-		It("should fail if request body is invalid", func() {
-			req := httptest.NewRequest(http.MethodPost, "/token-exchange", strings.NewReader("invalid body"))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
 
-			err := h.TokenExchangeHandler(c)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(rec.Code).To(Equal(http.StatusBadRequest))
-		})
-
-		It("should fail if firebase token is empty", func() {
-			body, _ := json.Marshal(requests.TokenExchangeRequest{FirebaseToken: ""})
-			req := httptest.NewRequest(http.MethodPost, "/token-exchange", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
-
-			err := h.TokenExchangeHandler(c)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(rec.Code).To(Equal(http.StatusBadRequest))
-		})
-
-		It("should fail with status 403 when mfa is required", func() {
-			body, _ := json.Marshal(requests.TokenExchangeRequest{FirebaseToken: "mfa-token"})
-			req := httptest.NewRequest(http.MethodPost, "/token-exchange", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
-
-			mockAuthSvc.On("ExchangeToken", mock.Anything, "mfa-token", "").Return("", nil, errors.New("mfa_required"))
-
-			err := h.TokenExchangeHandler(c)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(rec.Code).To(Equal(http.StatusForbidden))
-		})
-
-		It("should return token and set cookie on successful exchange", func() {
-			body, _ := json.Marshal(requests.TokenExchangeRequest{FirebaseToken: "valid-token"})
-			req := httptest.NewRequest(http.MethodPost, "/token-exchange", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
-
-			claims := &types.Claims{
-				FirebaseUID: "uid-123",
-				RegisteredClaims: jwt.RegisteredClaims{
-					ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
-				},
-			}
-			mockAuthSvc.On("ExchangeToken", mock.Anything, "valid-token", "").Return("backend-token", claims, nil)
-
-			err := h.TokenExchangeHandler(c)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(rec.Code).To(Equal(http.StatusOK))
-
-			// Check cookie
-			cookies := rec.Result().Cookies()
-			Expect(len(cookies)).To(Equal(1))
-			Expect(cookies[0].Name).To(Equal("support_copilot_session"))
-			Expect(cookies[0].Value).To(Equal("backend-token"))
-		})
-	})
 
 	Context("Me", func() {
 		It("should fail if unauthorized", func() {

@@ -155,8 +155,9 @@ export const IncidentPanel: React.FC<IncidentPanelProps> = ({
                     </span>
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {formatDate(inc.assigned_at)}
+                    <Clock className="w-3 h-3" /> {formatDate(inc.history && inc.history.length > 0 ? inc.history[0].updated_at : inc.assigned_at)}
                   </span>
+
                 </div>
 
                 <h3 className="text-xs font-semibold text-foreground group-hover:text-emerald-500 transition-colors line-clamp-2">

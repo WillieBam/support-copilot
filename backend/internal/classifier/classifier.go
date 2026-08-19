@@ -20,14 +20,14 @@ const (
 )
 
 // embeddedToolCallPattern detects when the LLM emits a raw JSON tool-call
-// object as plain text content instead of via the proper tool_calls mechanism.
+// object as plain text content instead of via the proper tool_calls mechanism
 var embeddedToolCallPattern = regexp.MustCompile(
 	`(?s)^\s*\{\s*"(name|function)"\s*:\s*"[^"]+"\s*,\s*"(parameters|arguments)"\s*:\s*\{`,
 )
 
 // LooksLikeEmbeddedToolCall returns true when content appears to be a raw
 // JSON tool-call emitted by the LLM as text rather than through the
-// tool_calls field. Such content should be parsed into a proper tool call.
+// tool_calls field. Such content should be parsed into a proper tool call
 func LooksLikeEmbeddedToolCall(content string) bool {
 	return embeddedToolCallPattern.MatchString(strings.TrimSpace(content))
 }
@@ -39,7 +39,7 @@ type rawEmbeddedCall struct {
 	Arguments    map[string]interface{} `json:"arguments"`
 }
 
-// ParseEmbeddedToolCall extracts and parses an embedded JSON tool call from text content.
+// ParseEmbeddedToolCall extracts and parses an embedded JSON tool call from text content
 func ParseEmbeddedToolCall(content string) (*requests.LLMToolCall, error) {
 	s := strings.TrimSpace(content)
 	start := strings.Index(s, "{")
@@ -79,12 +79,12 @@ func ParseEmbeddedToolCall(content string) (*requests.LLMToolCall, error) {
 }
 
 // IntentClassifier classifies a prompt as conversational or task-oriented
-// using configured classification strategies. It implements interfaces.IIntentClassifier.
+// using configured classification strategies. It implements interfaces.IIntentClassifier
 type IntentClassifier struct {
 	strategies []interfaces.IClassificationStrategy
 }
 
-// NewIntentClassifier returns a new IntentClassifier with default strategies.
+// NewIntentClassifier returns a new IntentClassifier with default strategies
 func NewIntentClassifier(strategies ...interfaces.IClassificationStrategy) *IntentClassifier {
 	if len(strategies) == 0 {
 		strategies = []interfaces.IClassificationStrategy{
@@ -96,12 +96,12 @@ func NewIntentClassifier(strategies ...interfaces.IClassificationStrategy) *Inte
 	}
 }
 
-// Classify checks the prompt and returns the detected Intent.
+// Classify checks the prompt and returns the detected Intent
 func (c *IntentClassifier) Classify(prompt string) Intent {
 	return c.ClassifyWithHistory(prompt, nil)
 }
 
-// ClassifyWithHistory classifies a prompt taking the conversation history into account.
+// ClassifyWithHistory classifies a prompt taking the conversation history into account
 func (c *IntentClassifier) ClassifyWithHistory(prompt string, history []types.HistoryMessage) Intent {
 	for _, strategy := range c.strategies {
 		intent, confidence, matched := strategy.Classify(prompt, history)

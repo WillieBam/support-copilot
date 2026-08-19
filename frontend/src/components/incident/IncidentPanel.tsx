@@ -147,11 +147,9 @@ export const IncidentPanel: React.FC<IncidentPanelProps> = ({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-1.5">
-                    {inc.incident_number && (
-                      <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                        {inc.incident_number}
-                      </span>
-                    )}
+                    <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      {inc.incident_number || `INC-${inc.id.slice(0, 6)}`}
+                    </span>
                     <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${getStatusBadgeClass(inc.status)}`}>
                       {inc.status}
                     </span>

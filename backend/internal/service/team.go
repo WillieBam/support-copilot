@@ -564,3 +564,7 @@ func (s *teamService) GetIncidentContextByIDOrNumber(ctx context.Context, idOrNu
 	slog.InfoContext(ctx, "[team-svc] GetIncidentContextByIDOrNumber: success", "id_or_number", idOrNumber, "alert_count", len(alerts))
 	return inc, alerts, nil
 }
+
+func (s *teamService) GetMemberRole(ctx context.Context, teamID, userID uuid.UUID) (string, error) {
+	return s.teamRepo.GetMemberRole(ctx, teamID, userID)
+}

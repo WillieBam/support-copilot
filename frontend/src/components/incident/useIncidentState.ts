@@ -48,10 +48,11 @@ export function useIncidentState(teamId?: string | null) {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+      const matchNumber = inc.incident_number?.toLowerCase().includes(q);
       const matchTitle = inc.title?.toLowerCase().includes(q);
       const matchDetails = inc.details?.toLowerCase().includes(q);
       const matchStatus = inc.status?.toLowerCase().includes(q);
-      return matchTitle || matchDetails || matchStatus;
+      return Boolean(matchNumber || matchTitle || matchDetails || matchStatus);
     }
 
     return true;

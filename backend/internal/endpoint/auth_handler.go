@@ -36,7 +36,7 @@ func (h *Handler) LoginHandler(c *echo.Context) error {
 		req.Password,
 		req.TOTPCode)
 	if err != nil {
-		if err.Error() == "mfa_required" {
+		if err.Error() == "mfa_required" || err.Error() == "mfa required" {
 			return c.JSON(http.StatusForbidden, map[string]string{
 				"error":   "mfa_required",
 				"message": "TOTP 2FA code is required",
@@ -47,6 +47,22 @@ func (h *Handler) LoginHandler(c *echo.Context) error {
 
 	setSessionCookie(c, token, claims.ExpiresAt.Time)
 	return c.JSON(http.StatusOK, map[string]string{"status": "authenticated"})
+}
+
+// LogoutHandler clears the session cookie
+func (h *Handler) LogoutHandler(c *echo.Context) error {
+	cookie := &http.Cookie{
+		Name:     "support_copilot_session",
+		Value:    "",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+	}
+	c.SetCookie(cookie)
+	return c.JSON(http.StatusOK, map[string]string{"status": "logged_out"})
 }
 
 func (h *Handler) TokenExchangeHandler(c *echo.Context) error {

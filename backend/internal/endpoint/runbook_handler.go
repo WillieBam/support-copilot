@@ -131,11 +131,18 @@ func (h *Handler) GetRunbookLogs(c *echo.Context) error {
 	return c.JSON(http.StatusOK, logs)
 }
 
-// ListRunbooks handles get /internal/teams/:team_id/runbooks?status=active
+// ListRunbooks handles get /internal/teams/:team_id/runbooks?status=active or /api/teams/:team_id/runbooks
 func (h *Handler) ListRunbooks(c *echo.Context) error {
 	teamID, err := uuid.Parse(c.Param("team_id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid team_id"})
+	}
+
+	// If this request is from an authenticated user session, verify team membership
+	if user, userErr := h.getAuthenticatedUser(c); userErr == nil && user != nil && user.Scope != "super_admin" && h.teamService != nil {
+		if _, err := h.teamService.GetMemberRole(c.Request().Context(), teamID, user.ID); err != nil {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: not a member of this team"})
+		}
 	}
 
 	status := c.QueryParam("status")

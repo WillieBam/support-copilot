@@ -101,11 +101,44 @@ func (h *Handler) Me(c *echo.Context) error {
 	emailVal := c.Get("user_email")
 	email, _ := emailVal.(string)
 
-	// return info about who is authenticated to revive React UI client state
+	usernameVal := ""
+	displayNameVal := ""
+	scopeVal := "engineer"
+	totpVal := false
+	var userID uuid.UUID
+
+	if parsedUUID, err := uuid.Parse(appUID); err == nil {
+		userID = parsedUUID
+	}
+
+	if user, err := h.getAuthenticatedUser(c); err == nil && user != nil {
+		userID = user.ID
+		if user.Username != nil {
+			usernameVal = *user.Username
+		}
+		displayNameVal = user.DisplayName
+		scopeVal = user.Scope
+		totpVal = user.TOTPEnabled
+		if user.Email != "" {
+			email = user.Email
+		}
+		if user.FirebaseUID != nil && *user.FirebaseUID != "" {
+			appUID = *user.FirebaseUID
+		} else if user.ID != uuid.Nil {
+			appUID = user.ID.String()
+		}
+	}
+
+	// return info about who is authenticated including totp_enabled to revive React UI client state
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"authenticated": true,
+		"user_id":       userID,
 		"user_uid":      appUID,
 		"user_email":    email,
+		"username":      usernameVal,
+		"display_name":  displayNameVal,
+		"scope":         scopeVal,
+		"totp_enabled":  totpVal,
 	})
 }
 
@@ -135,8 +168,29 @@ func (h *Handler) Query(c *echo.Context) error {
 
 	// get database user record safely if userService is configured
 	if h.userService != nil {
-		dbUser, err := h.userService.GetUserByFirebaseUID(ctx, appUID)
-		if err == nil && dbUser != nil {
+		var dbUser *models.User
+		if uidVal := c.Get("user_id"); uidVal != nil {
+			if uID, ok := uidVal.(uuid.UUID); ok && uID != uuid.Nil {
+				dbUser, _ = h.userService.GetUserByID(ctx, uID)
+			}
+		}
+		if dbUser == nil {
+			if parsedUUID, pErr := uuid.Parse(appUID); pErr == nil {
+				dbUser, _ = h.userService.GetUserByID(ctx, parsedUUID)
+			}
+		}
+		if dbUser == nil {
+			dbUser, _ = h.userService.GetUserByFirebaseUID(ctx, appUID)
+		}
+
+		if dbUser != nil {
+			// Enforce team isolation for chat query
+			if req.TeamID != nil && *req.TeamID != uuid.Nil && dbUser.Scope != "super_admin" && h.teamService != nil {
+				if _, err := h.teamService.GetMemberRole(ctx, *req.TeamID, dbUser.ID); err != nil {
+					return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: not a member of this team"})
+				}
+			}
+
 			if req.ConversationID != nil && *req.ConversationID != uuid.Nil {
 				convID = *req.ConversationID
 			} else if req.TeamID != nil && *req.TeamID != uuid.Nil {
@@ -335,11 +389,10 @@ func (h *Handler) SearchUsers(c *echo.Context) error {
 	return c.JSON(http.StatusOK, results)
 }
 
-// createconversation handles POST /api/conversations
+// CreateConversation handles POST /api/conversations
 func (h *Handler) CreateConversation(c *echo.Context) error {
-	uidVal := c.Get("user_uid")
-	appUID, ok := uidVal.(string)
-	if !ok || appUID == "" {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil || user == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized session"})
 	}
 
@@ -348,28 +401,36 @@ func (h *Handler) CreateConversation(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	if h.userService == nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "user service unavailable"})
+	if req.TeamID != uuid.Nil && user.Scope != "super_admin" && h.teamService != nil {
+		if _, err := h.teamService.GetMemberRole(c.Request().Context(), req.TeamID, user.ID); err != nil {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: not a member of this team"})
+		}
 	}
 
-	dbUser, err := h.userService.GetUserByFirebaseUID(c.Request().Context(), appUID)
-	if err != nil || dbUser == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "user not found"})
-	}
-
-	conv, err := h.apps.CreateConversation(c.Request().Context(), req.TeamID, dbUser.ID)
+	conv, err := h.apps.CreateConversation(c.Request().Context(), req.TeamID, user.ID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, conv)
 }
 
-// listteamconversations handles GET /api/teams/:team_id/conversations
+// ListTeamConversations handles GET /api/teams/:team_id/conversations
 func (h *Handler) ListTeamConversations(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil || user == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized session"})
+	}
+
 	teamIDStr := c.Param("team_id")
 	teamID, err := uuid.Parse(teamIDStr)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid team id"})
+	}
+
+	if user.Scope != "super_admin" && h.teamService != nil {
+		if _, err := h.teamService.GetMemberRole(c.Request().Context(), teamID, user.ID); err != nil {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: not a member of this team"})
+		}
 	}
 
 	limit := 0
@@ -389,12 +450,32 @@ func (h *Handler) ListTeamConversations(c *echo.Context) error {
 	return c.JSON(http.StatusOK, convs)
 }
 
-// getconversationmessages handles GET /api/conversations/:id/messages
+// GetConversationMessages handles GET /api/conversations/:id/messages
 func (h *Handler) GetConversationMessages(c *echo.Context) error {
+	user, err := h.getAuthenticatedUser(c)
+	if err != nil || user == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized session"})
+	}
+
 	convIDStr := c.Param("id")
 	convID, err := uuid.Parse(convIDStr)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid conversation id"})
+	}
+
+	conv, err := h.apps.GetConversationByID(c.Request().Context(), convID)
+	if err != nil || conv == nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "conversation not found"})
+	}
+
+	if user.Scope != "super_admin" && conv.UserID != user.ID {
+		if conv.TeamID != uuid.Nil && h.teamService != nil {
+			if _, err := h.teamService.GetMemberRole(c.Request().Context(), conv.TeamID, user.ID); err != nil {
+				return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: access denied"})
+			}
+		} else {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden: access denied"})
+		}
 	}
 
 	msgs, err := h.apps.ListMessagesByConversation(c.Request().Context(), convID)

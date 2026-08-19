@@ -98,9 +98,19 @@ func (t *teamRepository) ListTeamMembers(ctx context.Context, teamID uuid.UUID) 
 func (t *teamRepository) AssignTeamIncident(ctx context.Context, incident *models.TeamIncident) error {
 	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if strings.TrimSpace(incident.IncidentNumber) == "" {
-			var count int64
-			_ = tx.Model(&models.TeamIncident{}).Count(&count)
-			incident.IncidentNumber = fmt.Sprintf("INC-%d", 101+count)
+			var lastIncident models.TeamIncident
+			var nextNum int64 = 101
+			if err := tx.Where("incident_number IS NOT NULL AND incident_number != ''").Order("incident_number DESC").First(&lastIncident).Error; err == nil && lastIncident.IncidentNumber != "" {
+				var parsedNum int64
+				if _, err := fmt.Sscanf(lastIncident.IncidentNumber, "INC-%d", &parsedNum); err == nil && parsedNum >= 100 {
+					nextNum = parsedNum + 1
+				}
+			} else {
+				var count int64
+				_ = tx.Model(&models.TeamIncident{}).Count(&count)
+				nextNum = 101 + count
+			}
+			incident.IncidentNumber = fmt.Sprintf("INC-%d", nextNum)
 		}
 		if err := tx.Create(incident).Error; err != nil {
 			return err

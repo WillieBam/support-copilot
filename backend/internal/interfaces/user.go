@@ -18,6 +18,7 @@ type IUserRepository interface {
 }
 
 type IUserService interface {
+	GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	GetUserByFirebaseUID(ctx context.Context, firebaseUid string) (*models.User, error)
 	SearchUsers(ctx context.Context, query string, limit int) ([]models.User, error)
 	DeactivateUser(ctx context.Context, requesterID, targetUserID uuid.UUID) error

@@ -376,5 +376,25 @@ var _ = Describe("RunbookHandler", func() {
 			err = h.GetIncidentContext(cCtxErr)
 			Expect(err).NotTo(HaveOccurred())
 		})
+
+		It("should enforce team isolation on ListRunbooks when called via authenticated user session", func() {
+			mockUserSvc := &mocks.IUserService{}
+			hAuth := endpoint.NewHandler(mockAppSvc, mockAuthSvc, mockTeamSvc, mockUserSvc)
+			userID := uuid.New()
+			user := &models.User{ID: userID, Scope: "engineer"}
+
+			rec := httptest.NewRecorder()
+			cListAuth := e.NewContext(httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID.String()+"/runbooks", nil), rec)
+			cListAuth.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			cListAuth.Set("user_uid", userID.String())
+			cListAuth.Set("user_id", userID)
+
+			mockUserSvc.On("GetUserByID", mock.Anything, userID).Return(user, nil).Once()
+			mockTeamSvc.On("GetMemberRole", mock.Anything, teamID, userID).Return("", errors.New("not a member")).Once()
+
+			err := hAuth.ListRunbooks(cListAuth)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
 	})
 })

@@ -5,6 +5,7 @@ import (
 
 	"github.com/WillieBam/support_copilot/backend/app/config"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v5"
 )
 
@@ -22,7 +23,6 @@ func AuthMiddleware(authSvc interfaces.IAuthService) echo.MiddlewareFunc {
 				return echo.NewHTTPError(http.StatusUnauthorized, "missing session")
 			}
 
-			// token := getBearerToken(c.Request().Header.Get("Authorization"))
 			token := cookie.Value
 			if token == "" {
 				return echo.NewHTTPError(http.StatusUnauthorized, "empty session token")
@@ -33,10 +33,17 @@ func AuthMiddleware(authSvc interfaces.IAuthService) echo.MiddlewareFunc {
 				return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized session context")
 			}
 
-			c.Set("user_uid", claims.FirebaseUID)
-			c.Set("user_email", claims.Email)
-			return next(c)
+			userUID := claims.FirebaseUID
+			if userUID == "" && claims.UserID != uuid.Nil {
+				userUID = claims.UserID.String()
+			}
 
+			c.Set("user_uid", userUID)
+			c.Set("user_id", claims.UserID)
+			c.Set("user_email", claims.Email)
+			c.Set("username", claims.Username)
+			return next(c)
 		}
 	}
 }
+

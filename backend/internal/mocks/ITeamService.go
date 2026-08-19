@@ -716,6 +716,34 @@ func (_m *ITeamService) UpdateRunbook(ctx context.Context, updaterID uuid.UUID, 
 	return r0, r1
 }
 
+// GetMemberRole provides a mock function with given fields: ctx, teamID, userID
+func (_m *ITeamService) GetMemberRole(ctx context.Context, teamID uuid.UUID, userID uuid.UUID) (string, error) {
+	ret := _m.Called(ctx, teamID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetMemberRole")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (string, error)); ok {
+		return rf(ctx, teamID, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) string); ok {
+		r0 = rf(ctx, teamID, userID)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, teamID, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NewITeamService creates a new instance of ITeamService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewITeamService(t interface {

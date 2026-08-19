@@ -19,6 +19,10 @@ func NewUserService(userRepo interfaces.IUserRepository) interfaces.IUserService
 	return &userService{userRepo: userRepo}
 }
 
+func (s *userService) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	return s.userRepo.GetUserByID(ctx, id)
+}
+
 func (s *userService) GetUserByFirebaseUID(ctx context.Context, firebaseUid string) (*models.User, error) {
 	return s.userRepo.GetUserByFirebaseUID(ctx, firebaseUid)
 }

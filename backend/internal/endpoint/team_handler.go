@@ -16,9 +16,21 @@ import (
 )
 
 func (h *Handler) getAuthenticatedUser(c *echo.Context) (*models.User, error) {
+	if uidVal := c.Get("user_id"); uidVal != nil {
+		if uID, ok := uidVal.(uuid.UUID); ok && uID != uuid.Nil {
+			if h.userService != nil {
+				user, err := h.userService.GetUserByID(c.Request().Context(), uID)
+				if err == nil && user != nil {
+					slog.Info("[team] getAuthenticatedUser: resolved user by user_id", "user_id", user.ID, "email", user.Email)
+					return user, nil
+				}
+			}
+		}
+	}
+
 	uidVal := c.Get("user_uid")
-	firebaseUID, ok := uidVal.(string)
-	if !ok || firebaseUID == "" {
+	appUID, ok := uidVal.(string)
+	if !ok || appUID == "" {
 		slog.Warn("[team] getAuthenticatedUser: missing or invalid user_uid in context")
 		return nil, echo.NewHTTPError(http.StatusUnauthorized, "unauthorized session")
 	}
@@ -28,13 +40,21 @@ func (h *Handler) getAuthenticatedUser(c *echo.Context) (*models.User, error) {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "user service unavailable")
 	}
 
-	user, err := h.userService.GetUserByFirebaseUID(c.Request().Context(), firebaseUID)
+	if parsedUUID, err := uuid.Parse(appUID); err == nil {
+		user, err := h.userService.GetUserByID(c.Request().Context(), parsedUUID)
+		if err == nil && user != nil {
+			slog.Info("[team] getAuthenticatedUser: resolved user by parsed uuid", "user_id", user.ID, "email", user.Email)
+			return user, nil
+		}
+	}
+
+	user, err := h.userService.GetUserByFirebaseUID(c.Request().Context(), appUID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Warn("[team] getAuthenticatedUser: no user record found", "firebase_uid", firebaseUID)
+		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, customErrors.ErrUserNotFound) {
+			slog.Warn("[team] getAuthenticatedUser: no user record found", "user_uid", appUID)
 			return nil, echo.NewHTTPError(http.StatusNotFound, "user record not found")
 		}
-		slog.Error("[team] getAuthenticatedUser: database lookup failed", "firebase_uid", firebaseUID, "error", err)
+		slog.Error("[team] getAuthenticatedUser: database lookup failed", "user_uid", appUID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to retrieve user context")
 	}
 	slog.Info("[team] getAuthenticatedUser: resolved user", "user_id", user.ID, "email", user.Email)

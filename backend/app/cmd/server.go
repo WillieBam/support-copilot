@@ -52,6 +52,7 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 	// public auth endpoints
 	e.POST("/api/auth/register", h.RegisterHandler)
 	e.POST("/api/auth/login", h.LoginHandler)
+	e.POST("/api/auth/logout", h.LogoutHandler)
 	e.POST("/api/auth/exchange", h.TokenExchangeHandler)
 
 	// api group endpoints

@@ -333,7 +333,7 @@ func (h *Handler) SearchUsers(c *echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to search users"})
 	}
 
-	var results []UserSearchResult
+	results := make([]UserSearchResult, 0)
 	for _, u := range users {
 		results = append(results, UserSearchResult{
 			ID:          u.ID,

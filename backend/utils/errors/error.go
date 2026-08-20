@@ -19,6 +19,7 @@ var (
 	ErrIncidentNotFound      = errors.New("incident not found")
 	ErrTeamNotFound          = errors.New("team not found")
 	ErrRunbookNotFound       = errors.New("runbook not found")
+	ErrRunbookDeprecated     = errors.New("cannot update a deprecated runbook")
 	ErrInstructionTooShort       = errors.New("instruction details must be at least 30 characters long")
 	ErrUserNotFound              = errors.New("User not found")
 	ErrSelfDeactivationNotAllowed = errors.New("self-deactivation is not allowed")

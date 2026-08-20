@@ -56,7 +56,7 @@ export function useRunbookThreadState(
   }, [loadRunbook]);
 
   const handleSave = async () => {
-    if (!runbookId) return;
+    if (!runbookId || runbook?.status === 'deprecated') return;
     setIsSaving(true);
     try {
       const updated = await updateRunbook(runbookId, {
@@ -81,6 +81,7 @@ export function useRunbookThreadState(
     try {
       const updated = await deprecateRunbook(runbookId);
       setRunbook(updated);
+      setIsEditing(false);
       if (onRunbookUpdated) onRunbookUpdated();
     } catch (err) {
       console.error('Failed to deprecate runbook', err);

@@ -37,7 +37,7 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
 
   const getUserDisplayName = (userId?: string) => {
     if (!userId) return 'System';
-    const member = teamMembers.find((m) => m.user_id === userId);
+    const member = teamMembers?.find((m) => m.user_id === userId);
     return member?.user?.display_name || member?.user?.email || userId;
   };
 
@@ -250,42 +250,51 @@ export const RunbookThreadView: React.FC<RunbookThreadViewProps> = ({
       {/* Action Footer Bar */}
       {runbook && (
         <div className="p-4 border-t border-border bg-card/40 flex items-center justify-between shrink-0 px-6">
-          <div className="flex items-center gap-2">
-            {isEditing ? (
-              <>
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-4 py-2 rounded-xl font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <Check className="w-3.5 h-3.5" /> {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button
-                  onClick={() => setIsEditing(false)}
-                  disabled={isSaving}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="flex items-center gap-1.5 bg-muted/60 hover:bg-muted text-foreground text-xs px-3.5 py-2 rounded-xl font-medium border border-border transition-colors cursor-pointer"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-emerald-500" /> Edit Content
-              </button>
-            )}
-          </div>
+          {runbook.status === 'active' ? (
+            <>
+              <div className="flex items-center gap-2">
+                {isEditing ? (
+                  <>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-4 py-2 rounded-xl font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <Check className="w-3.5 h-3.5" /> {isSaving ? 'Saving...' : 'Save Changes'}
+                    </button>
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      disabled={isSaving}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-1.5 bg-muted/60 hover:bg-muted text-foreground text-xs px-3.5 py-2 rounded-xl font-medium border border-border transition-colors cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-emerald-500" /> Edit Content
+                  </button>
+                )}
+              </div>
 
-          {runbook.status === 'active' && !isEditing && (
-            <button
-              onClick={handleDeprecate}
-              disabled={isSaving}
-              className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs px-3.5 py-2 rounded-xl font-medium border border-red-500/20 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              <Trash2 className="w-3.5 h-3.5" /> Deprecate Runbook
-            </button>
+              {!isEditing && (
+                <button
+                  onClick={handleDeprecate}
+                  disabled={isSaving}
+                  className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs px-3.5 py-2 rounded-xl font-medium border border-red-500/20 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Deprecate Runbook
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="inline-block w-2 h-2 rounded-full bg-gray-400"></span>
+              This runbook is deprecated and cannot be edited.
+            </div>
           )}
         </div>
       )}

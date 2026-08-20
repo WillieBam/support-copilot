@@ -44,9 +44,10 @@ export const useTeamMembersModalState = (teamId: string) => {
       setIsSearching(true);
       try {
         const results = await searchUsers(searchQuery.trim());
-        setSearchResults(results);
+        setSearchResults(results || []);
       } catch (err: any) {
         console.error('Failed to search users:', err);
+        setSearchResults([]);
       } finally {
         setIsSearching(false);
       }

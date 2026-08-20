@@ -16,6 +16,9 @@ func runbookNotFoundError(c *echo.Context, err error) error {
 	if errors.Is(err, customErrors.ErrRunbookNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
 	}
+	if errors.Is(err, customErrors.ErrRunbookDeprecated) || strings.Contains(strings.ToLower(err.Error()), "deprecated") {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 }
 

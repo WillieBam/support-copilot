@@ -386,6 +386,9 @@ func (h *Handler) GetTeamMembers(c *echo.Context) error {
 	}
 
 	slog.Info("[team] GetTeamMembers: returning members", "team_id", teamID, "member_count", len(members))
+	if members == nil {
+		members = []models.TeamMember{}
+	}
 	return c.JSON(http.StatusOK, members)
 }
 

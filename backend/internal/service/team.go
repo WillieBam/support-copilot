@@ -463,6 +463,10 @@ func (s *teamService) UpdateRunbook(ctx context.Context, updaterID, runbookID uu
 		slog.WarnContext(ctx, "[team-svc] UpdateRunbook: runbook not found", "runbook_id", runbookID, "error", err)
 		return nil, customErrors.ErrRunbookNotFound
 	}
+	if existingRb.Status == "deprecated" {
+		slog.WarnContext(ctx, "[team-svc] UpdateRunbook: runbook is deprecated", "runbook_id", runbookID)
+		return nil, customErrors.ErrRunbookDeprecated
+	}
 
 	if updaterID == uuid.Nil {
 		if existingRb.CreatedBy != uuid.Nil {

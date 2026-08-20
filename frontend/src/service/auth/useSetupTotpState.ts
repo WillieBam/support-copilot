@@ -4,16 +4,20 @@ import type { useFirebaseTotpAuth } from './useFirebaseTotpAuth'
 export const useSetupTotpState = (auth: ReturnType<typeof useFirebaseTotpAuth>) => {
   const [codeError, setCodeError] = useState('')
 
+  // Auto-trigger TOTP enrollment as soon as the user lands on this page
+  // with a verified email but no TOTP set up yet.
   useEffect(() => {
     let isMounted = true;
 
     if (auth.isSignedIn && auth.isEmailVerified && !auth.hasTotpEnabled && !auth.needsTotpEnrollment) {
       auth.startTotpEnrollment().catch((error) => {
-        if (isMounted) console.error(error);
+        // startTotpEnrollment already calls setAuthError internally, so this
+        // catch only handles truly unexpected rejections.
+        if (isMounted) console.error('Unexpected TOTP enrollment error:', error);
       });
     }
     return () => {
-      isMounted = false; // update isMounted to false
+      isMounted = false;
     };
   }, [auth.isSignedIn, auth.isEmailVerified, auth.hasTotpEnabled, auth.needsTotpEnrollment, auth.startTotpEnrollment]);
 

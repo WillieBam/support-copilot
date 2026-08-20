@@ -67,8 +67,9 @@ export function useFirebaseTotpAuth() {
         setHasTotpEnabled(hasTotpEnrollment(refreshedUser))
         if (refreshedUser.emailVerified) {
           await exchangeToken(refreshedUser)
-          setRawToken('COOKIE_CONTAINED_SESSION')
-          setToken('Bearer COOKIE_CONTAINED_SESSION')
+          setRawToken('COOKIE_SESSION')
+          setToken('COOKIE_SESSION')
+          setUserEmail(refreshedUser.email ?? '')
           setAuthStatus('Email verified. You must set up TOTP to access the workspace.')
         } else {
           setAuthStatus('Email is still unverified. Please check your inbox.')
@@ -401,7 +402,9 @@ export function useFirebaseTotpAuth() {
     if (isBusy || enrollSecret || enrollOtpAuthUrl) return
 
     const user = firebaseAuth.currentUser
-    if (authProvider === 'firebase' && user) {
+    // Prefer the Firebase enrollment path whenever there is a live Firebase user,
+    // regardless of authProvider (which can be stale after a page refresh).
+    if (user) {
       if (!user.emailVerified) {
         setAuthError('Please verify your email first before enrolling TOTP')
         setAuthStatus('Email verification required before TOTP setup')

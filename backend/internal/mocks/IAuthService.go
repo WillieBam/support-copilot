@@ -111,6 +111,43 @@ func (_m *IAuthService) LoginWithPassword(ctx context.Context, usernameOrEmail s
 	return r0, r1, r2
 }
 
+// RefreshToken provides a mock function with given fields: ctx, tokenString
+func (_m *IAuthService) RefreshToken(ctx context.Context, tokenString string) (string, *types.Claims, error) {
+	ret := _m.Called(ctx, tokenString)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RefreshToken")
+	}
+
+	var r0 string
+	var r1 *types.Claims
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, *types.Claims, error)); ok {
+		return rf(ctx, tokenString)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, tokenString)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) *types.Claims); ok {
+		r1 = rf(ctx, tokenString)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*types.Claims)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
+		r2 = rf(ctx, tokenString)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // ParseAndValidateAuthToken provides a mock function with given fields: ctx, tokenString
 func (_m *IAuthService) ParseAndValidateAuthToken(ctx context.Context, tokenString string) (*types.Claims, error) {
 	ret := _m.Called(ctx, tokenString)

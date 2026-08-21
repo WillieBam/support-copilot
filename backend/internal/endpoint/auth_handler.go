@@ -94,6 +94,27 @@ func (h *Handler) TokenExchangeHandler(c *echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "authenticated"})
 }
 
+// RefreshTokenHandler renews the active or recently expired session cookie
+func (h *Handler) RefreshTokenHandler(c *echo.Context) error {
+	cookie, err := c.Request().Cookie("support_copilot_session")
+	if err != nil || cookie.Value == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "no active session cookie"})
+	}
+
+	newToken, claims, err := h.authService.RefreshToken(c.Request().Context(), cookie.Value)
+	if err != nil {
+		slog.Warn("Session refresh failed", "error", err)
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+
+	setSessionCookie(c, newToken, claims.ExpiresAt.Time)
+	slog.Info("Successfully refreshed and attached HttpOnly session cookie",
+		"user_id", claims.UserID,
+		"expires_at", claims.ExpiresAt.Time.Format(time.RFC3339),
+	)
+	return c.JSON(http.StatusOK, map[string]string{"status": "authenticated"})
+}
+
 func (h *Handler) SetupTOTPHandler(c *echo.Context) error {
 	user, err := h.getAuthenticatedUser(c)
 	if err != nil || user == nil {

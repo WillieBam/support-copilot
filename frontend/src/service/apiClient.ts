@@ -34,30 +34,47 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
-      const user = firebaseAuth.currentUser;
-      if (!user) {
-        // If there's no active Firebase user, do not attempt refresh or force redirect.
-        // Let the 401 propagate normally so the application router can handle it cleanly.
+      // Don't intercept auth attempt endpoints to prevent recursive infinite loops
+      const requestUrl = originalRequest.url || '';
+      if (
+        requestUrl.includes('/auth/refresh') ||
+        requestUrl.includes('/auth/login') ||
+        requestUrl.includes('/auth/register') ||
+        requestUrl.includes('/auth/logout')
+      ) {
         return Promise.reject(error);
       }
+
+      const user = firebaseAuth.currentUser;
 
       // If a token refresh cycle is already ongoing, queue this request
       if (isRefreshing) {
         return new Promise<void>(function(resolve, reject) {
           failedQueue.push({ resolve, reject });
         })
-      .then(() => {
-          // Update authorization header with the fresh token issued while this request waited
-          return apiClient(originalRequest);
-        })
-      .catch((err) => Promise.reject(err));
+          .then(() => {
+            return apiClient(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        await exchangeToken(user);
+        if (user) {
+          // Firebase user silent token exchange
+          await exchangeToken(user);
+        } else {
+          // Direct backend username/password sliding session refresh
+          const baseUrl = apiClient.defaults.baseURL || '';
+          await axios.post(
+            `${baseUrl}/api/auth/refresh`,
+            {},
+            { withCredentials: true }
+          );
+        }
+
         processQueue(null);
         return apiClient(originalRequest);
 
@@ -66,9 +83,22 @@ apiClient.interceptors.response.use(
         
         // If the token exchange fails due to MFA requirement, don't force a signout/redirect.
         // Let the error propagate so the UI can redirect the user to the TOTP challenge page.
-        if (refreshError.message !== 'mfa_required') {
-          await firebaseAuth.signOut().catch(() => {});
-          window.location.href = '/login';
+        const isMfaRequired =
+          refreshError?.message === 'mfa_required' ||
+          refreshError?.response?.data?.error === 'mfa_required';
+
+        if (!isMfaRequired) {
+          if (user) {
+            await firebaseAuth.signOut().catch(() => {});
+          }
+          if (
+            typeof window !== 'undefined' &&
+            window.location.pathname !== '/login' &&
+            window.location.pathname !== '/register' &&
+            !requestUrl.includes('/auth/me')
+          ) {
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(refreshError);
       } finally {

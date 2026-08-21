@@ -194,3 +194,7 @@ export async function logoutBackend(): Promise<void> {
   }
 }
 
+export async function refreshBackendSession(): Promise<void> {
+  await apiClient.post('/api/auth/refresh')
+}
+

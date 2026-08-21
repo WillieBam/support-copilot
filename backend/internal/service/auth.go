@@ -276,6 +276,67 @@ func (s *authService) ParseAndValidateAuthToken(ctx context.Context, tokenString
 	return nil, errors.New("invalid token payload claims")
 }
 
+// RefreshToken validates an existing or recently expired session and issues a fresh session token
+func (s *authService) RefreshToken(ctx context.Context, tokenString string) (string, *types.Claims, error) {
+	cfg := config.Get()
+
+	claims := &types.Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected token signing algorithm")
+		}
+		return []byte(cfg.Auth.JWTSecret), nil
+	})
+
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			// Allow expired tokens within a 24-hour sliding refresh grace window
+			if claims.ExpiresAt != nil && time.Since(claims.ExpiresAt.Time) > 24*time.Hour {
+				return "", nil, errors.New("session expired beyond refresh window")
+			}
+		} else {
+			return "", nil, errors.New("invalid session token")
+		}
+	} else if !token.Valid {
+		return "", nil, errors.New("invalid session token")
+	}
+
+	if claims.UserID == uuid.Nil {
+		return "", nil, errors.New("invalid user in session")
+	}
+
+	// Verify user exists and is not deactivated
+	user, err := s.userRepo.GetUserByID(ctx, claims.UserID)
+	if err != nil || user == nil {
+		return "", nil, errors.New("user not found")
+	}
+
+	if user.DeactivatedAt != nil {
+		return "", nil, customErrors.ErrUserDeactivated
+	}
+
+	// If the user has TOTP enabled, verify that this session had completed TOTP
+	if user.TOTPEnabled && !claims.MfaVerified {
+		return "", nil, errors.New("mfa required")
+	}
+
+	usernameVal := ""
+	if user.Username != nil {
+		usernameVal = *user.Username
+	}
+	fbUID := ""
+	if user.FirebaseUID != nil {
+		fbUID = *user.FirebaseUID
+	}
+
+	method := claims.AuthMeTHOD
+	if method == "" {
+		method = "password"
+	}
+
+	return s.generateAuthToken(user.ID, fbUID, usernameVal, user.Email, user.TOTPEnabled, method)
+}
+
 // // validateMFAClaims isolates the unexported dictionary verification checkout in middleware layer
 // func (s *authService) validateMFAClaims(claims map[string]any) bool {
 // 	v, ok := claims["firebase"]

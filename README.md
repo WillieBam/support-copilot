@@ -213,40 +213,7 @@ Support Copilot implements a flexible authentication layer with unified Multi-Fa
 2. **Unified TOTP Multi-Factor Authentication (MFA)**:
    - Accounts with TOTP enabled require a 6-digit TOTP challenge (`totp_code`) regardless of which login method is used.
    - Built-in RFC 6238 TOTP generator and validator supporting standard authenticator apps (Google Authenticator, Authy, 1Password).
-3. **Session Management**:
-   - Both authentication paths issue a secure `support_copilot_session` JWT stored in an `HttpOnly`, `SameSite=Lax` cookie.
-
-```mermaid
-sequenceDiagram
-    participant Client as Frontend Client
-    participant Auth as Auth Handler / Service
-    participant FB as Firebase Admin SDK
-    participant DB as PostgreSQL DB
-
-    alt Path A: Username / Email + Password Login
-        Client->>Auth: POST /api/auth/login { username_or_email, password, totp_code? }
-        Auth->>DB: Fetch user & verify Bcrypt password hash
-        alt TOTP Enabled on Account
-            Auth->>Auth: Validate 6-digit TOTP code
-        end
-        Auth-->>Client: Sets HttpOnly cookie 'support_copilot_session' (JWT)
-    else Path B: Firebase Login Exchange
-        Client->>FB: Authenticate with Firebase Client
-        FB-->>Client: Firebase ID Token
-        Client->>Auth: POST /api/auth/exchange { firebase_token, totp_code? }
-        Auth->>FB: Verify Firebase ID Token
-        Auth->>DB: Upsert & sync user record
-        alt TOTP Enabled on Account
-            Auth->>Auth: Validate 6-digit TOTP code
-        end
-        Auth-->>Client: Sets HttpOnly cookie 'support_copilot_session' (JWT)
-    end
-
-    Note over Client,Auth: Subsequent API Requests
-    Client->>Auth: GET /api/auth/me (Sends Cookie)
-    Auth-->>Client: Returns Authenticated User & Team Profile
-```
-
+   
 ---
 
 ## Slash Commands & Interceptors

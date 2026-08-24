@@ -108,7 +108,18 @@ export async function exchangeToken (user: User): Promise<void>{
   }    
 }
 
-export async function getSession(): Promise<{ authenticated: boolean; user_uid?: string; user_email?: string }> {
+export interface SessionData {
+  authenticated: boolean
+  user_id?: string
+  user_uid?: string
+  user_email?: string
+  username?: string
+  display_name?: string
+  scope?: string
+  totp_enabled?: boolean
+}
+
+export async function getSession(): Promise<SessionData> {
   try {
     const res = await apiClient.get('/api/auth/me', {
       withCredentials: true,
@@ -117,5 +128,73 @@ export async function getSession(): Promise<{ authenticated: boolean; user_uid?:
   } catch (err) {
     return { authenticated: false }
   }
+}
+
+export async function registerWithBackend(username: string, email: string, password: string): Promise<any> {
+  const res = await apiClient.post('/api/auth/register', {
+    username,
+    email,
+    password,
+  })
+  return res.data
+}
+
+export type BackendLoginResult =
+  | { type: 'authenticated' }
+  | { type: 'totp-required' }
+
+export async function loginWithBackend(
+  usernameOrEmail: string,
+  password: string,
+  totpCode?: string
+): Promise<BackendLoginResult> {
+  try {
+    await apiClient.post('/api/auth/login', {
+      username_or_email: usernameOrEmail,
+      password,
+      totp_code: totpCode || '',
+    })
+    return { type: 'authenticated' }
+  } catch (error: any) {
+    if (
+      error.response?.status === 403 &&
+      (error.response?.data?.error === 'mfa_required' ||
+        error.response?.data?.error === 'mfa required' ||
+        error.response?.data?.message?.includes('TOTP'))
+    ) {
+      return { type: 'totp-required' }
+    }
+    const msg =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message ||
+      'Login failed'
+    throw new Error(msg)
+  }
+}
+
+export async function setupBackendTotp(): Promise<{ secret: string; qr_uri: string }> {
+  const res = await apiClient.post('/api/auth/totp/setup')
+  return res.data
+}
+
+export async function verifyBackendTotp(code: string): Promise<void> {
+  await apiClient.post('/api/auth/totp/verify', { code })
+}
+
+export async function disableBackendTotp(): Promise<void> {
+  await apiClient.post('/api/auth/totp/disable')
+}
+
+export async function logoutBackend(): Promise<void> {
+  try {
+    await apiClient.post('/api/auth/logout')
+  } catch (e) {
+    // ignore logout error silently
+  }
+}
+
+export async function refreshBackendSession(): Promise<void> {
+  await apiClient.post('/api/auth/refresh')
 }
 

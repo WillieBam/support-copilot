@@ -147,18 +147,17 @@ export const IncidentPanel: React.FC<IncidentPanelProps> = ({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-1.5">
-                    {inc.incident_number && (
-                      <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                        {inc.incident_number}
-                      </span>
-                    )}
+                    <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      {inc.incident_number || `INC-${inc.id.slice(0, 6)}`}
+                    </span>
                     <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${getStatusBadgeClass(inc.status)}`}>
                       {inc.status}
                     </span>
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {formatDate(inc.assigned_at)}
+                    <Clock className="w-3 h-3" /> {formatDate(inc.history && inc.history.length > 0 ? inc.history[0].updated_at : inc.assigned_at)}
                   </span>
+
                 </div>
 
                 <h3 className="text-xs font-semibold text-foreground group-hover:text-emerald-500 transition-colors line-clamp-2">

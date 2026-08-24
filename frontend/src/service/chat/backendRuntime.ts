@@ -252,7 +252,6 @@ export function useBackendRuntime(options?: UseBackendRuntimeOptions) {
 
       } catch (error: any) {
         if (error.name === "AbortError") {
-          console.log("Stream aborted by user");
           return;
         }
         throw new Error(error.message || "Backend request failed");

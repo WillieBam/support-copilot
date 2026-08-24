@@ -79,11 +79,9 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
         <div className="flex items-center gap-2">
           {incident && (
             <div className="flex items-center gap-2">
-              {incident.incident_number && (
-                <span className="px-2.5 py-0.5 text-xs font-mono font-bold rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                  {incident.incident_number}
-                </span>
-              )}
+              <span className="px-2.5 py-0.5 text-xs font-mono font-bold rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                {incident.incident_number || `INC-${incident.id.slice(0, 6)}`}
+              </span>
               <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadgeClass(incident.status)}`}>
                 Incident ({incident.status})
               </span>
@@ -124,11 +122,9 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      {incident.incident_number && (
-                        <span className="px-2 py-0.5 text-xs font-mono font-bold rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                          {incident.incident_number}
-                        </span>
-                      )}
+                      <span className="px-2 py-0.5 text-xs font-mono font-bold rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                        {incident.incident_number || `INC-${incident.id.slice(0, 6)}`}
+                      </span>
                       <h1 className="text-xl font-bold text-foreground tracking-tight">{incident.title}</h1>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
@@ -143,7 +139,7 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
 
               <div className="flex items-center gap-4 pt-3 border-t border-border/60 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" /> Created: {formatDate(incident.assigned_at)}
+                  <Clock className="w-3.5 h-3.5" /> Created: {formatDate(incident.created_at)}
                 </span>
               </div>
             </div>

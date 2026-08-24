@@ -6,7 +6,7 @@ import (
 	"github.com/WillieBam/support_copilot/backend/types"
 )
 
-// ICommandHandler represents a modular slash command handler.
+// ICommandHandler represents a modular slash command handler
 type ICommandHandler interface {
 	Command() string
 	Description() string

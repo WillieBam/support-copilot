@@ -11,7 +11,6 @@ export function useAppRouter(auth: AuthState) {
   useEffect(() => {
     if (!auth.isAuthReady) return
 
-    console.log("isSignedin", auth.isSignedIn)
     if(auth.needsTotpSignIn){
       if(location.pathname !== '/totp'){
         navigate('/totp');
@@ -26,7 +25,6 @@ export function useAppRouter(auth: AuthState) {
       return;
     }
 
-    console.log("hasTotpEnabled", auth.hasTotpEnabled)
     if(!auth.hasTotpEnabled) {
       if(location.pathname !== '/setup-totp'){
         navigate('/setup-totp');
@@ -45,7 +43,6 @@ export function useAppRouter(auth: AuthState) {
     [
     auth.isAuthReady,
     auth.isSignedIn,
-    auth.isEmailVerified,
     auth.hasTotpEnabled,
     auth.needsTotpSignIn,
     location.pathname,

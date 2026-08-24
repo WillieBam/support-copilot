@@ -17,7 +17,7 @@ export const createTeam = async (teamName: string): Promise<void> => {
 
 export const fetchTeamMembers = async (teamId: string): Promise<TeamMember[]> => {
     const response = await apiClient.get<TeamMember[]>(`/api/teams/${teamId}/members`);
-    return response.data;
+    return response.data || [];
 }
 
 export const removeTeamMember = async (teamId: string, userId: string): Promise<void> => {
@@ -28,7 +28,7 @@ export const searchUsers = async (query: string): Promise<UserSearchResult[]> =>
     const response = await apiClient.get<UserSearchResult[]>('/api/users/search', {
         params: { q: query },
     });
-    return response.data;
+    return response.data || [];
 }
 
 // deleteTeam removes a team permanently

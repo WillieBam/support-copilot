@@ -208,8 +208,13 @@ def detect_anomalies(
         raw_score = -float(model.decision_function(features_df)[0])
         anomaly_score = round(raw_score, 4)
         
-        # Classification against calibrated balanced threshold
-        is_anomaly = anomaly_score >= BALANCED_THRESHOLD
+        # Classification against calibrated balanced threshold with directional outlier verification
+        has_elevation = (
+            (features_df["robust_z_max"].values[0] >= 1.5) or
+            (features_df["mild_outlier_count"].values[0] > 0) or
+            (features_df["max_abs_rel_change"].values[0] >= 0.5)
+        )
+        is_anomaly = bool(anomaly_score >= BALANCED_THRESHOLD and has_elevation)
         final_status = 0 if is_anomaly else 1  # 0 for Anomaly, 1 for Normal
         status_label = "Anomaly" if is_anomaly else "Normal"
         prediction_str = "ANOMALY" if is_anomaly else "NORMAL"
@@ -219,14 +224,14 @@ def detect_anomalies(
         confidence = round(min(0.99, max(0.50, 0.50 + distance * 3.0)), 2)
         
         # Risk level determination
-        if anomaly_score >= 0.0531:
-            risk_level = "CRITICAL"
-        elif is_anomaly:
-            risk_level = "HIGH"
-        elif anomaly_score >= -0.05:
-            risk_level = "MEDIUM"
-        else:
+        if not is_anomaly:
             risk_level = "LOW"
+        elif anomaly_score >= 0.0531:
+            risk_level = "CRITICAL"
+        elif anomaly_score >= 0.0:
+            risk_level = "HIGH"
+        else:
+            risk_level = "MEDIUM"
             
         # Summary explanation
         if offending_metrics:

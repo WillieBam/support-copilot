@@ -72,10 +72,7 @@ func (h *Handler) UpdateRunbook(c *echo.Context) error {
 	rb, err := h.teamService.UpdateRunbook(c.Request().Context(), updaterID, runbookID, req.Title, req.Content)
 	if err != nil {
 		slog.Error("[runbook] UpdateRunbook failed", "runbook_id", runbookID, "error", err)
-		if errors.Is(err, customErrors.ErrRunbookNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
-			return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
-		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return runbookNotFoundError(c, err)
 	}
 	return c.JSON(http.StatusOK, rb)
 }
@@ -90,10 +87,7 @@ func (h *Handler) DeprecateRunbook(c *echo.Context) error {
 	rb, err := h.teamService.DeprecateRunbook(c.Request().Context(), runbookID)
 	if err != nil {
 		slog.Error("[runbook] DeprecateRunbook failed", "runbook_id", runbookID, "error", err)
-		if errors.Is(err, customErrors.ErrRunbookNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
-			return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
-		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return runbookNotFoundError(c, err)
 	}
 	return c.JSON(http.StatusOK, rb)
 }
@@ -108,10 +102,7 @@ func (h *Handler) GetRunbook(c *echo.Context) error {
 	rb, err := h.teamService.GetRunbook(c.Request().Context(), runbookID)
 	if err != nil {
 		slog.Error("[runbook] GetRunbook failed", "runbook_id", runbookID, "error", err)
-		if errors.Is(err, customErrors.ErrRunbookNotFound) || strings.Contains(strings.ToLower(err.Error()), "not found") {
-			return c.JSON(http.StatusNotFound, map[string]string{"error": err.Error()})
-		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return runbookNotFoundError(c, err)
 	}
 	return c.JSON(http.StatusOK, rb)
 }
@@ -131,12 +122,20 @@ func (h *Handler) GetRunbookLogs(c *echo.Context) error {
 	return c.JSON(http.StatusOK, logs)
 }
 
-// ListRunbooks handles get /internal/teams/:team_id/runbooks?status=active
+// ListRunbooks handles get /internal/teams/:team_id/runbooks?status=active or /api/teams/:team_id/runbooks
 func (h *Handler) ListRunbooks(c *echo.Context) error {
 	teamID, err := uuid.Parse(c.Param("team_id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid team_id"})
 	}
+
+	// if this request is from an authenticated user session, verify team membership
+	if user, userErr := h.getAuthenticatedUser(c); userErr == nil && user != nil {
+		if !h.checkTeamMembership(c, user, teamID) {
+			return nil
+		}
+	}
+
 
 	status := c.QueryParam("status")
 	if status == "" {

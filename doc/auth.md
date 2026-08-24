@@ -1,97 +1,114 @@
-# 🔒 Authentication & Session Refresh Flow
+# Authentication, TOTP MFA, and Session Management
 
-This document explains how user sessions are managed and refreshed in the **Support Copilot** application. It covers client-side Firebase Auth, the custom Go backend session cookie, and the silent token-rotation mechanism.
-
----
-
-## 🍪 1. Active User Session via Cookie
-
-Support Copilot implements a secure, state-independent cookie session pattern to authenticate users.
-
-```mermaid
-sequenceDiagram
-    participant User as Frontend Client
-    participant FB as Firebase Auth
-    participant API as Go Backend API
-    participant DB as Postgres DB
-
-    User->>FB: Login with Email & Password
-    FB-->>User: ID Token issued
-    User->>API: POST /auth/exchange { firebase_token }
-    API->>FB: Validate Firebase ID Token
-    API->>DB: Upsert & Sync User record
-    API-->>User: Sets HttpOnly cookie 'support_copilot_session' (JWT)
-    User->>API: GET /api/auth/me (Sends session cookie)
-    API-->>User: Authenticated User Payload
-```
-
-### Flow Details
-1. **Token Exchange**: Upon signing in with Firebase, the frontend gets a Firebase ID Token. It posts this token to the backend at `/auth/exchange`.
-2. **Backend Verification**: The backend verifies the token using the Firebase Admin SDK in [ExchangeToken].
-3. **Session Generation**: The backend generates its own signed HS256 JWT containing the user identity, expiring in exactly **1 hour** (see [generateAuthToken]).
-4. **Cookie Attachment**: The backend returns the JWT in an `HttpOnly`, `SameSite=Lax` cookie named `support_copilot_session` (see [handler.go]).
-5. **Route Middleware**: Subsequent requests to `/api/*` and `/query/*` automatically include the cookie, which is validated by the [AuthMiddleware] on the backend.
-
-> [!NOTE]
-> Setting the cookie as `HttpOnly` prevents client-side scripts from reading the token directly, mitigating cross-site scripting (XSS) token theft.
+This document details the authentication architecture, Multi-Factor Authentication (MFA), and session management in the **Support Copilot** application.
 
 ---
 
-## 🔄 2. Token Refresh Mechanism
+## 1. Architecture Overview
 
-The application does not maintain custom backend-level database sessions or refresh tokens. Instead, it relies on the client-side **Firebase Auth SDK** to manage session duration and refresh cycles.
+Support Copilot implements a unified, state-independent session pattern with dual login strategies and an integrated RFC 6238 Time-Based One-Time Password (TOTP) Multi-Factor Authentication (MFA) engine:
+
+- **Dual Login Support**:
+  - **Username / Email + Password**: Authenticated directly against the PostgreSQL database with Bcrypt hash validation (`POST /api/auth/login`).
+  - **Firebase Authentication**: Authenticated on the client via Firebase Auth SDK and exchanged on the backend via Firebase Admin SDK (`POST /api/auth/exchange`).
+- **Unified TOTP Multi-Factor Authentication**:
+  - Accounts with TOTP enabled require a 6-digit verification code (`totp_code`) regardless of which login strategy is used.
+  - If MFA is required and no code (or an invalid code) is provided, the backend returns an HTTP `403 Forbidden` with error code `mfa_required`.
+- **Session Establishment**:
+  - Successful authentication issues a signed HS256 JWT containing the user identity, scope, and team context.
+  - The JWT is transmitted in a secure, `HttpOnly`, `SameSite=Lax` cookie named `support_copilot_session` with a 1-hour validity window.
+- **Route Authorization**:
+  - Protected API routes under `/api/*` and streaming query routes under `/query/*` are guarded by `AuthMiddleware`, which parses and verifies the session cookie.
+
+---
+
+## 2. Authentication and MFA Lifecycle
 
 ```mermaid
 sequenceDiagram
     participant Client as Frontend Client
-    participant Interceptor as Axios / Fetch client
-    participant FB as Firebase Auth
-    participant API as Go Backend API
+    participant Auth as Go Backend Auth Service
+    participant FB as Firebase Admin SDK
+    participant DB as PostgreSQL DB
 
-    Client->>API: Request fails with HTTP 401
-    Interceptor->>FB: user.getIdToken() (automatic refresh)
-    FB-->>Interceptor: Fresh Firebase ID Token
-    Interceptor->>API: POST /auth/exchange { new_token }
-    API-->>Interceptor: Sets new 1-hour 'support_copilot_session' cookie
-    Interceptor->>API: Retry original request
+    alt Strategy A: Username / Email + Password Login
+        Client->>Auth: POST /api/auth/login { username_or_email, password, totp_code? }
+        Auth->>DB: Fetch user record by username or email
+        Auth->>Auth: Validate Bcrypt password hash
+        alt User Has TOTP Enabled
+            alt No totp_code or invalid
+                Auth-->>Client: HTTP 403 Forbidden { error: "mfa_required" }
+            else Valid 6-digit totp_code supplied
+                Auth->>Auth: Verify TOTP against user.totp_secret
+            end
+        end
+        Auth-->>Client: Sets HttpOnly cookie 'support_copilot_session' (JWT)
+    else Strategy B: Firebase Login & Token Exchange
+        Client->>FB: Authenticate with Firebase Client SDK
+        FB-->>Client: Returns Firebase ID Token
+        Client->>Auth: POST /api/auth/exchange { firebase_token, totp_code? }
+        Auth->>FB: Verify Firebase ID Token
+        Auth->>DB: Upsert & synchronize user profile
+        alt User Has TOTP Enabled
+            alt No totp_code or invalid
+                Auth-->>Client: HTTP 403 Forbidden { error: "mfa_required" }
+            else Valid 6-digit totp_code supplied
+                Auth->>Auth: Verify TOTP against user.totp_secret
+            end
+        end
+        Auth-->>Client: Sets HttpOnly cookie 'support_copilot_session' (JWT)
+    end
+
+    Note over Client,Auth: Subsequent Authenticated Requests
+    Client->>Auth: GET /api/auth/me (Sends session cookie)
+    Auth-->>Client: Returns User profile & active team metadata
 ```
-
-### Flow Details
-* **Handling Session Expiration**:
-  The backend session cookie is valid for 1 hour. When it expires, requests to authenticated endpoints return an HTTP `401 Unauthorized` status.
-* **Axios Interceptor**:
-  In [apiClient.ts], a response interceptor catches the 401 error:
-  * If a Firebase user is logged in, it pauses other requests, sets `isRefreshing = true`, and queues subsequent attempts.
-  * It triggers the [exchangeToken] function.
-* **Firebase Silent Refresh**:
-  Inside `exchangeToken`, calling `user.getIdToken()` triggers the Firebase SDK. If the Firebase session is still valid but the local ID token is expired, Firebase uses its internal refresh token (stored securely in browser storage) to get a new ID token.
-* **Cookie Renewal**:
-  The frontend submits the new Firebase ID token to `/auth/exchange`, renewing the `support_copilot_session` cookie for another hour.
-* **Retrying Requests**:
-  The interceptor replays all queued calls. For raw stream `fetch` calls, the same exchange and retry cycle is performed manually in [backendRuntime.ts].
-
-> [!TIP]
-> This pattern keeps the backend stateless while leveraging the security and convenience of Firebase's token lifecycle
 
 ---
 
-## 🆚 3. Relationship: /auth/exchange vs /auth/me
+## 3. Unified TOTP Multi-Factor Authentication
 
-To clarify the difference between these two endpoints:
-* **`/auth/exchange`** is the **Session Creator (Write)**: It validates a Firebase ID token and issues the signed `support_copilot_session` cookie.
-* **`/auth/me`** is the **Session Reader (Read)**: It reads the existing `support_copilot_session` cookie from the incoming request to verify authentication and return user identity metadata.
+Support Copilot incorporates an RFC 6238 TOTP implementation compatible with standard authenticator applications (Google Authenticator, Microsoft Authenticator, Authy, 1Password).
+
+### TOTP Setup and Provisioning
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant Frontend
-    participant Backend
+    participant Client as Frontend Client
+    participant API as Go Backend API
+    participant App as Authenticator App
 
-    Note over Frontend,Backend: Scenario A: User logs in or session expires (No valid cookie)
-    Frontend->>Backend: POST /auth/exchange (Sends Firebase ID Token)
-    Backend-->>Frontend: Sets 'support_copilot_session' Cookie (HTTP 200 OK)
+    Client->>API: POST /api/auth/totp/setup (Authenticated)
+    API->>API: Generate Base32 TOTP secret & otpauth:// URI
+    API-->>Client: { secret: "JBSWY3DPEHPK3PXP", qr_uri: "otpauth://totp/..." }
+    Client->>App: Render QR Code & scan into Authenticator App
+    App-->>Client: Generates 6-digit rolling code
+    Client->>API: POST /api/auth/totp/verify { code: "123456" }
+    API->>API: Validate code using HMAC-SHA1 algorithm
+    API-->>Client: { status: "2fa_enabled" }
+```
 
-    Note over Frontend,Backend: Scenario B: User refreshes page (Cookie already exists)
-    Frontend->>Backend: GET /api/auth/me (Sends Cookie automatically)
-    Backend-->>Frontend: Returns User Details (HTTP 200 OK)
+---
+
+## 4. Session Management and Token Rotation
+
+The application avoids database-level stateful session tracking by utilizing signed JWTs wrapped in browser cookies.
+
+```mermaid
+sequenceDiagram
+    participant Client as Frontend Client
+    participant Interceptor as Axios Interceptor
+    participant FB as Firebase Auth
+    participant API as Go Backend API
+
+    Client->>API: API Request fails with HTTP 401 Unauthorized
+    alt User Authenticated via Firebase
+        Interceptor->>FB: user.getIdToken(forceRefresh)
+        FB-->>Interceptor: Fresh Firebase ID Token
+        Interceptor->>API: POST /api/auth/exchange { firebase_token: new_token }
+        API-->>Interceptor: Sets refreshed 'support_copilot_session' cookie
+        Interceptor->>API: Retry original API request
+    else User Authenticated via Password
+        Interceptor-->>Client: Redirect to /login for credential re-entry
+    end
 ```

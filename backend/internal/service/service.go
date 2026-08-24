@@ -143,6 +143,24 @@ func formatFallbackMarkdown(toolName, toolResult string) string {
 			return sb.String()
 		}
 	}
+	if toolName == "list_runbooks" {
+		var rbs []struct {
+			ID        string `json:"id"`
+			Title     string `json:"title"`
+			Status    string `json:"status"`
+			CreatedAt string `json:"created_at"`
+		}
+		if err := json.Unmarshal([]byte(toolResult), &rbs); err == nil && len(rbs) > 0 {
+			var sb strings.Builder
+			sb.WriteString("\n\n### 📘 Team Runbooks\n\n")
+			sb.WriteString("| Title | Status | Runbook ID | Created |\n")
+			sb.WriteString("| --- | --- | --- | --- |\n")
+			for _, rb := range rbs {
+				sb.WriteString(fmt.Sprintf("| %s | `%s` | `%s` | %s |\n", rb.Title, rb.Status, rb.ID, rb.CreatedAt))
+			}
+			return sb.String()
+		}
+	}
 	if toolName == "get_incident" {
 		var inc struct {
 			IncidentID       string `json:"incident_id"`
@@ -467,17 +485,6 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 			toolResult, err := s.toolRegistry.Execute(ctx, toolName, string(argsBytes))
 			if err != nil {
 				slog.Warn("[APP SERVICE] Tool execution failed via ToolRegistry", "tool", toolName, "err", err)
-
-				// if tool call failed (e.g. invalid alert_id "null") and no content was streamed yet,
-				// fall back to a conversational text stream without tools to avoid sending raw error noise to user
-				if strings.TrimSpace(assistantMsg.Content) == "" {
-					slog.Info("[APP SERVICE] Falling back to direct text response without tools")
-					fallbackReq := requests.LLMChatRequest{
-						Messages: messages,
-					}
-					_, fallbackErr := s.llmClient.QueryStreamWithTools(ctx, fallbackReq, streamChan)
-					return fallbackErr
-				}
 				toolResult = fmt.Sprintf(`{"error": "%s"}`, err.Error())
 			}
 

@@ -19,7 +19,7 @@ func registerSPAStatic(e *echo.Echo, clientDir string) {
 }
 
 // spaFallbackHandler returns an echo.HandlerFunc that serves a real file when
-// it exists, and falls back to index.html otherwise.
+// it exists, and falls back to index.html otherwise
 func spaFallbackHandler(clientDir string) echo.HandlerFunc {
 	indexHTML := filepath.Join(clientDir, "index.html")
 	return func(c *echo.Context) error {

@@ -373,13 +373,20 @@ func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, team
 	var logEntry *models.InstructionLog
 	if existingInst != nil {
 		nextVersion := len(existingLogs) + 1
+		prevTime := existingInst.CreatedAt
+		if prevTime.IsZero() && len(existingLogs) > 0 {
+			prevTime = existingLogs[0].UpdatedAt
+		}
+		if prevTime.IsZero() {
+			prevTime = time.Now()
+		}
 		logEntry = &models.InstructionLog{
 			ID:               uuid.New(),
 			InstructionID:    existingInst.ID,
 			UpdatedBy:        requesterID,
 			OlderInstruction: existingInst.InstructionDetails,
 			Version:          nextVersion,
-			UpdatedAt:        time.Now(),
+			UpdatedAt:        prevTime,
 		}
 	}
 
@@ -456,6 +463,10 @@ func (s *teamService) UpdateRunbook(ctx context.Context, updaterID, runbookID uu
 		slog.WarnContext(ctx, "[team-svc] UpdateRunbook: runbook not found", "runbook_id", runbookID, "error", err)
 		return nil, customErrors.ErrRunbookNotFound
 	}
+	if existingRb.Status == "deprecated" {
+		slog.WarnContext(ctx, "[team-svc] UpdateRunbook: runbook is deprecated", "runbook_id", runbookID)
+		return nil, customErrors.ErrRunbookDeprecated
+	}
 
 	if updaterID == uuid.Nil {
 		if existingRb.CreatedBy != uuid.Nil {
@@ -467,6 +478,13 @@ func (s *teamService) UpdateRunbook(ctx context.Context, updaterID, runbookID uu
 
 	var logEntry *models.RunbookLog
 	if existingRb != nil {
+		prevTime := existingRb.UpdatedAt
+		if prevTime.IsZero() || len(existingLogs) == 0 {
+			prevTime = existingRb.CreatedAt
+		}
+		if prevTime.IsZero() {
+			prevTime = time.Now()
+		}
 		logEntry = &models.RunbookLog{
 			ID:           uuid.New(),
 			RunbookID:    runbookID,
@@ -476,9 +494,10 @@ func (s *teamService) UpdateRunbook(ctx context.Context, updaterID, runbookID uu
 			OlderTitle:   existingRb.Title,
 			OlderContent: existingRb.Content,
 			Version:      len(existingLogs) + 1,
-			UpdatedAt:    time.Now(),
+			UpdatedAt:    prevTime,
 		}
 	}
+
 
 	rb, err := s.teamRepo.UpdateRunbook(ctx, runbookID, strings.TrimSpace(title), content, logEntry)
 	if err != nil {
@@ -563,4 +582,8 @@ func (s *teamService) GetIncidentContextByIDOrNumber(ctx context.Context, idOrNu
 	}
 	slog.InfoContext(ctx, "[team-svc] GetIncidentContextByIDOrNumber: success", "id_or_number", idOrNumber, "alert_count", len(alerts))
 	return inc, alerts, nil
+}
+
+func (s *teamService) GetMemberRole(ctx context.Context, teamID, userID uuid.UUID) (string, error) {
+	return s.teamRepo.GetMemberRole(ctx, teamID, userID)
 }

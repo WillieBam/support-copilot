@@ -39,70 +39,7 @@ var _ = Describe("Handler", func() {
 		h = endpoint.NewHandler(mockAppSvc, mockAuthSvc)
 	})
 
-	Context("TokenExchangeHandler", func() {
-		It("should fail if request body is invalid", func() {
-			req := httptest.NewRequest(http.MethodPost, "/token-exchange", strings.NewReader("invalid body"))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
 
-			err := h.TokenExchangeHandler(c)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(rec.Code).To(Equal(http.StatusBadRequest))
-		})
-
-		It("should fail if firebase token is empty", func() {
-			body, _ := json.Marshal(requests.TokenExchangeRequest{FirebaseToken: ""})
-			req := httptest.NewRequest(http.MethodPost, "/token-exchange", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
-
-			err := h.TokenExchangeHandler(c)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(rec.Code).To(Equal(http.StatusBadRequest))
-		})
-
-		It("should fail with status 403 when mfa is required", func() {
-			body, _ := json.Marshal(requests.TokenExchangeRequest{FirebaseToken: "mfa-token"})
-			req := httptest.NewRequest(http.MethodPost, "/token-exchange", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
-
-			mockAuthSvc.On("ExchangeToken", mock.Anything, "mfa-token", "").Return("", nil, errors.New("mfa_required"))
-
-			err := h.TokenExchangeHandler(c)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(rec.Code).To(Equal(http.StatusForbidden))
-		})
-
-		It("should return token and set cookie on successful exchange", func() {
-			body, _ := json.Marshal(requests.TokenExchangeRequest{FirebaseToken: "valid-token"})
-			req := httptest.NewRequest(http.MethodPost, "/token-exchange", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
-
-			claims := &types.Claims{
-				FirebaseUID: "uid-123",
-				RegisteredClaims: jwt.RegisteredClaims{
-					ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
-				},
-			}
-			mockAuthSvc.On("ExchangeToken", mock.Anything, "valid-token", "").Return("backend-token", claims, nil)
-
-			err := h.TokenExchangeHandler(c)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(rec.Code).To(Equal(http.StatusOK))
-
-			// Check cookie
-			cookies := rec.Result().Cookies()
-			Expect(len(cookies)).To(Equal(1))
-			Expect(cookies[0].Name).To(Equal("support_copilot_session"))
-			Expect(cookies[0].Value).To(Equal("backend-token"))
-		})
-	})
 
 	Context("Me", func() {
 		It("should fail if unauthorized", func() {
@@ -132,6 +69,135 @@ var _ = Describe("Handler", func() {
 			Expect(res["authenticated"]).To(BeTrue())
 			Expect(res["user_uid"]).To(Equal("uid-123"))
 			Expect(res["user_email"]).To(Equal("user@test.com"))
+		})
+	})
+
+	Context("RegisterHandler", func() {
+		It("should fail if request body is invalid", func() {
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/register", strings.NewReader("invalid json"))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			err := h.RegisterHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should return 400 when registration fails in service", func() {
+			body, _ := json.Marshal(requests.RegisterRequest{
+				Username: "testuser",
+				Email:    "test@example.com",
+				Password: "password123!",
+			})
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			mockAuthSvc.On("Register", mock.Anything, "testuser", "test@example.com", "password123!").
+				Return(nil, errors.New("username already taken"))
+
+			err := h.RegisterHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should return 201 on successful registration", func() {
+			username := "testuser"
+			body, _ := json.Marshal(requests.RegisterRequest{
+				Username: username,
+				Email:    "test@example.com",
+				Password: "password123!",
+			})
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			mockAuthSvc.On("Register", mock.Anything, username, "test@example.com", "password123!").
+				Return(&models.User{Username: &username, Email: "test@example.com"}, nil)
+
+			err := h.RegisterHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusCreated))
+		})
+	})
+
+	Context("LoginHandler", func() {
+		It("should fail if request body is invalid", func() {
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader("invalid json"))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			err := h.LoginHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should return 403 when mfa is required", func() {
+			body, _ := json.Marshal(requests.LoginRequest{
+				UsernameOrEmail: "testuser",
+				Password:        "password123!",
+			})
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			mockAuthSvc.On("LoginWithPassword", mock.Anything, "testuser", "password123!", "").
+				Return("", nil, errors.New("mfa required"))
+
+			err := h.LoginHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("should return 200 and set session cookie on valid credentials", func() {
+			body, _ := json.Marshal(requests.LoginRequest{
+				UsernameOrEmail: "testuser",
+				Password:        "password123!",
+			})
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			claims := &types.Claims{
+				RegisteredClaims: jwt.RegisteredClaims{
+					ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+				},
+			}
+			mockAuthSvc.On("LoginWithPassword", mock.Anything, "testuser", "password123!", "").
+				Return("valid-jwt-token", claims, nil)
+
+			err := h.LoginHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+
+			cookies := rec.Result().Cookies()
+			Expect(len(cookies)).To(Equal(1))
+			Expect(cookies[0].Name).To(Equal("support_copilot_session"))
+			Expect(cookies[0].Value).To(Equal("valid-jwt-token"))
+		})
+	})
+
+	Context("LogoutHandler", func() {
+		It("should clear session cookie and return status logged_out", func() {
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			err := h.LogoutHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+
+			cookies := rec.Result().Cookies()
+			Expect(len(cookies)).To(Equal(1))
+			Expect(cookies[0].Name).To(Equal("support_copilot_session"))
+			Expect(cookies[0].Value).To(Equal(""))
+			Expect(cookies[0].MaxAge).To(Equal(-1))
 		})
 	})
 
@@ -210,12 +276,17 @@ var _ = Describe("Handler", func() {
 		})
 
 		It("should list team conversations with a parsed limit", func() {
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
 			teamID := uuid.New()
+			userID := uuid.New()
 			body := []models.Conversation{{ID: uuid.New(), TeamID: teamID}}
+			userSvc.On("GetUserByFirebaseUID", mock.Anything, "uid-123").Return(&models.User{ID: userID, Scope: "super_admin"}, nil)
 			mockAppSvc.On("ListTeamConversations", mock.Anything, teamID, 3).Return(body, nil)
 
 			e.GET("/api/teams/:team_id/conversations", func(c *echo.Context) error {
-				return h.ListTeamConversations(c)
+				c.Set("user_uid", "uid-123")
+				return hWithUser.ListTeamConversations(c)
 			})
 			req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID.String()+"/conversations?limit=3", nil)
 			rec := httptest.NewRecorder()
@@ -225,12 +296,19 @@ var _ = Describe("Handler", func() {
 		})
 
 		It("should return conversation messages when the conversation id is valid", func() {
+			userSvc := &mocks.IUserService{}
+			hWithUser := endpoint.NewHandler(mockAppSvc, mockAuthSvc, userSvc)
 			convID := uuid.New()
+			userID := uuid.New()
+			conv := &models.Conversation{ID: convID, UserID: userID}
 			msgList := []models.Message{{ID: uuid.New(), ConversationID: convID, Sender: "user"}}
+			userSvc.On("GetUserByID", mock.Anything, userID).Return(&models.User{ID: userID, Scope: "super_admin"}, nil)
+			mockAppSvc.On("GetConversationByID", mock.Anything, convID).Return(conv, nil)
 			mockAppSvc.On("ListMessagesByConversation", mock.Anything, convID).Return(msgList, nil)
 
 			e.GET("/api/conversations/:id/messages", func(c *echo.Context) error {
-				return h.GetConversationMessages(c)
+				c.Set("user_uid", userID.String())
+				return hWithUser.GetConversationMessages(c)
 			})
 			req := httptest.NewRequest(http.MethodGet, "/api/conversations/"+convID.String()+"/messages", nil)
 			rec := httptest.NewRecorder()
@@ -384,8 +462,10 @@ var _ = Describe("Handler", func() {
 			convID := uuid.New()
 			cMsgErr := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
 			cMsgErr.SetPathValues(echo.PathValues{{Name: "id", Value: convID.String()}})
+			cMsgErr.Set("user_uid", "uid-123")
+			mockAppSvc.On("GetConversationByID", mock.Anything, convID).Return(&models.Conversation{ID: convID, UserID: userID}, nil).Once()
 			mockAppSvc.On("ListMessagesByConversation", mock.Anything, convID).Return(nil, errors.New("db error")).Once()
-			err = h.GetConversationMessages(cMsgErr)
+			err = hWithUser.GetConversationMessages(cMsgErr)
 			Expect(err).NotTo(HaveOccurred())
 
 			// SearchUsers 500
@@ -524,6 +604,184 @@ var _ = Describe("Handler", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(rec.Code).To(Equal(http.StatusOK))
 			mockUserSvc.AssertExpectations(GinkgoT())
+		})
+	})
+
+	Context("Strict Team Isolation and Mandatory 2FA", func() {
+		var (
+			mockUserSvc *mocks.IUserService
+			mockTeamSvc *mocks.ITeamService
+			hIsolated   *endpoint.Handler
+		)
+
+		BeforeEach(func() {
+			mockUserSvc = &mocks.IUserService{}
+			mockTeamSvc = &mocks.ITeamService{}
+			hIsolated = endpoint.NewHandler(mockAppSvc, mockAuthSvc, mockTeamSvc, mockUserSvc)
+		})
+
+		It("Me should return totp_enabled boolean correctly from user record", func() {
+			userID := uuid.New()
+			username := "totp_user"
+			user := &models.User{
+				ID:          userID,
+				Email:       "totp_user@test.com",
+				Username:    &username,
+				DisplayName: "TOTP User",
+				Scope:       "engineer",
+				TOTPEnabled: false,
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", userID.String())
+			c.Set("user_id", userID)
+
+			mockUserSvc.On("GetUserByID", mock.Anything, userID).Return(user, nil).Once()
+
+			err := hIsolated.Me(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+
+			var res map[string]interface{}
+			err = json.Unmarshal(rec.Body.Bytes(), &res)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res["totp_enabled"]).To(BeFalse())
+			Expect(res["user_email"]).To(Equal("totp_user@test.com"))
+		})
+
+		It("ListTeamConversations should return 403 Forbidden if user is not in team", func() {
+			userID := uuid.New()
+			teamID := uuid.New()
+			username := "outside_user"
+			user := &models.User{ID: userID, Email: "outside@test.com", Username: &username, Scope: "engineer"}
+
+			req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID.String()+"/conversations", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			c.Set("user_uid", userID.String())
+			c.Set("user_id", userID)
+
+			mockUserSvc.On("GetUserByID", mock.Anything, userID).Return(user, nil).Once()
+			mockTeamSvc.On("GetMemberRole", mock.Anything, teamID, userID).Return("", errors.New("user not in team")).Once()
+
+			err := hIsolated.ListTeamConversations(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("ListTeamConversations should succeed if user is a member of the team", func() {
+			userID := uuid.New()
+			teamID := uuid.New()
+			username := "member_user"
+			user := &models.User{ID: userID, Email: "member@test.com", Username: &username, Scope: "engineer"}
+
+			req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID.String()+"/conversations", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			c.Set("user_uid", userID.String())
+			c.Set("user_id", userID)
+
+			mockUserSvc.On("GetUserByID", mock.Anything, userID).Return(user, nil).Once()
+			mockTeamSvc.On("GetMemberRole", mock.Anything, teamID, userID).Return("member", nil).Once()
+			mockAppSvc.On("ListTeamConversations", mock.Anything, teamID, 0).Return([]models.Conversation{}, nil).Once()
+
+			err := hIsolated.ListTeamConversations(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("ListTeamConversations should succeed if user is a super_admin without explicit team membership", func() {
+			userID := uuid.New()
+			teamID := uuid.New()
+			username := "admin_user"
+			user := &models.User{ID: userID, Email: "admin@test.com", Username: &username, Scope: "super_admin"}
+
+			req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID.String()+"/conversations", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+			c.Set("user_uid", userID.String())
+			c.Set("user_id", userID)
+
+			mockUserSvc.On("GetUserByID", mock.Anything, userID).Return(user, nil).Once()
+			mockAppSvc.On("ListTeamConversations", mock.Anything, teamID, 0).Return([]models.Conversation{}, nil).Once()
+
+			err := hIsolated.ListTeamConversations(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("GetConversationMessages should return 403 Forbidden if user does not belong to conversation's team", func() {
+			userID := uuid.New()
+			otherUserID := uuid.New()
+			teamID := uuid.New()
+			convID := uuid.New()
+			username := "outside_user"
+			user := &models.User{ID: userID, Email: "outside@test.com", Username: &username, Scope: "engineer"}
+			conv := &models.Conversation{ID: convID, TeamID: teamID, UserID: otherUserID}
+
+			req := httptest.NewRequest(http.MethodGet, "/api/conversations/"+convID.String()+"/messages", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPathValues(echo.PathValues{{Name: "id", Value: convID.String()}})
+			c.Set("user_uid", userID.String())
+			c.Set("user_id", userID)
+
+			mockUserSvc.On("GetUserByID", mock.Anything, userID).Return(user, nil).Once()
+			mockAppSvc.On("GetConversationByID", mock.Anything, convID).Return(conv, nil).Once()
+			mockTeamSvc.On("GetMemberRole", mock.Anything, teamID, userID).Return("", errors.New("user not in team")).Once()
+
+			err := hIsolated.GetConversationMessages(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("CreateConversation should return 403 Forbidden if non-admin user is not in the team", func() {
+			userID := uuid.New()
+			teamID := uuid.New()
+			username := "outside_user"
+			user := &models.User{ID: userID, Email: "outside@test.com", Username: &username, Scope: "engineer"}
+
+			body, _ := json.Marshal(requests.CreateConversationRequest{TeamID: teamID})
+			req := httptest.NewRequest(http.MethodPost, "/api/conversations", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", userID.String())
+			c.Set("user_id", userID)
+
+			mockUserSvc.On("GetUserByID", mock.Anything, userID).Return(user, nil).Once()
+			mockTeamSvc.On("GetMemberRole", mock.Anything, teamID, userID).Return("", errors.New("user not in team")).Once()
+
+			err := hIsolated.CreateConversation(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("Query should return 403 Forbidden if non-admin user attempts chat in a team they do not belong to", func() {
+			userID := uuid.New()
+			teamID := uuid.New()
+			username := "outside_user"
+			user := &models.User{ID: userID, Email: "outside@test.com", Username: &username, Scope: "engineer"}
+
+			body, _ := json.Marshal(requests.ChatQueryRequest{Input: "Hello team", TeamID: &teamID})
+			req := httptest.NewRequest(http.MethodPost, "/query/chat", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_uid", userID.String())
+			c.Set("user_id", userID)
+
+			mockUserSvc.On("GetUserByID", mock.Anything, userID).Return(user, nil).Once()
+			mockTeamSvc.On("GetMemberRole", mock.Anything, teamID, userID).Return("", errors.New("user not in team")).Once()
+
+			err := hIsolated.Query(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
 		})
 	})
 

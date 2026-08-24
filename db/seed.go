@@ -347,27 +347,52 @@ func seedTeamIncidents(db *gorm.DB) {
 			AssignedAt: time.Now().Add(-30 * time.Minute),
 		},
 		{
-			ID:         uuid.MustParse("b3333333-3333-3333-3333-333333333333"),
-			TeamID:     teamPlatformID,
-			CreatedBy:  realUserID,
-			Title:      "GraphQL Gateway Schema Stitching Failure",
-			Status:     "RESOLVED",
-			Details:    "Rolled back breaking change in catalog microservice deployment.",
-			CreatedAt:  time.Now().Add(-6 * time.Hour),
-			AssignedAt: time.Now().Add(-6 * time.Hour),
-			ResolvedAt: timePtr(time.Now().Add(-5 * time.Hour)),
+			ID:             uuid.MustParse("b3333333-3333-3333-3333-333333333333"),
+			IncidentNumber: "INC-111",
+			TeamID:         teamPlatformID,
+			CreatedBy:      realUserID,
+			Title:          "GraphQL Gateway Schema Stitching Failure",
+			Status:         "RESOLVED",
+			Details:        "Rolled back breaking change in catalog microservice deployment.",
+			CreatedAt:      time.Now().Add(-6 * time.Hour),
+			AssignedAt:     time.Now().Add(-6 * time.Hour),
+			ResolvedAt:     timePtr(time.Now().Add(-5 * time.Hour)),
 		},
 	}
 
 	for _, inc := range mockIncidents {
-		err := db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "id"}},
-			DoNothing: true,
-		}).Create(&inc).Error
-		if err != nil {
-			log.Printf("Warning: TeamIncident seeding failed for %s: %v", inc.Title, err)
+		var count int64
+		db.Model(&models.TeamIncident{}).Where("id = ?", inc.ID).Count(&count)
+		if count > 0 {
+			// clear any other row that might accidentally hold this incident_number
+			db.Model(&models.TeamIncident{}).Where("incident_number = ? AND id != ?", inc.IncidentNumber, inc.ID).Update("incident_number", nil)
+			db.Model(&models.TeamIncident{}).Where("id = ?", inc.ID).Updates(map[string]interface{}{
+				"incident_number": inc.IncidentNumber,
+				"title":           inc.Title,
+				"status":          inc.Status,
+				"details":         inc.Details,
+			})
+		} else {
+			// clear any row that might hold this incident_number
+			db.Model(&models.TeamIncident{}).Where("incident_number = ?", inc.IncidentNumber).Update("incident_number", nil)
+			if err := db.Create(&inc).Error; err != nil {
+				log.Printf("Warning: TeamIncident seeding failed for %s: %v", inc.Title, err)
+			}
 		}
 	}
+
+	// backfill any other incidents missing incident_number
+	db.Exec(`
+		WITH numbered AS (
+			SELECT id, ROW_NUMBER() OVER (ORDER BY assigned_at ASC, created_at ASC) + 111 as row_num
+			FROM team_incidents
+			WHERE incident_number IS NULL OR incident_number = ''
+		)
+		UPDATE team_incidents
+		SET incident_number = 'INC-' || numbered.row_num
+		FROM numbered
+		WHERE team_incidents.id = numbered.id
+	`)
 	log.Println("TeamIncident database seeding done!")
 
 	seedIncidentStatusHistory(db)

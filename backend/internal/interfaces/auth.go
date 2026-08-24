@@ -15,5 +15,6 @@ type IAuthService interface {
 	VerifyAndEnableTOTP(ctx context.Context, userID uuid.UUID, code string) error
 	DisableTOTP(ctx context.Context, userID uuid.UUID) error
 	ExchangeToken(ctx context.Context, firebaseToken string, totpCode string) (string, *types.Claims, error)
+	RefreshToken(ctx context.Context, tokenString string) (string, *types.Claims, error)
 	ParseAndValidateAuthToken(ctx context.Context, tokenString string) (*types.Claims, error)
 }

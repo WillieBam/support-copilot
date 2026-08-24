@@ -48,7 +48,7 @@ export const TeamMembersModal = ({ teamId, teamName, isOwner, isSuperAdmin, onCl
           <div>
             <h2 className="text-lg font-bold text-foreground">Team Members</h2>
             <p className="text-xs text-muted-foreground">
-              Team: <span className="font-medium text-foreground">{teamName}</span> ({members.length} {members.length === 1 ? 'member' : 'members'})
+              Team: <span className="font-medium text-foreground">{teamName}</span> ({(members?.length ?? 0)} {(members?.length ?? 0) === 1 ? 'member' : 'members'})
             </p>
           </div>
         </div>
@@ -109,7 +109,7 @@ export const TeamMembersModal = ({ teamId, teamName, isOwner, isSuperAdmin, onCl
                   </div>
 
                   {/* Dropdown Search Results */}
-                  {searchResults.length > 0 && (
+                  {(searchResults?.length ?? 0) > 0 && (
                     <div className="absolute left-0 right-0 mt-1.5 max-h-40 overflow-y-auto rounded-xl border border-border bg-card shadow-xl z-50 py-1">
                       {searchResults.map((user) => (
                         <button
@@ -153,13 +153,13 @@ export const TeamMembersModal = ({ teamId, teamName, isOwner, isSuperAdmin, onCl
               <Loader2 className="w-5 h-5 animate-spin text-emerald-500 mr-2" />
               <span className="text-xs">Loading members...</span>
             </div>
-          ) : members.length === 0 ? (
+          ) : (members?.length ?? 0) === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-xs">
               No members found in this team.
             </div>
           ) : (
             <div className="space-y-2">
-              {members.map((member) => {
+              {members?.map((member) => {
                 const userEmail = member.user?.email || member.user_id;
                 const displayName = member.user?.display_name || userEmail.split('@')[0];
                 const initial = displayName.charAt(0).toUpperCase();

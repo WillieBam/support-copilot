@@ -208,14 +208,13 @@ For active feature development and faster iterative reloads:
 Support Copilot implements a flexible authentication layer with unified Multi-Factor Authentication:
 
 1. **Dual Login Options**:
-   - **Username / Email & Password**: Authenticate directly against the PostgreSQL user store via bcrypt-hashed credentials (`POST /api/auth/login`).
-   - **Firebase Authentication**: Authenticate via Firebase client SDK and exchange the Firebase ID Token for a backend session (`POST /api/auth/exchange`).
+   - **Username / Email & Password**: Authenticate directly against the PostgreSQL user store via bcrypt-hashed credentials.
+   - **Firebase Authentication**: Authenticate via Firebase client SDK and exchange the Firebase ID Token for a backend session.
 2. **Unified TOTP Multi-Factor Authentication (MFA)**:
    - Accounts with TOTP enabled require a 6-digit TOTP challenge (`totp_code`) regardless of which login method is used.
    - Built-in RFC 6238 TOTP generator and validator supporting standard authenticator apps (Google Authenticator, Authy, 1Password).
 3. **Session Management**:
    - Both authentication paths issue a secure `support_copilot_session` JWT stored in an `HttpOnly`, `SameSite=Lax` cookie.
-   - Authenticated user context is retrieved via `GET /api/auth/me`.
 
 ```mermaid
 sequenceDiagram
@@ -298,6 +297,5 @@ make generate
 ## Documentation & Specifications
 
 Detailed design documents, implementation plans, and walkthroughs are available in the [`doc/`](doc/) directory:
-- [System Architecture](doc/overall_system_architecture.md)
-- [Database ERD & Schema](doc/database_erd.md)
+- [SSE Flow](doc/streaming.md)
 - [Authentication & MFA Flow](doc/auth.md)

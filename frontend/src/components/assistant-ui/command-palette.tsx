@@ -28,6 +28,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "List active team runbooks or search by title/content",
     usage: "/runbook [query]",
   },
+    {
+    name: "/alert",
+    description: "List recent global telemetry alerts and correlation statuses",
+    usage: "/alert",
+  },
 ];
 
 interface CommandPaletteProps {

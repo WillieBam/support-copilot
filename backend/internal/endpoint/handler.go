@@ -45,8 +45,6 @@ func NewHandler(a interfaces.IAppService, authService interfaces.IAuthService, o
 	return h
 }
 
-
-
 func (h *Handler) Me(c *echo.Context) error {
 	uidVal := c.Get("user_uid")
 	appUID, ok := uidVal.(string)
@@ -122,7 +120,6 @@ func (h *Handler) Query(c *echo.Context) error {
 	var isFirstMessage bool
 	ctx := c.Request().Context()
 
-	// get database user record safely if userService is configured
 	if h.userService != nil {
 		var dbUser *models.User
 		if uidVal := c.Get("user_id"); uidVal != nil {

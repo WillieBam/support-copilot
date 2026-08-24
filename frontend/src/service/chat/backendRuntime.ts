@@ -115,7 +115,7 @@ export function useBackendRuntime(options?: UseBackendRuntimeOptions) {
       abortSignal,
     }: ChatModelRunOptions): AsyncGenerator<ChatModelRunResult, void, unknown> {
       const API_BASE_URL =
-        import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+        import.meta.env.VITE_API_BASE_URL || "";
       const ENDPOINT = `${API_BASE_URL}/query/chat`;
       const fetchOptions: RequestInit = {
         method: "POST",

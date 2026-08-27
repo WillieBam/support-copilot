@@ -117,6 +117,117 @@ var _ = Describe("UserRepository", func() {
 			Expect(errors.Is(err, customErrors.ErrUserNotFound)).To(BeTrue())
 			Expect(user).To(BeNil())
 		})
+
+		It("should return generic db error if query fails", func() {
+			firebaseUid := "uid-err"
+
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE firebase_uid = \$1`).
+				WithArgs(firebaseUid, 1).
+				WillReturnError(errors.New("connection failed"))
+
+			user, err := userRepo.GetUserByFirebaseUID(ctx, firebaseUid)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("connection failed"))
+			Expect(user).To(BeNil())
+		})
+	})
+
+	Context("GetUserByUsernameOrEmail", func() {
+		It("should retrieve a user by username or email successfully", func() {
+			uid := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "username", "email", "display_name", "scope"}).
+				AddRow(uid, "john_doe", "john@example.com", "John Doe", "engineer")
+
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE username = \$1 OR email = \$2 ORDER BY "users"\."id" LIMIT \$3`).
+				WithArgs("john_doe", "john_doe", 1).
+				WillReturnRows(rows)
+
+			user, err := userRepo.GetUserByUsernameOrEmail(ctx, "john_doe")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(user).NotTo(BeNil())
+			Expect(user.Email).To(Equal("john@example.com"))
+		})
+
+		It("should return ErrUserNotFound when user not found by identifier", func() {
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE username = \$1 OR email = \$2 ORDER BY "users"\."id" LIMIT \$3`).
+				WithArgs("unknown", "unknown", 1).
+				WillReturnError(gorm.ErrRecordNotFound)
+
+			user, err := userRepo.GetUserByUsernameOrEmail(ctx, "unknown")
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, customErrors.ErrUserNotFound)).To(BeTrue())
+			Expect(user).To(BeNil())
+		})
+
+		It("should return generic error when database fails", func() {
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE username = \$1 OR email = \$2 ORDER BY "users"\."id" LIMIT \$3`).
+				WithArgs("unknown", "unknown", 1).
+				WillReturnError(errors.New("db failure"))
+
+			user, err := userRepo.GetUserByUsernameOrEmail(ctx, "unknown")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("db failure"))
+			Expect(user).To(BeNil())
+		})
+	})
+
+	Context("GetUserByID", func() {
+		It("should retrieve a user by UUID successfully", func() {
+			uid := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "email", "display_name"}).
+				AddRow(uid, "test@example.com", "Test User")
+
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE id = \$1 ORDER BY "users"\."id" LIMIT \$2`).
+				WithArgs(uid, 1).
+				WillReturnRows(rows)
+
+			user, err := userRepo.GetUserByID(ctx, uid)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(user).NotTo(BeNil())
+			Expect(user.ID).To(Equal(uid))
+		})
+
+		It("should return ErrUserNotFound when user ID does not exist", func() {
+			uid := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE id = \$1 ORDER BY "users"\."id" LIMIT \$2`).
+				WithArgs(uid, 1).
+				WillReturnError(gorm.ErrRecordNotFound)
+
+			user, err := userRepo.GetUserByID(ctx, uid)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, customErrors.ErrUserNotFound)).To(BeTrue())
+			Expect(user).To(BeNil())
+		})
+
+		It("should return database error when query fails", func() {
+			uid := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "users" WHERE id = \$1 ORDER BY "users"\."id" LIMIT \$2`).
+				WithArgs(uid, 1).
+				WillReturnError(errors.New("db error"))
+
+			user, err := userRepo.GetUserByID(ctx, uid)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("db error"))
+			Expect(user).To(BeNil())
+		})
+	})
+
+	Context("UpdateUser", func() {
+		It("should update user successfully", func() {
+			user := &models.User{
+				ID:          uuid.New(),
+				Email:       "update@example.com",
+				DisplayName: "Updated",
+			}
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`UPDATE "users"`).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+
+			err := userRepo.UpdateUser(ctx, user)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
 	Context("UpsertUser & SearchUsers", func() {
@@ -140,7 +251,7 @@ var _ = Describe("UserRepository", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should search users by email or display name", func() {
+		It("should search users by email or display name with default limit", func() {
 			rows := sqlmock.NewRows([]string{"id", "email", "display_name"}).
 				AddRow(uuid.New(), "john@example.com", "John Doe")
 
@@ -148,7 +259,7 @@ var _ = Describe("UserRepository", func() {
 				WithArgs("%john%", "%john%", "%john%", 10).
 				WillReturnRows(rows)
 
-			users, err := userRepo.SearchUsers(ctx, "john", 10)
+			users, err := userRepo.SearchUsers(ctx, "john", 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(users)).To(Equal(1))
 			Expect(users[0].Email).To(Equal("john@example.com"))

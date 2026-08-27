@@ -15,7 +15,8 @@ _client = BackendClient()
 
 @mcp.tool(description=(
     "Create a new runbook in the Knowledge Base. Call this after diagnosing an incident. "
-    "The content should follow the structure: ## Root Cause, ## Diagnostic Steps, "
+    "The content should follow the structure if team instruction is not provided:"
+    "## Root Cause, ## Diagnostic Steps, "
     "## Resolution, ## Prevention. Markdown is supported."
 ))
 def create_runbook(team_id: str, incident_id: str, title: str, content: str) -> dict:

@@ -371,7 +371,7 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		inst, _, err := s.teamRepo.GetTeamInstruction(ctx, teamID)
 		if err == nil && inst != nil && strings.TrimSpace(inst.InstructionDetails) != "" {
 			slog.Info("[APP SERVICE] Injecting custom team instructions into system prompt", "team_id", teamID)
-			systemPrompt += fmt.Sprintf("\n\n## Team-Specific Custom Instructions\nThe engineering team for this workspace has provided the following custom instructions. You MUST strictly adhere to them in all your responses:\n%s", strings.TrimSpace(inst.InstructionDetails))
+			systemPrompt += fmt.Sprintf("\n\n## Team-Specific Custom Instructions\n\nThe engineering team for this workspace has provided the following custom instructions. You MUST strictly adhere to them in all your responses:\n%s", strings.TrimSpace(inst.InstructionDetails))
 		}
 	}
 
@@ -445,7 +445,7 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		for _, toolCall := range assistantMsg.ToolCalls {
 			toolName := toolCall.Function.Name
 
-			// Auto-populate team_id if omitted, empty, uuid.Nil, or not a valid UUID (e.g. Groq generated "your_team_id")
+			// Auto-populate team_id if omitted, empty, uuid.Nil, or not a valid UUID (e.g. LLM generated "your_team_id")
 			if toolCall.Function.Arguments != nil && teamID != uuid.Nil {
 				current, _ := toolCall.Function.Arguments["team_id"].(string)
 				parsed, err := uuid.Parse(strings.TrimSpace(current))

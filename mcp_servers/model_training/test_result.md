@@ -607,3 +607,23 @@ Script: `experiment_precision_targets.py`
 
 4. **Target 95% (Threshold = `+0.0531`)**:
    > *"At this operating point, the model maintains approximately **98.0%** test precision while detecting **67.1%** of anomalies (49/73 real incidents caught, with only 1 false alarm out of 77 normal alerts)."*
+
+# 11. Consolidated Test Results
+
+| Experiment | Model / configuration | Test samples | Threshold | Test Accuracy | Test Precision (Anomaly) | Test Recall (Anomaly) | Test F1-Score (Anomaly) | Test ROC-AUC |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **A** | Original synthetic, 6 features | 150 | — | 92.00% | 40.00% | 100.00% | 0.57 | — |
+| **B** | Original regenerated, 9 features | 150 | — | 95.00% | 50.00% | 100.00% | 0.67 | — |
+| **C-1** | Original regenerated, 7 features | 150 | — | 95.00% | 50.00% | 100.00% | 0.67 | — |
+| **C-2** | Regenerated dataset, 7 features | 150 | — | 99.00% | 96.00% | 100.00% | 0.98 | — |
+| **E** | Tough/hard synthetic, 7 features | 150 | — | 69.00% | 100.00% | 37.00% | 0.54 | — |
+| **F (v2)** | 19 continuous features, balanced threshold | 150 | `0.0602` | 83.33% | 98.00% | 67.12% | 0.7967 | 0.8404 |
+| **F (v2)** | 19 continuous features, high-recall threshold | 150 | `-0.0720` | — | 57.01% | 83.56% | 0.6778 | 0.8404 |
+| **G-1 (v3)** | Target precision 80% | 150 | `-0.0363` | 74.67% | 72.73% | 76.71% | 0.7467 | 0.8404 |
+| **G-2 (v3)** | Target precision 85% | 150 | `-0.0188` | 80.00% | 82.09% | 75.34% | 0.7857 | 0.8404 |
+| **G-3 (v3)** | Target precision 90% | 150 | `-0.0109` | 78.67% | 81.54% | 72.60% | 0.7681 | 0.8404 |
+| **H** | Target precision 80% | 150 | `-0.0370` | 74.67% | 72.73% | 76.71% | 0.7467 | 0.8404 |
+| **H** | Target precision 85% | 150 | `-0.0295` | 78.00% | 78.57% | 75.34% | 0.7692 | 0.8404 |
+| **H** | Target precision 90% | 150 | `-0.0117` | 78.67% | 81.54% | 72.60% | 0.7681 | 0.8404 |
+| **H** | Target precision 95% | 150 | `+0.0531` | 83.33% | 98.00% | 67.12% | 0.7967 | 0.8404 |
+| **H** | Target precision 98% | 150 | `+0.0626` | 83.33% | 98.00% | 67.12% | 0.7967 | 0.8404 |

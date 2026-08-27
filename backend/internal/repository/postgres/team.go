@@ -87,7 +87,7 @@ func (t *teamRepository) GetTeamByID(ctx context.Context, teamID uuid.UUID) (*mo
 				TeamID: first.TeamID,
 				UserID: *r.MemberUserID,
 				Role:   role,
-				User: models.User{
+				User: &models.User{
 					ID:          *r.MemberUserID,
 					Email:       email,
 					DisplayName: displayName,
@@ -150,7 +150,7 @@ func (t *teamRepository) GetUserWithTeamsByID(ctx context.Context, userID uuid.U
 				TeamID: *r.TeamID,
 				UserID: first.UserID,
 				Role:   role,
-				Team: models.Team{
+				Team: &models.Team{
 					ID:        *r.TeamID,
 					TeamName:  teamName,
 					CreatedAt: teamCreatedAt,
@@ -200,7 +200,8 @@ func (t *teamRepository) ListTeamMembers(ctx context.Context, teamID uuid.UUID) 
 	var rows []types.TeamMemberWithUserRow
 	rawSQL := `SELECT 
 		tm.id, tm.team_id, tm.user_id, tm.role,
-		u.email AS user_email, u.display_name AS user_display_name, u.scope AS user_scope
+		u.email AS user_email, u.display_name AS user_display_name, u.scope AS user_scope,
+		u.totp_enabled AS user_totp_enabled, u.created_at AS user_created_at
 	FROM team_members tm
 	JOIN users u ON u.id = tm.user_id
 	WHERE tm.team_id = ?
@@ -217,11 +218,13 @@ func (t *teamRepository) ListTeamMembers(ctx context.Context, teamID uuid.UUID) 
 			TeamID: r.TeamID,
 			UserID: r.UserID,
 			Role:   r.Role,
-			User: models.User{
+			User: &models.User{
 				ID:          r.UserID,
 				Email:       r.UserEmail,
 				DisplayName: r.UserDisplayName,
 				Scope:       r.UserScope,
+				TOTPEnabled: r.UserTotpEnabled,
+				CreatedAt:   r.UserCreatedAt,
 			},
 		}
 	}

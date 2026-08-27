@@ -45,6 +45,8 @@ type TeamMemberWithUserRow struct {
 	UserEmail       string    `gorm:"column:user_email"`
 	UserDisplayName string    `gorm:"column:user_display_name"`
 	UserScope       string    `gorm:"column:user_scope"`
+	UserTotpEnabled bool      `gorm:"column:user_totp_enabled"`
+	UserCreatedAt   time.Time `gorm:"column:user_created_at"`
 }
 
 // TeamIncidentWithHistoryRow represents a flattened row from team_incidents LEFT JOIN incident_status_histories

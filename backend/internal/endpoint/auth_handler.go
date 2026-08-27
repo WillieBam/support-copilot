@@ -58,7 +58,7 @@ func (h *Handler) LogoutHandler(c *echo.Context) error {
 		MaxAge:   -1,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   isSecureRequest(c),
 		SameSite: http.SameSiteLaxMode,
 	}
 	c.SetCookie(cookie)
@@ -195,8 +195,16 @@ func setSessionCookie(c *echo.Context, token string, expires time.Time) {
 		Expires:  expires,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   isSecureRequest(c),
 		SameSite: http.SameSiteLaxMode,
 	}
 	c.SetCookie(cookie)
+}
+
+func isSecureRequest(c *echo.Context) bool {
+	if c.Scheme() == "https" || c.Request().TLS != nil {
+		return true
+	}
+	proto := c.Request().Header.Get("X-Forwarded-Proto")
+	return proto == "https"
 }

@@ -259,7 +259,7 @@ var _ = Describe("AuthService", func() {
 
 			token, claims, err := authSvc.LoginWithPassword(ctx, "unknown", "Pass!1234", "")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("invalid credentials"))
+			Expect(errors.Is(err, customErrors.ErrUserNotFound)).To(BeTrue())
 			Expect(token).To(BeEmpty())
 			Expect(claims).To(BeNil())
 		})

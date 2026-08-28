@@ -61,6 +61,7 @@ func (h *Handler) Me(c *echo.Context) error {
 	totpVal := false
 	var userID uuid.UUID
 
+	firebaseUIDVal := ""
 	if parsedUUID, err := uuid.Parse(appUID); err == nil {
 		userID = parsedUUID
 	}
@@ -69,6 +70,9 @@ func (h *Handler) Me(c *echo.Context) error {
 		userID = user.ID
 		if user.Username != nil {
 			usernameVal = *user.Username
+		}
+		if user.FirebaseUID != nil {
+			firebaseUIDVal = *user.FirebaseUID
 		}
 		displayNameVal = user.DisplayName
 		scopeVal = user.Scope
@@ -88,6 +92,7 @@ func (h *Handler) Me(c *echo.Context) error {
 		"authenticated": true,
 		"user_id":       userID,
 		"user_uid":      appUID,
+		"firebase_uid":  firebaseUIDVal,
 		"user_email":    email,
 		"username":      usernameVal,
 		"display_name":  displayNameVal,

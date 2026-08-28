@@ -42,6 +42,9 @@ func (h *Handler) LoginHandler(c *echo.Context) error {
 				"message": "TOTP 2FA code is required",
 			})
 		}
+		if errors.Is(err, customErrors.ErrUserNotFound) || err.Error() == "User not found" || err.Error() == "user not found" {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		}
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 	}
 

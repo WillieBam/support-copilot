@@ -77,6 +77,17 @@ export async function signOutCurrentUser(auth: Auth) {
 export function toErrorMessage(error: unknown, fallback: string): string {
   const authError = error as AuthError
   switch (authError?.code) {
+    case 'auth/email-already-in-use':
+      return 'Email is already registered. Please sign in or use another email.'
+    case 'auth/weak-password':
+      return 'Password is too weak. Please choose a stronger password.'
+    case 'auth/invalid-email':
+      return 'Invalid email address format.'
+    case 'auth/user-not-found':
+      return 'User not found. Please register first.'
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+      return 'Invalid email or password.'
     case 'auth/operation-not-allowed':
       return 'Email/password sign-in is disabled for this Firebase project. Enable Email/Password in Firebase Console > Authentication > Sign-in method.'
     case 'auth/invalid-api-key':
@@ -86,6 +97,9 @@ export function toErrorMessage(error: unknown, fallback: string): string {
     case 'auth/unverified-email':
       return 'Please verify your email first, then sign in again before setting up TOTP.'
     default:
+      if ((error as any)?.response?.data?.error) {
+        return (error as any).response.data.error
+      }
       return error instanceof Error ? error.message : fallback
   }
 }
@@ -112,6 +126,7 @@ export interface SessionData {
   authenticated: boolean
   user_id?: string
   user_uid?: string
+  firebase_uid?: string
   user_email?: string
   username?: string
   display_name?: string

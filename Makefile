@@ -1,7 +1,7 @@
 include .env
 export $(shell sed 's/=.*//' .env)
 
-.PHONY: up down dev-start dev mcp-servers test-coverage test build-frontend
+.PHONY: up down dev-start dev mcp-servers test-coverage test build-frontend prompt-test view-prompt-test
 
 build-frontend:
 	cd frontend && npm install && npm run build
@@ -66,3 +66,9 @@ test-coverage:
 
 test:
 	@go test -v -cover ./backend/...
+
+prompt-test:
+	cd tests/prompt_regression && promptfoo eval
+
+view-prompt-test:
+	cd tests/prompt_regression && promptfoo view

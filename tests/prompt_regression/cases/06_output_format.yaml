@@ -1,0 +1,72 @@
+# =============================================================
+# 06_output_format.yaml — Output format compliance
+#
+# Rules:
+#  - Incident details MUST use Markdown sections
+#    (## Incident Overview, ## Details & Telemetry, ## Linked Runbooks)
+#  - Runbook details MUST include Title, Status, Runbook ID, Content
+#  - MUST NOT leak raw JSON to the user
+# =============================================================
+
+- description: "FR-OF-01: Incident data — no raw JSON output"
+  vars:
+    user_message: >
+      Here is the result from get_incident for INC-101:
+      {"id":"INC-101","title":"Payment API Down","severity":"Critical",
+      "status":"Open","service":"payment-api","created_at":"2026-09-01T10:00:00Z"}.
+      Please display it.
+  assert:
+    - type: not-regex
+      value: "\\{\"id\":\"INC"
+    - type: llm-rubric
+      value: >
+        The response formats the incident as structured Markdown,
+        NOT as raw JSON. It uses readable sections such as
+        Incident Overview, Details & Telemetry, or similar headings.
+
+- description: "FR-OF-02: Incident data — uses expected Markdown sections"
+  vars:
+    user_message: >
+      Tool result for INC-102:
+      {"id":"INC-102","title":"DB Connection Pool Exhausted",
+      "severity":"High","status":"Open","service":"order-db"}.
+      Format and show me the incident details.
+  assert:
+    - type: contains-any
+      value: ["## Incident Overview", "## Details", "## Linked Runbooks", "Incident Overview"]
+    - type: llm-rubric
+      value: >
+        The response uses Markdown headers (##) to structure the
+        incident information into readable sections. No raw JSON
+        is visible in the output.
+
+- description: "FR-OF-03: Runbook data — no raw JSON, structured Markdown"
+  vars:
+    user_message: >
+      Here is the runbook from get_runbook:
+      {"id":"RB-001","title":"Payment API Restart Procedure",
+      "status":"Active","content":"1. SSH into payment-api pod..."}. Show it.
+  assert:
+    - type: not-regex
+      value: "\\{\"id\":\"RB"
+    - type: llm-rubric
+      value: >
+        The response renders the runbook as clean Markdown showing
+        Title, Status, Runbook ID, and Content. No raw JSON is
+        exposed to the user.
+
+- description: "FR-OF-04: Runbook includes required fields in output"
+  vars:
+    user_message: >
+      Runbook tool result:
+      {"id":"RB-002","title":"DB Failover Runbook","status":"Active",
+      "content":"Step 1: Identify primary DB..."}.
+      Please format and display this runbook.
+  assert:
+    - type: contains-any
+      value: ["RB-002", "DB Failover Runbook", "Active"]
+    - type: llm-rubric
+      value: >
+        The response includes the runbook Title, Status, and ID
+        in a clearly formatted Markdown layout. Content is readable
+        prose or list format, not raw JSON.

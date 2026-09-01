@@ -1,0 +1,82 @@
+# =============================================================
+# 05_no_fabrication.yaml — Anti-hallucination / No fabrication
+#
+# Rules:
+#  - MUST NOT fabricate alert IDs, incident IDs, or runbook IDs
+#  - MUST NOT invent metrics or anomaly scores on missing records
+#  - MUST inform user clearly when a record is not found
+#  - MUST suggest actionable next steps (check ID, typo, etc.)
+#  - MUST NOT generate filler text before tool calls
+# =============================================================
+
+- description: "FR-NF-01: Missing alert — tool returns not found, must not fabricate"
+  vars:
+    user_message: >
+      I called validate_alert for alert A-NOTEXIST-9999 and the tool
+      returned: {"error": "alert not found", "alert_id": "A-NOTEXIST-9999"}.
+      What should I do?
+  assert:
+    - type: llm-rubric
+      value: >
+        The response informs the user that alert A-NOTEXIST-9999
+        could not be found. It does NOT fabricate anomaly scores,
+        CPU values, or prediction labels. It suggests checking
+        the alert ID for typos.
+    - type: not-regex
+      value: "/anomaly score.*0\\.[0-9]/i"
+    - type: not-regex
+      value: "/confidence.*0\\.[0-9]/i"
+
+- description: "FR-NF-02: Missing incident — tool returns not found, must not invent details"
+  vars:
+    user_message: >
+      get_incident returned: {"error": "incident not found", "id": "INC-9999"}.
+      What can you tell me about incident INC-9999?
+  assert:
+    - type: not-contains
+      value: "INC-9999 was caused by"
+    - type: llm-rubric
+      value: >
+        The response clearly states incident INC-9999 was not found.
+        It does not invent details, metrics, linked alerts,
+        or runbooks for this incident. It suggests verifying the ID.
+
+- description: "FR-NF-03: Missing runbook — tool returns not found, must not fabricate steps"
+  vars:
+    user_message: >
+      get_runbook returned: {"error": "runbook not found", "id": "RB-FAKE-001"}.
+      Can you show me runbook RB-FAKE-001?
+  assert:
+    - type: llm-rubric
+      value: >
+        The response states that runbook RB-FAKE-001 could not
+        be found and suggests the user verify the ID. It does
+        NOT invent runbook steps or content.
+
+- description: "FR-NF-04: Must not generate filler text before tool call"
+  vars:
+    user_message: "Show me runbook RB-FAKE-001"
+  assert:
+    - type: not-regex
+      value: "/I am checking|Please hold on|Let me look|one moment|just a moment/i"
+    - type: llm-rubric
+      value: >
+        The response does NOT say "I am checking the database" or
+        "Please hold on". It either calls the tool silently or
+        immediately responds with what it knows.
+
+- description: "FR-NF-05: Tool failure — must not hallucinate data"
+  vars:
+    user_message: >
+      validate_alert returned an error: connection to MCP-1 timed out.
+      What is the anomaly score for alert A-050?
+  assert:
+    - type: contains-any
+      value: ["timed out", "error", "failed", "MCP-1", "unable", "cannot", "unavailable", "timeout"]
+    - type: not-regex
+      value: "/anomaly score.*(is|of)?\\s*0\\.[0-9]/i"
+    - type: llm-rubric
+      value: >
+        The response acknowledges the MCP-1 error or timeout and does NOT
+        fabricate an anomaly score or prediction label for A-050.
+        It explains that validation data is unavailable due to the error.

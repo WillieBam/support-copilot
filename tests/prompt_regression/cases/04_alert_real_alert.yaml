@@ -1,0 +1,90 @@
+# =============================================================
+# 04_alert_real_alert.yaml — Real Alert (status: 0) behavior
+#
+# Rules:
+#  - MUST label as 🚨 Real Alert / Confirmed Anomaly
+#  - MUST provide diagnosis / remediation steps
+#  - MUST auto-link if an active incident exists (no asking)
+#  - MUST NOT ask "Would you like me to link?"
+#
+# NOTE: Messages are framed as tool results already received,
+# so PromptFoo can test the response behavior — not the
+# tool call itself (which PromptFoo cannot execute).
+# =============================================================
+
+- description: "FR-RA-01: Real alert — must display 🚨 and confirm anomaly"
+  vars:
+    user_message: >
+      validate_alert returned: {"alert_id": "A-010", "status": 0,
+      "label": "Real Alert", "confidence": 0.92,
+      "metrics": {"cpu": 98, "memory": 95},
+      "ml_prediction": "anomaly", "risk_level": "High"}.
+      Please analyse and respond.
+  assert:
+    - type: contains-any
+      value: ["🚨", "Real Alert", "Confirmed Anomaly"]
+    - type: llm-rubric
+      value: >
+        The response identifies this as a Real Alert with the
+        🚨 indicator and provides diagnostic context about the
+        CPU and memory anomaly.
+
+- description: "FR-RA-02: Real alert — must NOT ask user to link"
+  vars:
+    user_message: >
+      validate_alert returned: {"alert_id": "A-011", "status": 0,
+      "label": "Real Alert", "ml_prediction": "anomaly",
+      "resource": {"service": "payment-api"},
+      "active_incident": "INC-101"}.
+      An open incident INC-101 exists in this workspace.
+  assert:
+    - type: not-regex
+      value: "/would you like (me )?to link/i"
+    - type: not-regex
+      value: "/shall I link|do you want me to link|should I link/i"
+    - type: llm-rubric
+      value: >
+        The response either confirms the alert was automatically
+        linked to INC-101 or states the outcome directly.
+        It does NOT ask the user for permission to link.
+
+- description: "FR-RA-03: Real alert — must provide technical diagnosis"
+  vars:
+    user_message: >
+      validate_alert returned: {"alert_id": "A-020", "status": 0,
+      "label": "Real Alert", "ml_prediction": "anomaly",
+      "metrics": {"cpu": 99, "response_latency_ms": 8000, "error_rate": 45},
+      "resource": {"service": "order-service"}}.
+  assert:
+    - type: llm-rubric
+      value: >
+        The response provides concrete technical diagnosis steps
+        and/or remediation commands relevant to the CPU spike,
+        high latency, or error rate on the order-service.
+
+- description: "FR-RA-04: Real alert — no active incident, states unlinked"
+  vars:
+    user_message: >
+      validate_alert returned: {"alert_id": "A-012", "status": 0,
+      "label": "Real Alert", "ml_prediction": "anomaly",
+      "risk_level": "High"}.
+      There are no open incidents in this workspace currently.
+  assert:
+    - type: llm-rubric
+      value: >
+        The response provides diagnosis but states clearly that
+        the alert remains unlinked because no matching open
+        incident was found. It does not fabricate an incident ID.
+
+- description: "FR-RA-05: Real alert — risk level displayed"
+  vars:
+    user_message: >
+      validate_alert returned: {"alert_id": "A-013", "status": 0,
+      "label": "Real Alert", "anomaly_score": 0.91,
+      "confidence": 0.88, "risk_level": "Critical",
+      "ml_prediction": "anomaly"}.
+  assert:
+    - type: llm-rubric
+      value: >
+        The response includes the risk level (Critical) in the
+        status and risk assessment section of the response.

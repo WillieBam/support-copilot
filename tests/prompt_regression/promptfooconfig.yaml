@@ -1,0 +1,46 @@
+# ============================================================
+# Support Copilot — Prompt Regression Test Suite (PromptFoo)
+# ============================================================
+# Run:  promptfoo eval
+# View: promptfoo view
+# Docs: https://promptfoo.dev/docs
+# ============================================================
+
+description: "Support Copilot – Prompt Regression Tests"
+
+# ----- Prompt template (chat format) -------------------------
+prompts:
+  - file://./prompts/chat_template.json
+
+# ----- Provider — Gemini via OpenAI-compatible API -----------
+# PromptFoo reads OPENAI_API_KEY from the local .env automatically
+# Use openai:chat:<model> so PromptFoo knows it's a chat model
+providers:
+  - id: openai:chat:gemini-3.5-flash-lite
+    config:
+      apiBaseUrl: https://generativelanguage.googleapis.com/v1beta/openai
+      temperature: 0 # deterministic outputs for regression
+
+# ----- Default vars + grader config --------------------------
+# options.provider: use Gemini to grade llm-rubric assertions too
+# (default grader calls OpenAI which would fail with a Gemini key)
+defaultTest:
+  vars:
+    system_prompt: file://../../backend/internal/prompt/system_prompt.md
+  options:
+    provider:
+      id: openai:chat:gemini-3.5-flash-lite
+      config:
+        apiBaseUrl: https://generativelanguage.googleapis.com/v1beta/openai
+
+# ----- Test case files (one concern per file) ----------------
+tests:
+  - file://cases/01_off_topic.yaml
+  - file://cases/02_small_talk.yaml
+  - file://cases/03_alert_false_alarm.yaml
+  - file://cases/04_alert_real_alert.yaml
+  - file://cases/05_no_fabrication.yaml
+  - file://cases/06_output_format.yaml
+  - file://cases/07_source_attribution.yaml
+  - file://cases/08_tool_discipline.yaml
+

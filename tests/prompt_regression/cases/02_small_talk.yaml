@@ -1,0 +1,82 @@
+# =============================================================
+# 02_small_talk.yaml — Small talk / greetings / sign-offs
+#
+# Rule: Greetings, acknowledgments, and closing phrases MUST
+# be handled conversationally. No tools should be called.
+# =============================================================
+
+- description: "FR-ST-01: Greeting — no tool calls"
+  vars:
+    user_message: "Hello!"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response is a short, friendly greeting. No tool calls
+        are triggered and no diagnostic information is requested.
+
+- description: "FR-ST-02: 'Thanks' — no tool calls"
+  vars:
+    user_message: "Thanks!"
+  assert:
+    - type: not-contains
+      value: "validate_alert"
+    - type: not-contains
+      value: "list_incidents"
+    - type: llm-rubric
+      value: >
+        The response is a brief, warm acknowledgment. The agent
+        does not call any tools or request incident/alert details.
+
+- description: "FR-ST-03: 'Bye' — short closing, no tool calls"
+  vars:
+    user_message: "Bye"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response is a short, friendly farewell message.
+        No tools are called and no questions are asked.
+
+- description: "FR-ST-04: 'Ok got it' — simple acknowledgment"
+  vars:
+    user_message: "Ok got it"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response acknowledges naturally with a brief reply.
+        No tools are invoked and no extra information is requested.
+
+- description: "FR-ST-05: 'Alright' — conversational acknowledgment"
+  vars:
+    user_message: "Alright"
+  assert:
+    - type: not-contains
+      value: "get_incident"
+    - type: llm-rubric
+      value: >
+        The response is a short conversational reply. The agent
+        does not call any tools or start a diagnostic workflow.
+
+- description: "FR-ST-06: 'Yes' — simple yes-reply"
+  vars:
+    user_message: "Yes"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response is a brief, conversational reply acknowledging
+        the 'yes'. No tool calls are made without further context.
+
+- description: "FR-ST-07: Wind-down phrase — no tools on closing"
+  vars:
+    user_message: "Alright, thanks for the help today!"
+  assert:
+    - type: not-contains
+      value: "list_incidents"
+    - type: not-contains
+      value: "validate_alert"
+    - type: not-contains
+      value: "get_runbook"
+    - type: llm-rubric
+      value: >
+        The response is a friendly, concise closing message.
+        The agent does NOT call any tools when the conversation
+        is winding down.

@@ -1,0 +1,87 @@
+# =============================================================
+# 03_alert_false_alarm.yaml — False Alarm (status: 1) behavior
+#
+# Rules:
+#  - MUST label as 🟢 False Alarm
+#  - MUST NOT call link_alert_to_incident
+#  - MUST NOT ask "Would you like me to link?"
+#  - MUST NOT provide remediation steps
+#  - MUST reassure user the system is healthy
+#
+# NOTE: Messages are framed as tool results already received,
+# so PromptFoo can test the classification response — not the
+# tool call itself (which PromptFoo cannot execute).
+# =============================================================
+
+- description: "FR-FA-01: False alarm — must NOT call link_alert_to_incident"
+  vars:
+    user_message: >
+      validate_alert returned: {"alert_id": "A-001", "status": 1,
+      "label": "False Alarm", "confidence": 0.95,
+      "risk_level": "Low", "ml_prediction": "normal"}.
+      Please analyse and respond.
+  assert:
+    - type: not-contains
+      value: "link_alert_to_incident"
+    - type: not-regex
+      value: "/would you like (me )?to link/i"
+    - type: contains-any
+      value: ["False Alarm", "false alarm", "False alarm"]
+    - type: llm-rubric
+      value: >
+        The response classifies this as a False Alarm, confirms
+        the system is healthy, and explicitly states that no
+        incident linking or escalation is needed.
+
+- description: "FR-FA-02: False alarm — must NOT provide remediation steps"
+  vars:
+    user_message: >
+      validate_alert returned: {"alert_id": "A-002", "status": 1,
+      "label": "False Alarm", "metrics": {"cpu": 15, "memory": 30,
+      "error_rate": 0.01}, "ml_prediction": "normal"}.
+      All metrics are within normal bounds.
+  assert:
+    - type: not-contains
+      value: "kubectl"
+    - type: not-regex
+      value: "/step [0-9]+:|1\\.|2\\.|restart the|scale down|roll back/i"
+    - type: llm-rubric
+      value: >
+        The response reassures the user that the system is operating
+        normally. It does NOT provide commands, troubleshooting steps,
+        or corrective actions since no anomaly was detected.
+
+- description: "FR-FA-03: False alarm — must use 🟢 green indicator"
+  vars:
+    user_message: >
+      validate_alert returned: {"alert_id": "A-003", "status": 1,
+      "label": "False Alarm", "anomaly_score": 0.05,
+      "risk_level": "Low", "ml_prediction": "normal"}.
+      All services are healthy.
+  assert:
+    - type: contains
+      value: "🟢"
+    - type: llm-rubric
+      value: >
+        The response uses the green (🟢) indicator to clearly mark
+        this as a False Alarm or healthy status.
+
+- description: "FR-FA-04: False alarm — must NOT prompt to link alert"
+  vars:
+    user_message: >
+      validate_alert returned: {"alert_id": "A-004", "status": 1,
+      "label": "False Alarm", "ml_prediction": "normal",
+      "anomaly_score": 0.03}. No anomaly detected.
+  assert:
+    # Only catch active prompts like "link this alert" / "link the alert to"
+    # NOT "no linking is needed for this alert" (which is correct behavior)
+    - type: not-regex
+      value: "/link (this|the) alert|link.*to.*incident/i"
+    - type: not-regex
+      value: "/would you like|shall I|do you want/i"
+    - type: llm-rubric
+      value: >
+        The response does NOT ask the user to link the alert to an
+        incident. It simply confirms this is a False Alarm and states
+        that no action or escalation is required.
+

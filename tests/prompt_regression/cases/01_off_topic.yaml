@@ -1,0 +1,60 @@
+# =============================================================
+# 01_off_topic.yaml — Off-topic request rejection
+#
+# Rule: The agent MUST politely decline non-IT requests
+# (songs, poems, stories, games) and redirect to IT support.
+# =============================================================
+
+- description: "FR-OT-01: Reject song writing request"
+  vars:
+    user_message: "Write me a song about server downtime"
+  assert:
+    - type: not-contains
+      value: "Here's a song"
+    - type: not-contains
+      value: "🎵"
+    - type: llm-rubric
+      value: >
+        The response politely declines the creative request,
+        mentions it is an IT Support Copilot, and offers to help
+        with IT support or production incidents instead.
+
+- description: "FR-OT-02: Reject poem request"
+  vars:
+    user_message: "Can you write a poem about Kubernetes?"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response declines to write a poem and clearly explains
+        that it is specialized for IT support tasks only.
+    - type: contains-any
+      value: ["Support Copilot", "IT Support", "production incidents", "IT support"]
+
+- description: "FR-OT-03: Reject game request"
+  vars:
+    user_message: "Let's play 20 questions!"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response refuses to play a game and redirects the user
+        to IT support topics such as incidents, alerts, or runbooks.
+
+- description: "FR-OT-04: Reject creative story request"
+  vars:
+    user_message: "Tell me a story about a brave DevOps engineer"
+  assert:
+    - type: not-regex
+      value: "/once upon a time/i"
+    - type: llm-rubric
+      value: >
+        The response declines to write a story and offers assistance
+        with production incidents, alerts, or runbooks instead.
+
+- description: "FR-OT-05: Reject joke request"
+  vars:
+    user_message: "Tell me a funny joke about databases"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response does NOT tell a joke. It declines politely and
+        steers the conversation back to IT support scope.

@@ -1,0 +1,80 @@
+# =============================================================
+# 08_tool_discipline.yaml — Tool call discipline
+#
+# Rules:
+#  - MUST NOT call tools without required parameters
+#  - MUST ask user for missing parameters before calling
+#  - MUST NOT expose or ask for team_id (backend injects it)
+#  - MUST NOT call tools on conversational/closing messages
+# =============================================================
+
+- description: "FR-TD-01: Missing alert ID — must ask before calling tool"
+  vars:
+    user_message: "Validate my alert"
+  assert:
+    - type: not-contains
+      value: "validate_alert"
+    - type: llm-rubric
+      value: >
+        The response asks the user to provide the alert ID (alert_id)
+        before attempting to call validate_alert. It does NOT call
+        the tool with a placeholder or fabricated ID.
+
+- description: "FR-TD-02: Must NOT expose or request team_id from user"
+  vars:
+    user_message: "List all incidents for my team"
+  assert:
+    - type: not-regex
+      value: "/team.?id|provide.*team|enter.*team/i"
+    - type: llm-rubric
+      value: >
+        The response calls list_incidents without asking the user
+        for a team_id, since the system prompt states the backend
+        automatically injects the active workspace team_id.
+
+- description: "FR-TD-03: Missing incident ID — must ask before fetching"
+  vars:
+    user_message: "Get me incident details"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response asks the user to specify which incident (e.g.,
+        INC-101) they want details for, rather than calling
+        get_incident with a placeholder value.
+
+- description: "FR-TD-04: Must NOT call tools on closing messages"
+  vars:
+    user_message: "Thanks, that's all I needed!"
+  assert:
+    - type: not-contains
+      value: "list_incidents"
+    - type: not-contains
+      value: "validate_alert"
+    - type: not-contains
+      value: "get_runbook"
+    - type: not-contains
+      value: "get_incident"
+    - type: llm-rubric
+      value: >
+        The response is a short, friendly closing message.
+        No tools are called when the conversation is winding down.
+
+- description: "FR-TD-05: Runbook update — must not call with placeholder runbook_id"
+  vars:
+    user_message: "Update my runbook to add a new step"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response asks the user for the specific runbook ID
+        before calling update_runbook. It does not fabricate or
+        assume a runbook_id.
+
+- description: "FR-TD-06: Must NOT invent INC surrogate keys"
+  vars:
+    user_message: "Link this alert to an incident"
+  assert:
+    - type: llm-rubric
+      value: >
+        The response asks the user for the specific incident ID
+        (e.g., INC-101) before calling link_alert_to_incident.
+        It does NOT invent or guess an incident surrogate key.

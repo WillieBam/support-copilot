@@ -1,0 +1,82 @@
+# =============================================================
+# 07_source_attribution.yaml — Source attribution (NFR-07)
+#
+# Rule: Every recommendation MUST reference the specific source
+# it was derived from — either an MCP-1 ML prediction result
+# or an MCP-2 document / knowledge base entry.
+#
+# NOTE: Messages simulate tool results already received so
+# PromptFoo can test the attribution in the response, not the
+# tool call itself.
+# =============================================================
+
+- description: "FR-SA-01: Alert diagnosis must cite MCP-1 as source"
+  vars:
+    user_message: >
+      validate_alert (MCP-1) returned: {"alert_id": "A-020",
+      "status": 0, "label": "Real Alert",
+      "ml_prediction": "anomaly", "anomaly_score": 0.87,
+      "confidence": 0.92, "risk_level": "High",
+      "source": "MCP-1"}.
+      Please provide a diagnosis based on this result.
+  assert:
+    - type: contains-any
+      value: ["MCP-1", "ML model", "anomaly score", "ml_prediction", "anomaly_score"]
+    - type: llm-rubric
+      value: >
+        The response attributes its diagnosis or risk assessment
+        to the MCP-1 ML prediction result. It mentions at least
+        one of: MCP-1, ML model, anomaly score, or the prediction
+        confidence. It does not make claims without citing the source.
+
+- description: "FR-SA-02: Runbook recommendation must cite MCP-2 source document"
+  vars:
+    user_message: >
+      MCP-2 retrieved the following document for payment-api:
+      {"document": "payment-api-restart.md", "source": "MCP-2",
+      "content": "Step 1: Drain traffic. Step 2: Restart pod. Step 3: Verify health."}.
+      What steps should I take to restart the payment-api service?
+  assert:
+    - type: contains-any
+      value: ["payment-api-restart.md", "MCP-2"]
+    - type: llm-rubric
+      value: >
+        The response cites the specific source document
+        'payment-api-restart.md' or references MCP-2 when
+        providing the restart steps. It does not give generic
+        advice without attribution.
+
+- description: "FR-SA-03: Combined diagnosis cites both MCP-1 and MCP-2"
+  vars:
+    user_message: >
+      Results: MCP-1 validate_alert returned {"alert_id": "A-021",
+      "status": 0, "label": "Real Alert", "anomaly_score": 0.89,
+      "source": "MCP-1"}.
+      MCP-2 retrieved runbook {"document": "db-connection-fix.md",
+      "source": "MCP-2"}.
+      Please provide a remediation plan.
+  assert:
+    - type: contains-any
+      value: ["MCP-1", "anomaly score", "anomaly_score"]
+    - type: contains-any
+      value: ["MCP-2", "db-connection-fix.md"]
+    - type: llm-rubric
+      value: >
+        The remediation plan references both the MCP-1 alert
+        validation outcome and the MCP-2 runbook document as
+        sources, rather than providing generic advice with no
+        attribution.
+
+- description: "FR-SA-04: No fabricated sources without tool results"
+  vars:
+    user_message: >
+      I have alert A-022 but haven't run any validation on it yet
+      and no tool results are available. What should I do next?
+  assert:
+    - type: not-regex
+      value: "/anomaly score.*0\\.[0-9]|confidence.*0\\.[0-9]/i"
+    - type: llm-rubric
+      value: >
+        The response does NOT fabricate anomaly scores, ML predictions,
+        or source documents for A-022. It guides the user to run
+        validate_alert first before any diagnosis can be provided.

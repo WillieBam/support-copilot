@@ -3,6 +3,7 @@ package data
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/WillieBam/support_copilot/backend/types"
@@ -168,13 +169,127 @@ func UnmarshalAlertRecord(a *models.Alert) (*types.ParsedAlertRecord, error) {
 	return rec, nil
 }
 
-// MarshalValidationResult serialises a combined validation result to a json string
+// MarshalValidationResult serialises a combined validation result to a clean structured summary string
 func MarshalValidationResult(result *responses.CombinedValidationResult) (string, error) {
-	b, err := json.Marshal(result)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal validation result: %w", err)
+	if result == nil {
+		return "[]", nil
 	}
-	return string(b), nil
+
+	var sb strings.Builder
+	sb.WriteString("[Alert Validation Package]\n")
+	sb.WriteString(fmt.Sprintf("• Alert ID: %s\n", result.AlertID))
+	sb.WriteString(fmt.Sprintf("• Service: %s (Severity: %s)\n", result.ServiceName, result.Severity))
+	if !result.ReceivedAt.IsZero() {
+		sb.WriteString(fmt.Sprintf("• Received At: %s\n", result.ReceivedAt.UTC().Format("2006-01-02 15:04:05 MST")))
+	}
+
+	// ML Prediction Verdict
+	pred := result.MLPrediction
+	verdict := pred.Label
+	if verdict == "" {
+		if pred.Status == 0 {
+			verdict = "Real Alert (Anomaly)"
+		} else {
+			verdict = "False Alarm (Normal)"
+		}
+	}
+	sb.WriteString(fmt.Sprintf("• ML Verdict: %s | Risk: %s | Confidence: %.0f%% (Score: %.4f)\n",
+		verdict, pred.RiskLevel, pred.Confidence*100, pred.AnomalyScore))
+	if pred.Summary != "" {
+		sb.WriteString(fmt.Sprintf("• Assessment: %s\n", pred.Summary))
+	}
+
+	// Telemetry Metrics
+	var metricParts []string
+	if result.Metrics.CpuUsage > 0 {
+		metricParts = append(metricParts, fmt.Sprintf("cpu_usage=%.1f%%", result.Metrics.CpuUsage))
+	}
+	if result.Metrics.MemoryUsage > 0 {
+		metricParts = append(metricParts, fmt.Sprintf("memory_usage=%.1f%%", result.Metrics.MemoryUsage))
+	}
+	if result.Metrics.ResponseLatency > 0 {
+		metricParts = append(metricParts, fmt.Sprintf("response_latency=%.1fms", result.Metrics.ResponseLatency))
+	}
+	if result.Metrics.ErrorRate > 0 {
+		metricParts = append(metricParts, fmt.Sprintf("error_rate=%.2f%%", result.Metrics.ErrorRate))
+	}
+	if result.Metrics.IncomingTraffic > 0 {
+		metricParts = append(metricParts, fmt.Sprintf("incoming_traffic=%.1f", result.Metrics.IncomingTraffic))
+	}
+	if result.Metrics.OutgoingTraffic > 0 {
+		metricParts = append(metricParts, fmt.Sprintf("outgoing_traffic=%.1f", result.Metrics.OutgoingTraffic))
+	}
+	if result.Metrics.NetworkThroughput > 0 {
+		metricParts = append(metricParts, fmt.Sprintf("network_throughput=%.1f", result.Metrics.NetworkThroughput))
+	}
+	if result.Metrics.RequestRate > 0 {
+		metricParts = append(metricParts, fmt.Sprintf("request_rate=%.1f", result.Metrics.RequestRate))
+	}
+	if result.Metrics.AvailabilityPercent > 0 {
+		metricParts = append(metricParts, fmt.Sprintf("availability=%.1f%%", result.Metrics.AvailabilityPercent))
+	}
+	if len(metricParts) > 0 {
+		sb.WriteString(fmt.Sprintf("• Telemetry Metrics: %s\n", strings.Join(metricParts, ", ")))
+	}
+
+	// Resource Context
+	if result.Resource != nil {
+		var resParts []string
+		if result.Resource.Service != "" {
+			resParts = append(resParts, fmt.Sprintf("service=%s", result.Resource.Service))
+		}
+		if result.Resource.Environment != "" {
+			resParts = append(resParts, fmt.Sprintf("env=%s", result.Resource.Environment))
+		}
+		if result.Resource.Cluster != "" {
+			resParts = append(resParts, fmt.Sprintf("cluster=%s", result.Resource.Cluster))
+		}
+		if result.Resource.Namespace != "" {
+			resParts = append(resParts, fmt.Sprintf("namespace=%s", result.Resource.Namespace))
+		}
+		if result.Resource.Deployment != "" {
+			resParts = append(resParts, fmt.Sprintf("deployment=%s", result.Resource.Deployment))
+		}
+		if len(resParts) > 0 {
+			sb.WriteString(fmt.Sprintf("• Resource Context: %s\n", strings.Join(resParts, ", ")))
+		}
+	}
+
+	// Business Context
+	if result.BusinessContext != nil {
+		var bizParts []string
+		if result.BusinessContext.BusinessService != "" {
+			bizParts = append(bizParts, fmt.Sprintf("business_service=%s", result.BusinessContext.BusinessService))
+		}
+		if result.BusinessContext.ExpectedDataReadyTime != "" {
+			bizParts = append(bizParts, fmt.Sprintf("expected_data_ready=%s", result.BusinessContext.ExpectedDataReadyTime))
+		}
+		if result.BusinessContext.CurrentTime != "" {
+			bizParts = append(bizParts, fmt.Sprintf("current_time=%s", result.BusinessContext.CurrentTime))
+		}
+		if result.BusinessContext.UserQueryWindow != nil {
+			bizParts = append(bizParts, fmt.Sprintf("user_query_window=%t", *result.BusinessContext.UserQueryWindow))
+		}
+		if len(bizParts) > 0 {
+			sb.WriteString(fmt.Sprintf("• Business Context: %s\n", strings.Join(bizParts, ", ")))
+		}
+	}
+
+	// Alert Info Context
+	if result.Alert != nil {
+		var alertParts []string
+		if result.Alert.MonitorName != "" {
+			alertParts = append(alertParts, fmt.Sprintf("monitor=%s", result.Alert.MonitorName))
+		}
+		if result.Alert.Message != "" {
+			alertParts = append(alertParts, fmt.Sprintf("message=%s", result.Alert.Message))
+		}
+		if len(alertParts) > 0 {
+			sb.WriteString(fmt.Sprintf("• Alert Info: %s\n", strings.Join(alertParts, ", ")))
+		}
+	}
+
+	return sb.String(), nil
 }
 
 // UnmarshalAlerts decodes a json string into a slice of alert records for display

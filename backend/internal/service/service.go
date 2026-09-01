@@ -258,10 +258,7 @@ func isValidToolCallArgs(toolName string, args map[string]interface{}) bool {
 				alertStr = incidentStr
 			}
 		}
-		if alertStr == "" {
-			return false
-		}
-		if _, err := uuid.Parse(alertStr); err != nil {
+		if alertStr == "" || alertStr == "null" || alertStr == "none" || alertStr == "undefined" || alertStr == "{alert_id}" {
 			return false
 		}
 

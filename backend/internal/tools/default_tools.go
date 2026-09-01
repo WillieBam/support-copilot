@@ -79,6 +79,42 @@ func (t *GetIncidentTool) Execute(ctx context.Context, rawArgs string) (string, 
 	return t.orchestrator.ExecuteGetIncidentRaw(ctx, rawArgs)
 }
 
+// ListIncidentsTool lists incidents for a team
+type ListIncidentsTool struct {
+	orchestrator interfaces.IOrchestratorService
+}
+
+func NewListIncidentsTool(orchestrator interfaces.IOrchestratorService) interfaces.ITool {
+	return &ListIncidentsTool{orchestrator: orchestrator}
+}
+
+func (t *ListIncidentsTool) Name() string { return "list_incidents" }
+
+func (t *ListIncidentsTool) Definition() requests.LLMTool {
+	return requests.LLMTool{
+		Type: "function",
+		Function: requests.LLMFunction{
+			Name:        "list_incidents",
+			Description: "Lists all incidents for a team including incident ID/number, title, and current status. Call this when the user asks to see, search, or list team incidents.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"team_id": map[string]interface{}{
+						"type":        "string",
+						"description": "UUIDv4 of the team. This is automatically injected by the system if omitted; do NOT ask the user for team_id.",
+					},
+				},
+				"required":             []string{"team_id"},
+				"additionalProperties": false,
+			},
+		},
+	}
+}
+
+func (t *ListIncidentsTool) Execute(ctx context.Context, rawArgs string) (string, error) {
+	return t.orchestrator.ExecuteListIncidentsRaw(ctx, rawArgs)
+}
+
 // CreateRunbookTool creates a runbook in the Knowledge Base
 type CreateRunbookTool struct {
 	orchestrator interfaces.IOrchestratorService

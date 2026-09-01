@@ -13,8 +13,14 @@ type AnomalyDetectionRequest struct {
 }
 
 type AnomalyDetectionResponse struct {
-	Status int    `json:"status"` // 0 for Anomaly, 1 for Normal
-	Label  string `json:"label"`  // "Anomaly" or "Normal"
-	Engine string `json:"engine"` // "IsolationForest"
-	Error  string `json:"error,omitempty"`
+	Status       int     `json:"status"` // 0 for Anomaly, 1 for Normal
+	Label        string  `json:"label"`  // "Real Alert (Anomaly)" or "False Alarm (Normal)"
+	Engine       string  `json:"engine"` // "IsolationForest_v3"
+	Prediction   string  `json:"prediction,omitempty"`
+	Confidence   float64 `json:"confidence,omitempty"`
+	RiskLevel    string  `json:"risk_level,omitempty"`
+	AnomalyScore float64 `json:"anomaly_score,omitempty"`
+	Threshold    float64 `json:"threshold,omitempty"`
+	Summary      string  `json:"summary,omitempty"`
+	Error        string  `json:"error,omitempty"`
 }

@@ -66,6 +66,7 @@ func RegisterDefaultTools(registry interfaces.IToolRegistry, orchestrator interf
 	defaultTools := []interfaces.ITool{
 		NewValidateAlertTool(orchestrator),
 		NewGetIncidentTool(orchestrator),
+		NewListIncidentsTool(orchestrator),
 		NewCreateRunbookTool(orchestrator),
 		NewUpdateRunbookTool(orchestrator),
 		NewDeprecateRunbookTool(orchestrator),

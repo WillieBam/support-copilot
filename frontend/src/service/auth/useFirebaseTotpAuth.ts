@@ -98,7 +98,8 @@ export function useFirebaseTotpAuth() {
             setRawToken('COOKIE_SESSION')
             setUserEmail(session.user_email || session.user_uid || '')
             setIsEmailVerified(true)
-            setHasTotpEnabled(Boolean(session.totp_enabled))
+            const isFirebaseUser = Boolean(session.firebase_uid)
+            setHasTotpEnabled(isFirebaseUser || Boolean(session.totp_enabled))
             setAuthStatus(`Authenticated as ${session.user_email || session.user_uid}`)
             setIsAuthReady(true)
           }
@@ -270,7 +271,7 @@ export function useFirebaseTotpAuth() {
       setLoginEmail(regEmail)
       return true
     } catch (error: any) {
-      setAuthError(error.message || 'Registration failed')
+      setAuthError(toErrorMessage(error, 'Registration failed'))
       setAuthStatus('Registration failed')
       return false
     } finally {

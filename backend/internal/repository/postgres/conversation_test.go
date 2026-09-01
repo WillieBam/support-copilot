@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -119,10 +120,10 @@ var _ = Describe("ConversationRepository", func() {
 	Context("ListTeamConversations", func() {
 		It("should list conversations by team ID with limit", func() {
 			teamID := uuid.New()
-			rows := sqlmock.NewRows([]string{"id", "team_id", "title"}).
-				AddRow(uuid.New(), teamID, "Chat 1")
+			rows := sqlmock.NewRows([]string{"id", "team_id", "team_incident_id", "user_id", "title", "created_at", "user_email", "user_display_name", "user_scope"}).
+				AddRow(uuid.New(), teamID, nil, uuid.New(), "Chat 1", time.Now(), "test@user.com", "Test User", "engineer")
 
-			mock.ExpectQuery(`SELECT \* FROM "conversations" WHERE team_id = \$1 ORDER BY created_at DESC LIMIT \$2`).
+			mock.ExpectQuery(`SELECT (.+) FROM conversations c LEFT JOIN users u ON (.+) WHERE c\.team_id = \$1 ORDER BY c\.created_at DESC LIMIT \$2`).
 				WithArgs(teamID, 10).
 				WillReturnRows(rows)
 
@@ -130,38 +131,73 @@ var _ = Describe("ConversationRepository", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(convs)).To(Equal(1))
 		})
+
+		It("should list conversations by team ID without limit when limit <= 0", func() {
+			teamID := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "team_id", "team_incident_id", "user_id", "title", "created_at", "user_email", "user_display_name", "user_scope"}).
+				AddRow(uuid.New(), teamID, nil, uuid.New(), "Chat 1", time.Now(), "test@user.com", "Test User", "engineer")
+
+			mock.ExpectQuery(`SELECT (.+) FROM conversations c LEFT JOIN users u ON (.+) WHERE c\.team_id = \$1 ORDER BY c\.created_at DESC`).
+				WithArgs(teamID).
+				WillReturnRows(rows)
+
+			convs, err := convRepo.ListTeamConversations(ctx, teamID, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(convs)).To(Equal(1))
+		})
+
+		It("should return error when ListTeamConversations fails", func() {
+			teamID := uuid.New()
+			mock.ExpectQuery(`SELECT (.+) FROM conversations c LEFT JOIN users u ON (.+) WHERE c\.team_id = \$1 ORDER BY c\.created_at DESC`).
+				WithArgs(teamID).
+				WillReturnError(errors.New("db error"))
+
+			convs, err := convRepo.ListTeamConversations(ctx, teamID, 0)
+			Expect(err).To(HaveOccurred())
+			Expect(convs).To(BeNil())
+		})
 	})
 
 	Context("GetConversationByID", func() {
-		It("should fetch conversation by ID successfully", func() {
+		It("should fetch conversation by ID successfully with messages", func() {
 			convID := uuid.New()
 			userID := uuid.New()
-			rows := sqlmock.NewRows([]string{"id", "user_id", "title"}).
-				AddRow(convID, userID, "Test Conv")
+			msgID := uuid.New()
+			now := time.Now()
+			sender := "user"
+			content := "Hello"
 
-			mock.ExpectQuery(`SELECT \* FROM "conversations" WHERE id = \$1 ORDER BY "conversations"\."id" LIMIT \$2`).
-				WithArgs(convID, 1).
-				WillReturnRows(rows)
+			rows := sqlmock.NewRows([]string{"conv_id", "team_id", "team_incident_id", "user_id", "title", "conv_created_at", "user_email", "user_display_name", "user_scope", "message_id", "parent_message_id", "message_sender", "message_content", "message_created_at"}).
+				AddRow(convID, uuid.New(), nil, userID, "Test Conv", now, "test@example.com", "User", "engineer", &msgID, nil, &sender, &content, &now)
 
-			mock.ExpectQuery(`SELECT \* FROM "messages" WHERE "messages"\."conversation_id" = \$1 ORDER BY created_at ASC`).
+			mock.ExpectQuery(`SELECT (.+) FROM conversations c LEFT JOIN users u ON (.+) LEFT JOIN messages m ON (.+) WHERE c\.id = \$1 ORDER BY m\.created_at ASC`).
 				WithArgs(convID).
-				WillReturnRows(sqlmock.NewRows([]string{"id", "conversation_id"}))
-
-			mock.ExpectQuery(`SELECT \* FROM "users" WHERE "users"\."id" = \$1`).
-				WithArgs(userID).
-				WillReturnRows(sqlmock.NewRows([]string{"id", "email"}).AddRow(userID, "test@example.com"))
+				WillReturnRows(rows)
 
 			conv, err := convRepo.GetConversationByID(ctx, convID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(conv).NotTo(BeNil())
 			Expect(conv.ID).To(Equal(convID))
+			Expect(len(conv.Messages)).To(Equal(1))
+			Expect(conv.Messages[0].Content).To(Equal("Hello"))
 		})
 
 		It("should return error when conversation not found", func() {
 			convID := uuid.New()
-			mock.ExpectQuery(`SELECT \* FROM "conversations" WHERE id = \$1 ORDER BY "conversations"\."id" LIMIT \$2`).
-				WithArgs(convID, 1).
-				WillReturnError(gorm.ErrRecordNotFound)
+			mock.ExpectQuery(`SELECT (.+) FROM conversations c LEFT JOIN users u ON (.+) LEFT JOIN messages m ON (.+) WHERE c\.id = \$1 ORDER BY m\.created_at ASC`).
+				WithArgs(convID).
+				WillReturnRows(sqlmock.NewRows([]string{"conv_id"}))
+
+			conv, err := convRepo.GetConversationByID(ctx, convID)
+			Expect(err).To(HaveOccurred())
+			Expect(conv).To(BeNil())
+		})
+
+		It("should return error when GetConversationByID query fails", func() {
+			convID := uuid.New()
+			mock.ExpectQuery(`SELECT (.+) FROM conversations c LEFT JOIN users u ON (.+) LEFT JOIN messages m ON (.+) WHERE c\.id = \$1 ORDER BY m\.created_at ASC`).
+				WithArgs(convID).
+				WillReturnError(errors.New("db error"))
 
 			conv, err := convRepo.GetConversationByID(ctx, convID)
 			Expect(err).To(HaveOccurred())

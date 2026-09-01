@@ -45,8 +45,6 @@ func NewHandler(a interfaces.IAppService, authService interfaces.IAuthService, o
 	return h
 }
 
-
-
 func (h *Handler) Me(c *echo.Context) error {
 	uidVal := c.Get("user_uid")
 	appUID, ok := uidVal.(string)
@@ -63,6 +61,7 @@ func (h *Handler) Me(c *echo.Context) error {
 	totpVal := false
 	var userID uuid.UUID
 
+	firebaseUIDVal := ""
 	if parsedUUID, err := uuid.Parse(appUID); err == nil {
 		userID = parsedUUID
 	}
@@ -71,6 +70,9 @@ func (h *Handler) Me(c *echo.Context) error {
 		userID = user.ID
 		if user.Username != nil {
 			usernameVal = *user.Username
+		}
+		if user.FirebaseUID != nil {
+			firebaseUIDVal = *user.FirebaseUID
 		}
 		displayNameVal = user.DisplayName
 		scopeVal = user.Scope
@@ -90,6 +92,7 @@ func (h *Handler) Me(c *echo.Context) error {
 		"authenticated": true,
 		"user_id":       userID,
 		"user_uid":      appUID,
+		"firebase_uid":  firebaseUIDVal,
 		"user_email":    email,
 		"username":      usernameVal,
 		"display_name":  displayNameVal,
@@ -122,7 +125,6 @@ func (h *Handler) Query(c *echo.Context) error {
 	var isFirstMessage bool
 	ctx := c.Request().Context()
 
-	// get database user record safely if userService is configured
 	if h.userService != nil {
 		var dbUser *models.User
 		if uidVal := c.Get("user_id"); uidVal != nil {

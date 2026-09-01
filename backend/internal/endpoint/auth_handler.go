@@ -42,6 +42,9 @@ func (h *Handler) LoginHandler(c *echo.Context) error {
 				"message": "TOTP 2FA code is required",
 			})
 		}
+		if errors.Is(err, customErrors.ErrUserNotFound) || err.Error() == "User not found" || err.Error() == "user not found" {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		}
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 	}
 
@@ -58,7 +61,7 @@ func (h *Handler) LogoutHandler(c *echo.Context) error {
 		MaxAge:   -1,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   isSecureRequest(c),
 		SameSite: http.SameSiteLaxMode,
 	}
 	c.SetCookie(cookie)
@@ -195,8 +198,16 @@ func setSessionCookie(c *echo.Context, token string, expires time.Time) {
 		Expires:  expires,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   isSecureRequest(c),
 		SameSite: http.SameSiteLaxMode,
 	}
 	c.SetCookie(cookie)
+}
+
+func isSecureRequest(c *echo.Context) bool {
+	if c.Scheme() == "https" || c.Request().TLS != nil {
+		return true
+	}
+	proto := c.Request().Header.Get("X-Forwarded-Proto")
+	return proto == "https"
 }

@@ -10,11 +10,20 @@ It proves that:
 3. Contrast: Continuous Robust Z-Scores capture the signal that binary IQR misses.
 """
 
+import os
 import pandas as pd
 import numpy as np
 
 def run_proof():
-    data_path = '/home/meilinlee/meilin/support_copilot/mcp_servers/hard_training_data.csv'
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(base_dir, "..", "data", "hard_training_data.csv"),
+        os.path.join(base_dir, "..", "hard_training_data.csv"),
+        "mcp_servers/data/hard_training_data.csv",
+        "mcp_servers/hard_training_data.csv",
+        "hard_training_data.csv",
+    ]
+    data_path = next((p for p in candidates if os.path.exists(p)), candidates[0])
     df = pd.read_csv(data_path)
     
     print("=" * 80)
@@ -115,7 +124,6 @@ def run_proof():
     print(f"\nSpecifically in the TEST SET (last 150 alerts: {len(test_normal)} normal, {len(test_anomalous)} anomalies):")
     print(f"  - Test Anomalies with IQR Outliers == 0 : {test_missed_iqr} / {len(test_anomalous)} ({test_missed_iqr / len(test_anomalous) * 100:.2f}%) MISSED by IQR features!")
     print(f"  - Test Anomalies with IQR Outliers >= 1: {test_caught_iqr} / {len(test_anomalous)} ({test_caught_iqr / len(test_anomalous) * 100:.2f}%)")
-    print("  --> This directly explains why Test Anomaly Recall was only ~37% in Experiment E!")
     
     print("\n" + "-" * 80)
     print("3. CROSSTAB: IQR OUTLIER COUNT vs TRUE LABEL")
@@ -152,8 +160,6 @@ def run_proof():
     print("  - anomalous_metric_count = 0")
     print("  - anomaly_concentration  = 0.0")
     print("\nFor a Normal alert (label=1), these 4 features are ALSO strictly 0!")
-    print("--> Because 4 out of 7 features became identical to normal alerts, Isolation Forest")
-    print("    was left with almost no distinguishing features, resulting in the 37% test recall.")
     
     print("\n" + "=" * 80)
     print("6. COMPARISON: IQR BINARY DETECTION vs CONTINUOUS ROBUST Z")

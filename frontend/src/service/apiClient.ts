@@ -3,7 +3,7 @@ import { firebaseAuth } from '@/firebase';
 import { exchangeToken } from './auth/authService';
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

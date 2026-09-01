@@ -2,6 +2,8 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -150,6 +152,44 @@ var _ = Describe("RunbookRepository", func() {
 			Expect(updated.Content).To(Equal("New Content"))
 		})
 
+		It("should rollback if UpdateRunbook fails to find runbook", func() {
+			rbID := uuid.New()
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE id = \$1 ORDER BY "runbooks"\."id" LIMIT \$2`).
+				WithArgs(rbID, 1).
+				WillReturnError(errors.New("not found"))
+			mock.ExpectRollback()
+
+			updated, err := teamRepo.UpdateRunbook(ctx, rbID, "New Title", "New Content", nil)
+			Expect(err).To(HaveOccurred())
+			Expect(updated).To(BeNil())
+		})
+
+		It("should rollback if UpdateRunbook log creation fails", func() {
+			rbID := uuid.New()
+			teamID := uuid.New()
+			incID := uuid.New()
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE id = \$1 ORDER BY "runbooks"\."id" LIMIT \$2`).
+				WithArgs(rbID, 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "team_id", "incident_id"}).AddRow(rbID, teamID, incID))
+
+			mock.ExpectQuery(`INSERT INTO "runbook_logs"`).
+				WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+				WillReturnError(errors.New("log insert failed"))
+			mock.ExpectRollback()
+
+			log := &models.RunbookLog{
+				OlderTitle: "Title",
+				Version:    1,
+			}
+			updated, err := teamRepo.UpdateRunbook(ctx, rbID, "New Title", "New Content", log)
+			Expect(err).To(HaveOccurred())
+			Expect(updated).To(BeNil())
+		})
+
 		It("should deprecate a runbook successfully", func() {
 			rbID := uuid.New()
 			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE id = \$1 ORDER BY "runbooks"\."id" LIMIT \$2`).
@@ -165,6 +205,17 @@ var _ = Describe("RunbookRepository", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(deprecated.Status).To(Equal("deprecated"))
 		})
+
+		It("should return error if DeprecateRunbook query fails", func() {
+			rbID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE id = \$1 ORDER BY "runbooks"\."id" LIMIT \$2`).
+				WithArgs(rbID, 1).
+				WillReturnError(errors.New("db error"))
+
+			deprecated, err := teamRepo.DeprecateRunbook(ctx, rbID)
+			Expect(err).To(HaveOccurred())
+			Expect(deprecated).To(BeNil())
+		})
 	})
 
 	Context("GetRunbooksByIncidentID & GetIncidentContextByIDOrNumber", func() {
@@ -179,17 +230,29 @@ var _ = Describe("RunbookRepository", func() {
 			Expect(len(rbs)).To(Equal(1))
 		})
 
+		It("should return error when GetRunbooksByIncidentID query fails", func() {
+			incID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE incident_id = \$1 AND status = 'active' ORDER BY created_at DESC`).
+				WithArgs(incID).
+				WillReturnError(errors.New("db failure"))
+
+			rbs, err := teamRepo.GetRunbooksByIncidentID(ctx, incID)
+			Expect(err).To(HaveOccurred())
+			Expect(rbs).To(BeNil())
+		})
+
 		It("should get incident context by surrogate key INC-101", func() {
 			incID := uuid.New()
-			mock.ExpectQuery(`SELECT \* FROM "team_incidents" WHERE LOWER\(incident_number\) = LOWER\(\$1\) ORDER BY "team_incidents"\."id" LIMIT \$2`).
-				WithArgs("INC-101", 1).
-				WillReturnRows(sqlmock.NewRows([]string{"id", "incident_number", "title"}).AddRow(incID, "INC-101", "Database Latency"))
+			teamID := uuid.New()
+			now := time.Now()
+			rows := sqlmock.NewRows([]string{"incident_id", "incident_number", "team_id", "created_by", "title", "status", "details", "created_at", "assigned_at", "resolved_at", "history_id", "history_updated_by", "history_title", "history_new_status", "history_previous_status", "history_details", "history_updated_at"}).
+				AddRow(incID, "INC-101", teamID, uuid.New(), "Database Latency", "OPEN", "Details", now, now, nil, nil, nil, nil, nil, nil, nil, nil)
 
-			mock.ExpectQuery(`SELECT \* FROM "incident_status_histories" WHERE "incident_status_histories"\."team_incident_id" = \$1 ORDER BY updated_at ASC`).
-				WithArgs(incID).
-				WillReturnRows(sqlmock.NewRows([]string{"id", "team_incident_id"}))
+			mock.ExpectQuery(`SELECT (.+) FROM team_incidents i LEFT JOIN incident_status_histories h ON (.+) WHERE LOWER\(i\.incident_number\) = LOWER\(\$1\) ORDER BY h\.updated_at ASC`).
+				WithArgs("INC-101").
+				WillReturnRows(rows)
 
-			mock.ExpectQuery(`SELECT \* FROM "alerts" WHERE incident_id = \$1 OR id IN \(SELECT alert_id FROM alert_incidents WHERE incident_id = \$2\) ORDER BY received_at DESC`).
+			mock.ExpectQuery(`SELECT DISTINCT (.+) FROM alerts a LEFT JOIN alert_incidents ai ON (.+) WHERE a\.incident_id = \$1 OR ai\.incident_id = \$2 ORDER BY a\.received_at DESC`).
 				WithArgs(incID, incID).
 				WillReturnRows(sqlmock.NewRows([]string{"id", "alert_info"}))
 
@@ -200,17 +263,29 @@ var _ = Describe("RunbookRepository", func() {
 			Expect(alerts).NotTo(BeNil())
 		})
 
+		It("should return error when GetIncidentContextByIDOrNumber incident query fails", func() {
+			mock.ExpectQuery(`SELECT (.+) FROM team_incidents i LEFT JOIN incident_status_histories h ON (.+) WHERE LOWER\(i\.incident_number\) = LOWER\(\$1\) ORDER BY h\.updated_at ASC`).
+				WithArgs("INC-500").
+				WillReturnError(errors.New("db error"))
+
+			inc, alerts, err := teamRepo.GetIncidentContextByIDOrNumber(ctx, "INC-500")
+			Expect(err).To(HaveOccurred())
+			Expect(inc).To(BeNil())
+			Expect(alerts).To(BeNil())
+		})
+
 		It("should get incident context by UUID", func() {
 			incID := uuid.New()
-			mock.ExpectQuery(`SELECT \* FROM "team_incidents" WHERE id = \$1 ORDER BY "team_incidents"\."id" LIMIT \$2`).
-				WithArgs(incID, 1).
-				WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).AddRow(incID, "Context Test"))
+			teamID := uuid.New()
+			now := time.Now()
+			rows := sqlmock.NewRows([]string{"incident_id", "incident_number", "team_id", "created_by", "title", "status", "details", "created_at", "assigned_at", "resolved_at", "history_id", "history_updated_by", "history_title", "history_new_status", "history_previous_status", "history_details", "history_updated_at"}).
+				AddRow(incID, "INC-102", teamID, uuid.New(), "Context Test", "OPEN", "Details", now, now, nil, nil, nil, nil, nil, nil, nil, nil)
 
-			mock.ExpectQuery(`SELECT \* FROM "incident_status_histories" WHERE "incident_status_histories"\."team_incident_id" = \$1 ORDER BY updated_at ASC`).
+			mock.ExpectQuery(`SELECT (.+) FROM team_incidents i LEFT JOIN incident_status_histories h ON (.+) WHERE i\.id = \$1 ORDER BY h\.updated_at ASC`).
 				WithArgs(incID).
-				WillReturnRows(sqlmock.NewRows([]string{"id"}))
+				WillReturnRows(rows)
 
-			mock.ExpectQuery(`SELECT \* FROM "alerts" WHERE incident_id = \$1 OR id IN \(SELECT alert_id FROM alert_incidents WHERE incident_id = \$2\) ORDER BY received_at DESC`).
+			mock.ExpectQuery(`SELECT DISTINCT (.+) FROM alerts a LEFT JOIN alert_incidents ai ON (.+) WHERE a\.incident_id = \$1 OR ai\.incident_id = \$2 ORDER BY a\.received_at DESC`).
 				WithArgs(incID, incID).
 				WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
@@ -218,6 +293,18 @@ var _ = Describe("RunbookRepository", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(inc).NotTo(BeNil())
 			Expect(alerts).NotTo(BeNil())
+		})
+
+		It("should return error when GetIncidentContext incident query fails", func() {
+			incID := uuid.New()
+			mock.ExpectQuery(`SELECT (.+) FROM team_incidents i LEFT JOIN incident_status_histories h ON (.+) WHERE i\.id = \$1 ORDER BY h\.updated_at ASC`).
+				WithArgs(incID).
+				WillReturnError(errors.New("db error"))
+
+			inc, alerts, err := teamRepo.GetIncidentContext(ctx, incID)
+			Expect(err).To(HaveOccurred())
+			Expect(inc).To(BeNil())
+			Expect(alerts).To(BeNil())
 		})
 
 		It("should return error when GetIncidentContextByIDOrNumber received empty string", func() {
@@ -248,6 +335,53 @@ var _ = Describe("RunbookRepository", func() {
 			rbs, err := teamRepo.ListRunbooks(ctx, teamID, "all")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(rbs)).To(Equal(1))
+		})
+
+		It("should list active runbooks when status filter is 'active'", func() {
+			teamID := uuid.New()
+			rows := sqlmock.NewRows([]string{"id", "team_id", "title", "status"}).
+				AddRow(uuid.New(), teamID, "Active Guide", "active")
+
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE team_id = \$1 AND status = \$2 ORDER BY created_at DESC`).
+				WithArgs(teamID, "active").
+				WillReturnRows(rows)
+
+			rbs, err := teamRepo.ListRunbooks(ctx, teamID, "active")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(rbs)).To(Equal(1))
+		})
+
+		It("should return error when ListRunbooks fails", func() {
+			teamID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE team_id = \$1 ORDER BY created_at DESC`).
+				WithArgs(teamID).
+				WillReturnError(errors.New("db query error"))
+
+			rbs, err := teamRepo.ListRunbooks(ctx, teamID, "all")
+			Expect(err).To(HaveOccurred())
+			Expect(rbs).To(BeNil())
+		})
+
+		It("should return error when GetRunbookLogs fails", func() {
+			rbID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "runbook_logs" WHERE runbook_id = \$1 ORDER BY version DESC`).
+				WithArgs(rbID).
+				WillReturnError(errors.New("db error"))
+
+			logs, err := teamRepo.GetRunbookLogs(ctx, rbID)
+			Expect(err).To(HaveOccurred())
+			Expect(logs).To(BeNil())
+		})
+
+		It("should return error when GetRunbookByID fails", func() {
+			rbID := uuid.New()
+			mock.ExpectQuery(`SELECT \* FROM "runbooks" WHERE id = \$1 ORDER BY "runbooks"\."id" LIMIT \$2`).
+				WithArgs(rbID, 1).
+				WillReturnError(errors.New("db error"))
+
+			rb, err := teamRepo.GetRunbookByID(ctx, rbID)
+			Expect(err).To(HaveOccurred())
+			Expect(rb).To(BeNil())
 		})
 	})
 })

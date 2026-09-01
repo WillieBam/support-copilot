@@ -109,6 +109,9 @@ func (s *authService) LoginWithPassword(ctx context.Context, usernameOrEmail, pa
 
 	user, err := s.userRepo.GetUserByUsernameOrEmail(ctx, id)
 	if err != nil {
+		if errors.Is(err, customErrors.ErrUserNotFound) {
+			return "", nil, customErrors.ErrUserNotFound
+		}
 		return "", nil, errors.New("invalid credentials")
 	}
 
@@ -120,7 +123,7 @@ func (s *authService) LoginWithPassword(ctx context.Context, usernameOrEmail, pa
 		return "", nil, errors.New("invalid credentials")
 	}
 
-	if user.TOTPEnabled {
+	if user.TOTPEnabled && user.TOTPSecret != "" {
 		if totpCode == "" {
 			return "", nil, errors.New("mfa required")
 		}
@@ -181,7 +184,7 @@ func (s *authService) ExchangeToken(ctx context.Context, firebaseToken string, t
 		return "", nil, customErrors.ErrUserDeactivated
 	}
 
-	if user != nil && user.TOTPEnabled {
+	if user != nil && user.TOTPEnabled && user.TOTPSecret != "" {
 		totpCode = strings.TrimSpace(totpCode)
 		if totpCode == "" {
 			return "", nil, errors.New("mfa_required")
@@ -196,7 +199,7 @@ func (s *authService) ExchangeToken(ctx context.Context, firebaseToken string, t
 		usernameVal = *user.Username
 	}
 
-	return s.generateAuthToken(user.ID, verifiedToken.UID, usernameVal, email, user.TOTPEnabled, "firebase")
+	return s.generateAuthToken(user.ID, verifiedToken.UID, usernameVal, email, true, "firebase")
 }
 
 func (s *authService) SetupTOTP(ctx context.Context, userID uuid.UUID) (string, string, error) {

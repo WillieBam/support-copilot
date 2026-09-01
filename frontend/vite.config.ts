@@ -1,14 +1,31 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-
 // https://vite.dev/config/
 export default defineConfig({
   server: {
-    port: 3000
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/auth': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/query': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/webhooks': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
-    assetsDir: 'static'
+    assetsDir: 'static',
   },
   plugins: [
     react({
@@ -18,8 +35,8 @@ export default defineConfig({
     }),
   ],
   resolve: {
-  alias: {
-  "@": path.resolve(__dirname, "./src"),
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
   },
-},
 })

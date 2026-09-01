@@ -180,6 +180,37 @@ var _ = Describe("Handler", func() {
 			Expect(len(cookies)).To(Equal(1))
 			Expect(cookies[0].Name).To(Equal("support_copilot_session"))
 			Expect(cookies[0].Value).To(Equal("valid-jwt-token"))
+			Expect(cookies[0].Secure).To(BeFalse())
+		})
+
+		It("should set secure cookie when request is over https", func() {
+			body, _ := json.Marshal(requests.LoginRequest{
+				UsernameOrEmail: "testuser",
+				Password:        "password123!",
+			})
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Forwarded-Proto", "https")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			claims := &types.Claims{
+				RegisteredClaims: jwt.RegisteredClaims{
+					ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+				},
+			}
+			mockAuthSvc.On("LoginWithPassword", mock.Anything, "testuser", "password123!", "").
+				Return("valid-jwt-token", claims, nil)
+
+			err := h.LoginHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+
+			cookies := rec.Result().Cookies()
+			Expect(len(cookies)).To(Equal(1))
+			Expect(cookies[0].Name).To(Equal("support_copilot_session"))
+			Expect(cookies[0].Value).To(Equal("valid-jwt-token"))
+			Expect(cookies[0].Secure).To(BeTrue())
 		})
 	})
 
@@ -198,6 +229,25 @@ var _ = Describe("Handler", func() {
 			Expect(cookies[0].Name).To(Equal("support_copilot_session"))
 			Expect(cookies[0].Value).To(Equal(""))
 			Expect(cookies[0].MaxAge).To(Equal(-1))
+			Expect(cookies[0].Secure).To(BeFalse())
+		})
+
+		It("should set secure flag on cleared cookie when request is over https", func() {
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+			req.Header.Set("X-Forwarded-Proto", "https")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			err := h.LogoutHandler(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+
+			cookies := rec.Result().Cookies()
+			Expect(len(cookies)).To(Equal(1))
+			Expect(cookies[0].Name).To(Equal("support_copilot_session"))
+			Expect(cookies[0].Value).To(Equal(""))
+			Expect(cookies[0].MaxAge).To(Equal(-1))
+			Expect(cookies[0].Secure).To(BeTrue())
 		})
 	})
 

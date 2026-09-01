@@ -108,6 +108,20 @@ var _ = Describe("AlertRepository", func() {
 			err := alertRepo.UpdateAlertIncidentID(ctx, alertID, incidentID)
 			Expect(err).NotTo(HaveOccurred())
 		})
+
+		It("should return error when UpdateAlertIncidentID fails on insert", func() {
+			alertID := uuid.New()
+			incidentID := uuid.New()
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`INSERT INTO "alert_incidents"`).
+				WithArgs(alertID, incidentID, "human_ui").
+				WillReturnError(errors.New("insert failed"))
+			mock.ExpectRollback()
+
+			err := alertRepo.UpdateAlertIncidentID(ctx, alertID, incidentID)
+			Expect(err).To(HaveOccurred())
+		})
 	})
 
 	Context("RetrieveAlert", func() {

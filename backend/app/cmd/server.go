@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"log/slog"
-	"net/http"
 
 	"github.com/WillieBam/support_copilot/backend/app"
 	"github.com/WillieBam/support_copilot/backend/app/config"
@@ -33,15 +32,9 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 	h := endpoint.NewHandler(a.Service, a.AuthService, a.TeamService, a.UserService, a.DashboardService)
 
 	cfg := config.Get()
-	e := echo.New()
 
+	e := echo.New()
 	e.Use(echoMiddleware.Recover())
-	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
-		AllowOrigins:     []string{"http://localhost:3000"},
-		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
-		AllowHeaders:     []string{echo.HeaderContentType, echo.HeaderAuthorization},
-		AllowCredentials: true,
-	}))
 
 	e.POST("/auth/exchange", h.TokenExchangeHandler)
 
@@ -60,9 +53,6 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 	apiGroup := e.Group("/api")
 	apiGroup.Use(middlewares.AuthMiddleware(a.AuthService))
 	apiGroup.GET("/auth/me", h.Me)
-	apiGroup.POST("/auth/totp/setup", h.SetupTOTPHandler)
-	apiGroup.POST("/auth/totp/verify", h.VerifyTOTPHandler)
-	apiGroup.POST("/auth/totp/disable", h.DisableTOTPHandler)
 
 	// team endpoints
 	apiGroup.POST("/teams", h.CreateTeam)
@@ -92,6 +82,10 @@ func supportCopilotExec(cmd *cobra.Command, args []string) {
 	apiGroup.POST("/conversations", h.CreateConversation)
 	apiGroup.GET("/teams/:team_id/conversations", h.ListTeamConversations)
 	apiGroup.GET("/conversations/:id/messages", h.GetConversationMessages)
+
+	apiGroup.POST("/auth/totp/setup", h.SetupTOTPHandler)
+	apiGroup.POST("/auth/totp/verify", h.VerifyTOTPHandler)
+	apiGroup.POST("/auth/totp/disable", h.DisableTOTPHandler)
 
 	// dashboard analytics endpoints
 	apiGroup.GET("/dashboard/incidents/trend", h.GetIncidentTrend)

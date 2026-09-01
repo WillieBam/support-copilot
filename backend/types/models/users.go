@@ -18,5 +18,5 @@ type User struct {
 	CreatedAt     time.Time    `gorm:"type:timestamp(0);default:CURRENT_TIMESTAMP" json:"created_at"`
 	DeactivatedAt *time.Time   `gorm:"type:timestamp(0)" json:"deactivated_at,omitempty"`
 	Scope         string       `gorm:"type:varchar(50);not null" json:"scope"`
-	Memberships   []TeamMember `gorm:"foreignKey:UserID" json:"memberships"`
+	Memberships   []TeamMember `gorm:"foreignKey:UserID" json:"memberships,omitempty"`
 }

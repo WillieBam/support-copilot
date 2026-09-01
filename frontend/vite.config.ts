@@ -26,6 +26,9 @@ export default defineConfig({
   },
   build: {
     assetsDir: 'static',
+    rollupOptions: {
+      maxParallelFileOps: 50,
+    },
   },
   plugins: [
     react({

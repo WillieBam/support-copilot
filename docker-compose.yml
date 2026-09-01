@@ -34,27 +34,29 @@ services:
       DATABASE_USER: ${DB_USER}
       DATABASE_PASSWORD: ${DB_PASSWORD}
       DATABASE_NAME: ${DB_NAME}
-      AUTH_ENABLED: ${AUTH_ENABLED:-false}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      MCP1_HOST: mcp-server
+      MCP1_PORT: 9000
+      MCP2_HOST: mcp-server
+      MCP2_PORT: 9000                                                         
     depends_on:
       postgres:
         condition: service_healthy
-  mcp-server-1:
-    image: python:3.12-slim
+      mcp-server:
+        condition: service_started
+  mcp-server:
+    build:
+      context: .
+      dockerfile: mcp_servers/Dockerfile
     restart: unless-stopped
-    working_dir: /app
     env_file: .env
-    command: sh -c "pip install --no-cache-dir -r requirements.txt && python server.py"
     environment:
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
       MCP_HOST: 0.0.0.0
-      MCP_PORT: ${MCP_PORT:-9000}
+      MCP_PORT: 9000
       MCP_PATH: /mcp
+      BACKEND_BASE_URL: http://backend:8080
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key}
     ports:
       - "${MCP_PORT:-9000}:9000"
-    volumes:
-      - ./mcp_server_1:/app
+
 volumes:
   postgres_data:

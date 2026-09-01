@@ -1,16 +1,15 @@
 # ---- frontend build stage ----
 FROM node:22-alpine AS frontend-builder
 
-WORKDIR /app
+WORKDIR /app/frontend
 
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
-
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
 # ---- build stage ----
-FROM docker.io/library/golang:1.25-alpine AS builder
+FROM docker.io/library/golang:1.26.1-alpine AS backend-builder
 
 WORKDIR /app
 
@@ -28,10 +27,11 @@ RUN addgroup -S app && adduser -S app -G app
 
 WORKDIR /app
 
-COPY --from=builder /server ./server
-COPY --from=frontend-builder /app/dist ./frontend/dist
+COPY --from=backend-builder /server ./server
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 RUN chown -R app:app /app
 USER app
 
 EXPOSE 8080
 ENTRYPOINT ["./server", "server"]
+

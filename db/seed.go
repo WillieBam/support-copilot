@@ -25,13 +25,25 @@ func InitDatabase(db *gorm.DB) {
 		log.Fatalf("Failed to create UUID extension: %v", err)
 	}
 
-	db.Exec("ALTER TABLE IF EXISTS team_incidents DROP COLUMN IF EXISTS incident_id")
-	db.Exec("ALTER TABLE IF EXISTS alerts DROP COLUMN IF EXISTS service_name")
-	db.Exec("UPDATE alerts SET incident_id = NULL WHERE incident_id IS NOT NULL AND incident_id NOT IN (SELECT id FROM team_incidents)")
-	db.Exec("UPDATE runbooks SET incident_id = 'a1111111-1111-1111-1111-111111111111' WHERE incident_id NOT IN (SELECT id FROM team_incidents)")
-	db.Exec("UPDATE runbook_logs SET incident_id = 'a1111111-1111-1111-1111-111111111111' WHERE incident_id NOT IN (SELECT id FROM team_incidents)")
-	db.Exec("UPDATE conversations SET team_incident_id = NULL WHERE team_incident_id IS NOT NULL AND team_incident_id NOT IN (SELECT id FROM team_incidents)")
-	db.Exec("UPDATE messages SET parent_message_id = NULL WHERE parent_message_id IS NOT NULL AND parent_message_id NOT IN (SELECT id FROM messages)")
+	if db.Migrator().HasTable("team_incidents") {
+		db.Exec("ALTER TABLE team_incidents DROP COLUMN IF EXISTS incident_id")
+	}
+	if db.Migrator().HasTable("alerts") {
+		db.Exec("ALTER TABLE alerts DROP COLUMN IF EXISTS service_name")
+		db.Exec("UPDATE alerts SET incident_id = NULL WHERE incident_id IS NOT NULL AND incident_id NOT IN (SELECT id FROM team_incidents)")
+	}
+	if db.Migrator().HasTable("runbooks") {
+		db.Exec("UPDATE runbooks SET incident_id = 'a1111111-1111-1111-1111-111111111111' WHERE incident_id NOT IN (SELECT id FROM team_incidents)")
+	}
+	if db.Migrator().HasTable("runbook_logs") {
+		db.Exec("UPDATE runbook_logs SET incident_id = 'a1111111-1111-1111-1111-111111111111' WHERE incident_id NOT IN (SELECT id FROM team_incidents)")
+	}
+	if db.Migrator().HasTable("conversations") {
+		db.Exec("UPDATE conversations SET team_incident_id = NULL WHERE team_incident_id IS NOT NULL AND team_incident_id NOT IN (SELECT id FROM team_incidents)")
+	}
+	if db.Migrator().HasTable("messages") {
+		db.Exec("UPDATE messages SET parent_message_id = NULL WHERE parent_message_id IS NOT NULL AND parent_message_id NOT IN (SELECT id FROM messages)")
+	}
 
 	err := db.AutoMigrate(
 		&models.User{},

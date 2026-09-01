@@ -64,3 +64,11 @@ def get_incident(incident_id: str) -> dict:
     _logger.info("tool=get_incident incident_id=%s", incident_id)
     return _client.get_incident_context(incident_id)
 
+
+@mcp.tool(description=(
+    "List incidents for a team. Returns id, incident_number, title, status, details, created_at, and assigned_at."
+))
+def list_incidents(team_id: str) -> list:
+    _logger.info("tool=list_incidents team_id=%s", team_id)
+    return _client.list_incidents(team_id)
+

@@ -215,9 +215,9 @@ def detect_anomalies(
             (features_df["max_abs_rel_change"].values[0] >= 0.5)
         )
         is_anomaly = bool(anomaly_score >= BALANCED_THRESHOLD and has_elevation)
-        final_status = 0 if is_anomaly else 1  # 0 for Anomaly, 1 for Normal
-        status_label = "Anomaly" if is_anomaly else "Normal"
-        prediction_str = "ANOMALY" if is_anomaly else "NORMAL"
+        final_status = 0 if is_anomaly else 1  # 0 for Anomaly (Real Alert), 1 for Normal (False Alarm)
+        status_label = "Real Alert (Anomaly)" if is_anomaly else "False Alarm (Normal)"
+        prediction_str = "REAL_ALERT" if is_anomaly else "FALSE_ALARM"
         
         # Confidence score based on distance from decision threshold
         distance = abs(anomaly_score - BALANCED_THRESHOLD)
@@ -236,12 +236,12 @@ def detect_anomalies(
         # Summary explanation
         if offending_metrics:
             spike_descriptions = [o['description'] for o in offending_metrics]
-            summary = f"Telemetry anomaly detected ({risk_level} risk, score={anomaly_score}): {'; '.join(spike_descriptions)}."
+            summary = f"Real alert confirmed ({risk_level} risk, score={anomaly_score}): {'; '.join(spike_descriptions)}."
         else:
             if is_anomaly:
-                summary = f"Subtle multi-metric anomaly pattern detected across telemetry groups (score={anomaly_score})."
+                summary = f"Real alert: Multi-metric anomaly pattern detected across telemetry groups (score={anomaly_score})."
             else:
-                summary = "System telemetry within normal operational bounds."
+                summary = "False alarm: System telemetry is operating within normal healthy bounds."
 
         response = {
             "status": final_status,

@@ -75,19 +75,30 @@ func (h *IncidentCommandHandler) Handle(ctx context.Context, prompt string) (*ty
 
 	if arg == "" {
 		incidentID, ok := GetActiveIncidentID(ctx)
-		if !ok {
-			return &types.CommandResult{
-				Handled: true,
-				Message: "no active incident found in session context, provide a search query like /incident redis latency",
-			}, nil
+		if ok && incidentID != uuid.Nil {
+			rawArgs := fmt.Sprintf(`{"incident_id": "%s"}`, incidentID.String())
+			details, err := h.orchestrator.ExecuteGetIncidentRaw(ctx, rawArgs)
+			if err != nil {
+				return &types.CommandResult{Handled: true, Message: fmt.Sprintf("failed to fetch incident: %v", err)}, nil
+			}
+			return &types.CommandResult{Handled: true, Message: details}, nil
 		}
 
-		rawArgs := fmt.Sprintf(`{"incident_id": "%s"}`, incidentID.String())
-		details, err := h.orchestrator.ExecuteGetIncidentRaw(ctx, rawArgs)
-		if err != nil {
-			return &types.CommandResult{Handled: true, Message: fmt.Sprintf("failed to fetch incident: %v", err)}, nil
+		// Fallback: list all incidents for active team context
+		teamID, hasTeam := GetTeamID(ctx)
+		if hasTeam && teamID != uuid.Nil {
+			rawArgs := fmt.Sprintf(`{"team_id": "%s"}`, teamID.String())
+			incidentsJSON, err := h.orchestrator.ExecuteListIncidentsRaw(ctx, rawArgs)
+			if err != nil {
+				return &types.CommandResult{Handled: true, Message: fmt.Sprintf("failed to list incidents: %v", err)}, nil
+			}
+			return &types.CommandResult{Handled: true, Message: formatIncidentList(incidentsJSON)}, nil
 		}
-		return &types.CommandResult{Handled: true, Message: details}, nil
+
+		return &types.CommandResult{
+			Handled: true,
+			Message: "no active incident found in session context, provide a search query like /incident redis latency",
+		}, nil
 	}
 
 	// Direct lookup for surrogate key (e.g. INC-101) or UUID
@@ -245,6 +256,28 @@ func (h *HelpCommandHandler) Handle(ctx context.Context, prompt string) (*types.
 		Handled: true,
 		Message: sb.String(),
 	}, nil
+}
+
+func formatIncidentList(jsonStr string) string {
+	incidents, err := data.UnmarshalIncidents(jsonStr)
+	if err != nil {
+		return jsonStr
+	}
+
+	if len(incidents) == 0 {
+		return "no incidents found for team"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("found %d incident(s) for your team:\n\n", len(incidents)))
+	for _, inc := range incidents {
+		key := inc.IncidentNumber
+		if key == "" {
+			key = inc.ID
+		}
+		sb.WriteString(fmt.Sprintf("- **%s** [%s] — `%s`\n", inc.Title, inc.Status, key))
+	}
+	return sb.String()
 }
 
 func formatRunbookList(jsonStr string) string {

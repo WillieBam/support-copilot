@@ -68,6 +68,12 @@ class BackendClient:
         return resp.json()
 
     # incident methods
+    def list_incidents(self, team_id: str) -> list:
+        _logger.info("client=list_incidents team_id=%s", team_id)
+        resp = self._client.get(f"/internal/teams/{team_id}/incidents")
+        resp.raise_for_status()
+        return resp.json()
+
     def get_incident_context(self, incident_id: str) -> dict:
         _logger.info("client=get_incident_context incident_id=%s", incident_id)
         resp = self._client.get(f"/internal/incidents/{incident_id}/context")

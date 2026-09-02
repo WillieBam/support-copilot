@@ -644,6 +644,26 @@ var _ = Describe("TeamService", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
+		It("should handle UnlinkAlertFromIncident, ListAlertsForIncident, and ListAllAlerts in teamService", func() {
+			alertID := uuid.New()
+			mockAlertRepo := &mocks.IAlertRepository{}
+			customTeamSvc := service.NewTeamService(teamRepo, mockAlertRepo)
+
+			mockAlertRepo.On("UnlinkAlertFromIncident", ctx, alertID, incidentID).Return(nil).Once()
+			err := customTeamSvc.UnlinkAlertFromIncident(ctx, alertID, incidentID)
+			Expect(err).NotTo(HaveOccurred())
+
+			mockAlertRepo.On("ListAlertsForIncident", ctx, incidentID).Return([]*models.Alert{{ID: alertID}}, nil).Once()
+			alerts, err := customTeamSvc.ListAlertsForIncident(ctx, incidentID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(alerts).To(HaveLen(1))
+
+			mockAlertRepo.On("ListAlerts", ctx, 50).Return([]*models.Alert{{ID: alertID}}, nil).Once()
+			allAlerts, err := customTeamSvc.ListAllAlerts(ctx, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(allAlerts).To(HaveLen(1))
+		})
+
 		It("should return error when DeleteTeam, ListAllTeams, UpdateIncidentStatus, or ListRunbooks fails in repo", func() {
 			teamRepo.On("DeleteTeam", ctx, teamID).Return(errors.New("db delete error")).Once()
 			err := teamSvc.DeleteTeam(ctx, "super_admin", teamID)

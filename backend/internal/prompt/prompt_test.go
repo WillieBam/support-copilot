@@ -13,7 +13,7 @@ func TestSystemPrompt(t *testing.T) {
 		t.Fatal("expected system prompt to be loaded and non-empty")
 	}
 
-	if !strings.Contains(prompt.SystemPrompt, "PROACTIVE ALERT LINKING") {
-		t.Fatal("expected system prompt to contain proactive alert linking section")
+	if !strings.Contains(prompt.SystemPrompt, "ALERT CLASSIFICATION & DIAGNOSIS") {
+		t.Fatal("expected system prompt to contain alert classification & diagnosis section")
 	}
 }

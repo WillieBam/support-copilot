@@ -113,6 +113,54 @@ func (_m *IAlertRepository) UpdateAlertIncidentID(ctx context.Context, alertID u
 	return r0
 }
 
+// UnlinkAlertFromIncident provides a mock function with given fields: ctx, alertID, incidentID
+func (_m *IAlertRepository) UnlinkAlertFromIncident(ctx context.Context, alertID uuid.UUID, incidentID uuid.UUID) error {
+	ret := _m.Called(ctx, alertID, incidentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UnlinkAlertFromIncident")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, alertID, incidentID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// ListAlertsForIncident provides a mock function with given fields: ctx, incidentID
+func (_m *IAlertRepository) ListAlertsForIncident(ctx context.Context, incidentID uuid.UUID) ([]*models.Alert, error) {
+	ret := _m.Called(ctx, incidentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAlertsForIncident")
+	}
+
+	var r0 []*models.Alert
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]*models.Alert, error)); ok {
+		return rf(ctx, incidentID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []*models.Alert); ok {
+		r0 = rf(ctx, incidentID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.Alert)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, incidentID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NewIAlertRepository creates a new instance of IAlertRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewIAlertRepository(t interface {

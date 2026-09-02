@@ -744,5 +744,46 @@ var _ = Describe("TeamHandler", func() {
 			err = h.GetTeamIncidents(c3)
 			Expect(err).NotTo(HaveOccurred())
 		})
+
+		It("should handle GetIncidentAlerts, LinkIncidentAlerts, UnlinkIncidentAlert, and ListAlerts successfully", func() {
+			mockUserSvc.On("GetUserByFirebaseUID", mock.Anything, "fb-uid-123").Return(testUser, nil)
+
+			alertID := uuid.New()
+			// 1. GetIncidentAlerts
+			mockTeamSvc.On("ListAlertsForIncident", mock.Anything, incidentID).Return([]*models.Alert{{ID: alertID}}, nil).Once()
+			cGetAlerts := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cGetAlerts.SetPathValues(echo.PathValues{{Name: "id", Value: incidentID.String()}})
+			cGetAlerts.Set("user_uid", "fb-uid-123")
+			err := h.GetIncidentAlerts(cGetAlerts)
+			Expect(err).NotTo(HaveOccurred())
+
+			// 2. LinkIncidentAlerts
+			mockTeamSvc.On("LinkAlertsToIncident", mock.Anything, []string{alertID.String()}, incidentID).Return(nil).Once()
+			linkBody, _ := json.Marshal(map[string]interface{}{"alert_ids": []string{alertID.String()}})
+			cLinkAlerts := e.NewContext(httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(linkBody)), httptest.NewRecorder())
+			cLinkAlerts.Request().Header.Set("Content-Type", "application/json")
+			cLinkAlerts.SetPathValues(echo.PathValues{{Name: "id", Value: incidentID.String()}})
+			cLinkAlerts.Set("user_uid", "fb-uid-123")
+			err = h.LinkIncidentAlerts(cLinkAlerts)
+			Expect(err).NotTo(HaveOccurred())
+
+			// 3. UnlinkIncidentAlert
+			mockTeamSvc.On("UnlinkAlertFromIncident", mock.Anything, alertID, incidentID).Return(nil).Once()
+			cUnlinkAlert := e.NewContext(httptest.NewRequest(http.MethodDelete, "/", nil), httptest.NewRecorder())
+			cUnlinkAlert.SetPathValues(echo.PathValues{
+				{Name: "id", Value: incidentID.String()},
+				{Name: "alert_id", Value: alertID.String()},
+			})
+			cUnlinkAlert.Set("user_uid", "fb-uid-123")
+			err = h.UnlinkIncidentAlert(cUnlinkAlert)
+			Expect(err).NotTo(HaveOccurred())
+
+			// 4. ListAlerts
+			mockTeamSvc.On("ListAllAlerts", mock.Anything, 50).Return([]*models.Alert{{ID: alertID}}, nil).Once()
+			cListAlerts := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
+			cListAlerts.Set("user_uid", "fb-uid-123")
+			err = h.ListAlerts(cListAlerts)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 })

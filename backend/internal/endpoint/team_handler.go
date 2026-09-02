@@ -4,7 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-
+	"strconv"
 	"strings"
 
 	"github.com/WillieBam/support_copilot/backend/types/models"
@@ -559,3 +559,140 @@ func (h *Handler) SaveTeamInstruction(c *echo.Context) error {
 
 	return c.JSON(http.StatusOK, inst)
 }
+
+// GetIncidentAlerts handles GET /api/incidents/:id/alerts
+func (h *Handler) GetIncidentAlerts(c *echo.Context) error {
+	_, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	incID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		slog.Warn("[team] GetIncidentAlerts: invalid incident id param", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid incident ID"})
+	}
+
+	if h.teamService == nil {
+		slog.Error("[team] GetIncidentAlerts: team service is nil")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
+	}
+
+	alerts, err := h.teamService.ListAlertsForIncident(c.Request().Context(), incID)
+	if err != nil {
+		slog.Error("[team] GetIncidentAlerts: failed", "incident_id", incID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, alerts)
+}
+
+// LinkIncidentAlerts handles POST /api/incidents/:id/alerts
+func (h *Handler) LinkIncidentAlerts(c *echo.Context) error {
+	_, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	incID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		slog.Warn("[team] LinkIncidentAlerts: invalid incident id param", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid incident ID"})
+	}
+
+	var req struct {
+		AlertID  string   `json:"alert_id"`
+		AlertIDs []string `json:"alert_ids"`
+	}
+	if err := c.Bind(&req); err != nil {
+		slog.Warn("[team] LinkIncidentAlerts: invalid payload", "incident_id", incID, "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
+	}
+
+	var toLink []string
+	if strings.TrimSpace(req.AlertID) != "" {
+		toLink = append(toLink, strings.TrimSpace(req.AlertID))
+	}
+	for _, id := range req.AlertIDs {
+		if strings.TrimSpace(id) != "" {
+			toLink = append(toLink, strings.TrimSpace(id))
+		}
+	}
+
+	if len(toLink) == 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "at least one alert_id or alert_ids is required"})
+	}
+
+	if h.teamService == nil {
+		slog.Error("[team] LinkIncidentAlerts: team service is nil")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
+	}
+
+	if err := h.teamService.LinkAlertsToIncident(c.Request().Context(), toLink, incID); err != nil {
+		slog.Error("[team] LinkIncidentAlerts: failed", "incident_id", incID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "alerts linked successfully"})
+}
+
+// UnlinkIncidentAlert handles DELETE /api/incidents/:id/alerts/:alert_id
+func (h *Handler) UnlinkIncidentAlert(c *echo.Context) error {
+	_, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	incID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		slog.Warn("[team] UnlinkIncidentAlert: invalid incident id param", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid incident ID"})
+	}
+
+	alertID, err := uuid.Parse(c.Param("alert_id"))
+	if err != nil {
+		slog.Warn("[team] UnlinkIncidentAlert: invalid alert_id param", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid alert ID"})
+	}
+
+	if h.teamService == nil {
+		slog.Error("[team] UnlinkIncidentAlert: team service is nil")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
+	}
+
+	if err := h.teamService.UnlinkAlertFromIncident(c.Request().Context(), alertID, incID); err != nil {
+		slog.Error("[team] UnlinkIncidentAlert: failed", "incident_id", incID, "alert_id", alertID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "alert unlinked successfully"})
+}
+
+// ListAlerts handles GET /api/alerts
+func (h *Handler) ListAlerts(c *echo.Context) error {
+	_, err := h.getAuthenticatedUser(c)
+	if err != nil {
+		return err
+	}
+
+	limit := 50
+	if limitStr := c.QueryParam("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	if h.teamService == nil {
+		slog.Error("[team] ListAlerts: team service is nil")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "team service unavailable"})
+	}
+
+	alerts, err := h.teamService.ListAllAlerts(c.Request().Context(), limit)
+	if err != nil {
+		slog.Error("[team] ListAlerts: failed", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, alerts)
+}
+

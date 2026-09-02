@@ -239,4 +239,71 @@ var _ = Describe("AlertRepository", func() {
 			Expect(alerts).To(BeNil())
 		})
 	})
+
+	Context("UnlinkAlertFromIncident", func() {
+		It("should unlink an alert from an incident successfully", func() {
+			alertID := uuid.New()
+			incidentID := uuid.New()
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`DELETE FROM "alert_incidents" WHERE alert_id = \$1 AND incident_id = \$2`).
+				WithArgs(alertID, incidentID).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`UPDATE "alerts" SET "incident_id"=\$1 WHERE id = \$2 AND incident_id = \$3`).
+				WithArgs(nil, alertID, incidentID).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+
+			err := alertRepo.UnlinkAlertFromIncident(ctx, alertID, incidentID)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should return error when delete from alert_incidents fails", func() {
+			alertID := uuid.New()
+			incidentID := uuid.New()
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`DELETE FROM "alert_incidents" WHERE alert_id = \$1 AND incident_id = \$2`).
+				WithArgs(alertID, incidentID).
+				WillReturnError(errors.New("delete failed"))
+			mock.ExpectRollback()
+
+			err := alertRepo.UnlinkAlertFromIncident(ctx, alertID, incidentID)
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Context("ListAlertsForIncident", func() {
+		It("should list alerts tied to incident", func() {
+			incidentID := uuid.New()
+			alertID := uuid.New()
+
+			rows := sqlmock.NewRows([]string{"id", "incident_id", "received_at"}).
+				AddRow(alertID, incidentID, time.Now())
+
+			mock.ExpectQuery(`SELECT DISTINCT a\.\* FROM alerts a LEFT JOIN alert_incidents ai ON ai\.alert_id = a\.id WHERE a\.incident_id = \$1 OR ai\.incident_id = \$2 ORDER BY a\.received_at DESC`).
+				WithArgs(incidentID, incidentID).
+				WillReturnRows(rows)
+
+			alerts, err := alertRepo.ListAlertsForIncident(ctx, incidentID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(alerts).To(HaveLen(1))
+			Expect(alerts[0].ID).To(Equal(alertID))
+		})
+
+		It("should return error when query fails", func() {
+			incidentID := uuid.New()
+
+			mock.ExpectQuery(`SELECT DISTINCT a\.\* FROM alerts a LEFT JOIN alert_incidents ai ON ai\.alert_id = a\.id WHERE a\.incident_id = \$1 OR ai\.incident_id = \$2 ORDER BY a\.received_at DESC`).
+				WithArgs(incidentID, incidentID).
+				WillReturnError(errors.New("query error"))
+
+			alerts, err := alertRepo.ListAlertsForIncident(ctx, incidentID)
+			Expect(err).To(HaveOccurred())
+			Expect(alerts).To(BeNil())
+		})
+	})
 })

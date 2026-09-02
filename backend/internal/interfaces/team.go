@@ -63,6 +63,9 @@ type ITeamService interface {
 	GetIncidentContext(ctx context.Context, teamIncidentID uuid.UUID) (*models.TeamIncident, []models.Alert, error)
 	GetIncidentContextByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, []models.Alert, error)
 	LinkAlertsToIncident(ctx context.Context, alertIDStrings []string, incidentID uuid.UUID) error
+	UnlinkAlertFromIncident(ctx context.Context, alertID, incidentID uuid.UUID) error
+	ListAlertsForIncident(ctx context.Context, incidentID uuid.UUID) ([]*models.Alert, error)
+	ListAllAlerts(ctx context.Context, limit int) ([]*models.Alert, error)
 	GetMemberRole(ctx context.Context, teamID, userID uuid.UUID) (string, error)
 	// ListAllTeams returns all teams for super_admin
 	ListAllTeams(ctx context.Context, userScope string) ([]models.Team, error)

@@ -574,6 +574,32 @@ func (s *teamService) LinkAlertsToIncident(ctx context.Context, alertIDStrings [
 	return nil
 }
 
+func (s *teamService) UnlinkAlertFromIncident(ctx context.Context, alertID, incidentID uuid.UUID) error {
+	if s.alertRepo == nil {
+		slog.WarnContext(ctx, "[team-svc] UnlinkAlertFromIncident: alertRepo is nil")
+		return nil
+	}
+	slog.InfoContext(ctx, "[team-svc] UnlinkAlertFromIncident: unlinking alert", "alert_id", alertID, "incident_id", incidentID)
+	return s.alertRepo.UnlinkAlertFromIncident(ctx, alertID, incidentID)
+}
+
+func (s *teamService) ListAlertsForIncident(ctx context.Context, incidentID uuid.UUID) ([]*models.Alert, error) {
+	if s.alertRepo == nil {
+		return []*models.Alert{}, nil
+	}
+	return s.alertRepo.ListAlertsForIncident(ctx, incidentID)
+}
+
+func (s *teamService) ListAllAlerts(ctx context.Context, limit int) ([]*models.Alert, error) {
+	if s.alertRepo == nil {
+		return []*models.Alert{}, nil
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	return s.alertRepo.ListAlerts(ctx, limit)
+}
+
 func (s *teamService) GetIncidentContextByIDOrNumber(ctx context.Context, idOrNumber string) (*models.TeamIncident, []models.Alert, error) {
 	slog.InfoContext(ctx, "[team-svc] GetIncidentContextByIDOrNumber: fetching context", "id_or_number", idOrNumber)
 	inc, alerts, err := s.teamRepo.GetIncidentContextByIDOrNumber(ctx, idOrNumber)

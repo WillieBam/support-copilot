@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, AlertTriangle, Clock, Save, Loader2, User, History, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
 import { useIncidentThreadState } from './useIncidentThreadState';
 import { useTeam } from '@/context/TeamContext';
+import { IncidentAlertsSection } from './IncidentAlertsSection';
 
 interface IncidentThreadViewProps {
   incidentId: string;
@@ -143,6 +144,9 @@ export const IncidentThreadView: React.FC<IncidentThreadViewProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Linked Alerts Section */}
+            <IncidentAlertsSection incidentId={incident.id} />
 
             {/* Update / Edit State Form */}
             <form onSubmit={handleUpdate} className="bg-card border border-border rounded-[20px] p-6 py-12 shadow-sm space-y-4">

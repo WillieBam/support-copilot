@@ -458,6 +458,84 @@ func (_m *ITeamService) LinkAlertsToIncident(ctx context.Context, alertIDStrings
 	return r0
 }
 
+// UnlinkAlertFromIncident provides a mock function with given fields: ctx, alertID, incidentID
+func (_m *ITeamService) UnlinkAlertFromIncident(ctx context.Context, alertID uuid.UUID, incidentID uuid.UUID) error {
+	ret := _m.Called(ctx, alertID, incidentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UnlinkAlertFromIncident")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, alertID, incidentID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// ListAlertsForIncident provides a mock function with given fields: ctx, incidentID
+func (_m *ITeamService) ListAlertsForIncident(ctx context.Context, incidentID uuid.UUID) ([]*models.Alert, error) {
+	ret := _m.Called(ctx, incidentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAlertsForIncident")
+	}
+
+	var r0 []*models.Alert
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]*models.Alert, error)); ok {
+		return rf(ctx, incidentID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []*models.Alert); ok {
+		r0 = rf(ctx, incidentID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.Alert)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, incidentID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListAllAlerts provides a mock function with given fields: ctx, limit
+func (_m *ITeamService) ListAllAlerts(ctx context.Context, limit int) ([]*models.Alert, error) {
+	ret := _m.Called(ctx, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAllAlerts")
+	}
+
+	var r0 []*models.Alert
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int) ([]*models.Alert, error)); ok {
+		return rf(ctx, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int) []*models.Alert); ok {
+		r0 = rf(ctx, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.Alert)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
+		r1 = rf(ctx, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListAllTeams provides a mock function with given fields: ctx, userScope
 func (_m *ITeamService) ListAllTeams(ctx context.Context, userScope string) ([]models.Team, error) {
 	ret := _m.Called(ctx, userScope)

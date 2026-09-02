@@ -66,8 +66,39 @@ func (a *alertRepository) UpdateAlertIncidentID(ctx context.Context, alertID, in
 		Update("incident_id", incidentID).Error
 }
 
+func (a *alertRepository) UnlinkAlertFromIncident(ctx context.Context, alertID, incidentID uuid.UUID) error {
+	if err := a.db.WithContext(ctx).
+		Where("alert_id = ? AND incident_id = ?", alertID, incidentID).
+		Delete(&models.AlertIncident{}).Error; err != nil {
+		return err
+	}
+
+	return a.db.WithContext(ctx).
+		Model(&models.Alert{}).
+		Where("id = ? AND incident_id = ?", alertID, incidentID).
+		Update("incident_id", nil).Error
+}
+
+func (a *alertRepository) ListAlertsForIncident(ctx context.Context, incidentID uuid.UUID) ([]*models.Alert, error) {
+	var alerts []*models.Alert
+	query := `SELECT DISTINCT a.*
+	FROM alerts a
+	LEFT JOIN alert_incidents ai ON ai.alert_id = a.id
+	WHERE a.incident_id = ? OR ai.incident_id = ?
+	ORDER BY a.received_at DESC`
+
+	if err := a.db.WithContext(ctx).Raw(query, incidentID, incidentID).Scan(&alerts).Error; err != nil {
+		return nil, err
+	}
+	if alerts == nil {
+		alerts = []*models.Alert{}
+	}
+	return alerts, nil
+}
+
 func (a *alertRepository) ListAlerts(ctx context.Context, limit int) ([]*models.Alert, error) {
 	var alerts []*models.Alert
 	err := a.db.WithContext(ctx).Order("received_at DESC").Limit(limit).Find(&alerts).Error
 	return alerts, err
 }
+

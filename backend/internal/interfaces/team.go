@@ -53,7 +53,7 @@ type ITeamService interface {
 	GetTeamInstruction(ctx context.Context, requesterID, teamID uuid.UUID) (*models.Instruction, []models.InstructionLog, error)
 	SaveTeamInstruction(ctx context.Context, requesterID, teamID uuid.UUID, details string) (*models.Instruction, error)
 	// Runbook operations (used by MCP Server 2 KB tools and REST API)
-	CreateRunbook(ctx context.Context, creatorID, teamID, incidentID uuid.UUID, title, content string) (*models.Runbook, error)
+	CreateRunbook(ctx context.Context, creatorID, teamID uuid.UUID, incidentIDOrNumber, title, content string) (*models.Runbook, error)
 	UpdateRunbook(ctx context.Context, updaterID, runbookID uuid.UUID, title, content string) (*models.Runbook, error)
 	DeprecateRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error)
 	GetRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error)

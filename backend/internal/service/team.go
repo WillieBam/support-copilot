@@ -400,18 +400,19 @@ func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, team
 	return updatedInst, err
 }
 
-func (s *teamService) CreateRunbook(ctx context.Context, creatorID, teamID, incidentID uuid.UUID, title, content string) (*models.Runbook, error) {
-	slog.InfoContext(ctx, "[team-svc] CreateRunbook: persisting", "team_id", teamID, "incident_id", incidentID, "creator_id", creatorID)
+func (s *teamService) CreateRunbook(ctx context.Context, creatorID, teamID uuid.UUID, incidentIDOrNumber, title, content string) (*models.Runbook, error) {
+	slog.InfoContext(ctx, "[team-svc] CreateRunbook: persisting", "team_id", teamID, "incident_id_or_number", incidentIDOrNumber, "creator_id", creatorID)
 
 	var incidentIDPtr *uuid.UUID
 
-	if incidentID != uuid.Nil {
-		inc, err := s.teamRepo.GetTeamIncidentByID(ctx, incidentID)
+	cleanIncID := strings.TrimSpace(incidentIDOrNumber)
+	if cleanIncID != "" && cleanIncID != "null" && cleanIncID != "none" && cleanIncID != "undefined" && cleanIncID != "00000000-0000-0000-0000-000000000000" {
+		inc, err := s.teamRepo.GetTeamIncidentByIDOrNumber(ctx, cleanIncID)
 		if err != nil || inc == nil {
-			slog.WarnContext(ctx, "[team-svc] CreateRunbook: incident not found", "incident_id", incidentID, "error", err)
+			slog.WarnContext(ctx, "[team-svc] CreateRunbook: incident not found", "incident_id_or_number", cleanIncID, "error", err)
 			return nil, customErrors.ErrIncidentNotFound
 		}
-		incidentIDPtr = &incidentID
+		incidentIDPtr = &inc.ID
 		if _, teamErr := s.teamRepo.GetTeamByID(ctx, teamID); teamErr != nil || teamID == uuid.Nil {
 			teamID = inc.TeamID
 		}

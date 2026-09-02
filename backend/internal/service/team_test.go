@@ -440,16 +440,30 @@ var _ = Describe("TeamService", func() {
 		})
 
 		It("should CreateRunbook successfully", func() {
-			teamRepo.On("GetTeamIncidentByID", ctx, incidentID).Return(&models.TeamIncident{ID: incidentID, TeamID: teamID, CreatedBy: userID}, nil)
+			teamRepo.On("GetTeamIncidentByIDOrNumber", ctx, incidentID.String()).Return(&models.TeamIncident{ID: incidentID, TeamID: teamID, CreatedBy: userID}, nil)
 			teamRepo.On("GetTeamByID", ctx, teamID).Return(&models.Team{ID: teamID}, nil).Maybe()
 			teamRepo.On("CreateRunbook", ctx, mock.MatchedBy(func(rb *models.Runbook) bool {
 				return rb.TeamID == teamID && rb.CreatedBy == userID && rb.Title == "Pod Restart Guide"
 			})).Return(nil)
 
-			rb, err := teamSvc.CreateRunbook(ctx, userID, teamID, incidentID, "Pod Restart Guide", "kubectl rollout restart")
+			rb, err := teamSvc.CreateRunbook(ctx, userID, teamID, incidentID.String(), "Pod Restart Guide", "kubectl rollout restart")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(rb).NotTo(BeNil())
 			Expect(rb.Title).To(Equal("Pod Restart Guide"))
+		})
+
+		It("should CreateRunbook successfully using surrogate key INC-101", func() {
+			teamRepo.On("GetTeamIncidentByIDOrNumber", ctx, "INC-101").Return(&models.TeamIncident{ID: incidentID, TeamID: teamID, CreatedBy: userID}, nil)
+			teamRepo.On("GetTeamByID", ctx, teamID).Return(&models.Team{ID: teamID}, nil).Maybe()
+			teamRepo.On("CreateRunbook", ctx, mock.MatchedBy(func(rb *models.Runbook) bool {
+				return rb.TeamID == teamID && rb.CreatedBy == userID && rb.Title == "Pod Restart Guide" && *rb.IncidentID == incidentID
+			})).Return(nil)
+
+			rb, err := teamSvc.CreateRunbook(ctx, userID, teamID, "INC-101", "Pod Restart Guide", "kubectl rollout restart")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rb).NotTo(BeNil())
+			Expect(rb.Title).To(Equal("Pod Restart Guide"))
+			Expect(*rb.IncidentID).To(Equal(incidentID))
 		})
 
 		It("should UpdateRunbook and generate version log entry", func() {
@@ -481,8 +495,8 @@ var _ = Describe("TeamService", func() {
 		})
 
 		It("should fail CreateRunbook when incident is not found", func() {
-			teamRepo.On("GetTeamIncidentByID", ctx, incidentID).Return(nil, errors.New("inc not found"))
-			_, err := teamSvc.CreateRunbook(ctx, userID, teamID, incidentID, "title", "content")
+			teamRepo.On("GetTeamIncidentByIDOrNumber", ctx, incidentID.String()).Return(nil, errors.New("inc not found"))
+			_, err := teamSvc.CreateRunbook(ctx, userID, teamID, incidentID.String(), "title", "content")
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -597,10 +611,10 @@ var _ = Describe("TeamService", func() {
 		})
 
 		It("should return error when CreateRunbook, DeprecateRunbook, GetIncidentContext, or GetIncidentContextByIDOrNumber repo fails", func() {
-			teamRepo.On("GetTeamIncidentByID", ctx, incidentID).Return(&models.TeamIncident{ID: incidentID, TeamID: teamID}, nil)
+			teamRepo.On("GetTeamIncidentByIDOrNumber", ctx, incidentID.String()).Return(&models.TeamIncident{ID: incidentID, TeamID: teamID}, nil)
 			teamRepo.On("GetTeamByID", ctx, teamID).Return(&models.Team{ID: teamID}, nil)
 			teamRepo.On("CreateRunbook", ctx, mock.Anything).Return(errors.New("db error")).Once()
-			_, err := teamSvc.CreateRunbook(ctx, userID, teamID, incidentID, "Title", "Content")
+			_, err := teamSvc.CreateRunbook(ctx, userID, teamID, incidentID.String(), "Title", "Content")
 			Expect(err).To(HaveOccurred())
 
 			teamRepo.On("DeprecateRunbook", ctx, runbookID).Return(nil, errors.New("db error")).Once()
@@ -666,11 +680,11 @@ var _ = Describe("TeamService", func() {
 
 			teamRepo.On("ListTeamIncidents", ctx, tID).Return(nil, nil).Once()
 			teamRepo.On("GetTeamByID", ctx, tID).Return(nil, errors.New("team not found")).Once()
-			_, err = teamSvc.CreateRunbook(ctx, uID, tID, uuid.Nil, "Title", "Content")
+			_, err = teamSvc.CreateRunbook(ctx, uID, tID, "", "Title", "Content")
 			Expect(err).To(HaveOccurred())
 
-			teamRepo.On("GetTeamIncidentByID", ctx, incID).Return(nil, errors.New("inc not found")).Once()
-			_, err = teamSvc.CreateRunbook(ctx, uID, tID, incID, "Title", "Content")
+			teamRepo.On("GetTeamIncidentByIDOrNumber", ctx, incID.String()).Return(nil, errors.New("inc not found")).Once()
+			_, err = teamSvc.CreateRunbook(ctx, uID, tID, incID.String(), "Title", "Content")
 			Expect(err).To(HaveOccurred())
 
 			teamRepo.On("GetRunbookLogs", ctx, rbID).Return(nil, nil).Once()

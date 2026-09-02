@@ -258,7 +258,7 @@ var _ = Describe("CommandInterceptor", func() {
 			res, err := ci.Intercept(ctx, "/alert")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res.Handled).To(BeTrue())
-			Expect(res.Message).To(ContainSubstring("found 1 alert(s)"))
+			Expect(res.Message).To(ContainSubstring("1** recent alert(s) total"))
 			Expect(res.Message).To(ContainSubstring("auth-service"))
 			Expect(res.Message).To(ContainSubstring("CRITICAL"))
 		})

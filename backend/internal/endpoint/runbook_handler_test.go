@@ -77,7 +77,7 @@ var _ = Describe("RunbookHandler", func() {
 
 		It("should return 201 on successful runbook creation", func() {
 			body, _ := json.Marshal(requests.CreateRunbookRequest{
-				IncidentID: incidentID,
+				IncidentID: incidentID.String(),
 				Title:      "Pod Eviction Recovery",
 				Content:    "Execute kubectl rollout restart deployment",
 			})
@@ -95,7 +95,35 @@ var _ = Describe("RunbookHandler", func() {
 				Content:    "Execute kubectl rollout restart deployment",
 				Status:     "active",
 			}
-			mockTeamSvc.On("CreateRunbook", mock.Anything, uuid.Nil, teamID, incidentID, "Pod Eviction Recovery", "Execute kubectl rollout restart deployment").
+			mockTeamSvc.On("CreateRunbook", mock.Anything, uuid.Nil, teamID, incidentID.String(), "Pod Eviction Recovery", "Execute kubectl rollout restart deployment").
+				Return(createdRb, nil)
+
+			err := h.CreateRunbook(c)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rec.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should return 201 on successful runbook creation with surrogate key INC-101", func() {
+			body, _ := json.Marshal(requests.CreateRunbookRequest{
+				IncidentID: "INC-101",
+				Title:      "Payment Recovery",
+				Content:    "Restart payment pod",
+			})
+			req := httptest.NewRequest(http.MethodPost, "/internal/teams/"+teamID.String()+"/runbooks", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
+
+			createdRb := &models.Runbook{
+				ID:         runbookID,
+				TeamID:     teamID,
+				IncidentID: &incidentID,
+				Title:      "Payment Recovery",
+				Content:    "Restart payment pod",
+				Status:     "active",
+			}
+			mockTeamSvc.On("CreateRunbook", mock.Anything, uuid.Nil, teamID, "INC-101", "Payment Recovery", "Restart payment pod").
 				Return(createdRb, nil)
 
 			err := h.CreateRunbook(c)
@@ -117,7 +145,7 @@ var _ = Describe("RunbookHandler", func() {
 			c2 := e.NewContext(httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyValid)), httptest.NewRecorder())
 			c2.Request().Header.Set("Content-Type", "application/json")
 			c2.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
-			mockTeamSvc.On("CreateRunbook", mock.Anything, uuid.Nil, teamID, uuid.Nil, "Title", "Content").Return(nil, customErrors.ErrTeamNotFound).Once()
+			mockTeamSvc.On("CreateRunbook", mock.Anything, uuid.Nil, teamID, "", "Title", "Content").Return(nil, customErrors.ErrTeamNotFound).Once()
 			err = h.CreateRunbook(c2)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -125,7 +153,7 @@ var _ = Describe("RunbookHandler", func() {
 			c3 := e.NewContext(httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyValid)), httptest.NewRecorder())
 			c3.Request().Header.Set("Content-Type", "application/json")
 			c3.SetPathValues(echo.PathValues{{Name: "team_id", Value: teamID.String()}})
-			mockTeamSvc.On("CreateRunbook", mock.Anything, uuid.Nil, teamID, uuid.Nil, "Title", "Content").Return(nil, errors.New("db error")).Once()
+			mockTeamSvc.On("CreateRunbook", mock.Anything, uuid.Nil, teamID, "", "Title", "Content").Return(nil, errors.New("db error")).Once()
 			err = h.CreateRunbook(c3)
 			Expect(err).NotTo(HaveOccurred())
 		})

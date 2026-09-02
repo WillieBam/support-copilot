@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -81,7 +82,7 @@ func (h *IncidentCommandHandler) Handle(ctx context.Context, prompt string) (*ty
 			if err != nil {
 				return &types.CommandResult{Handled: true, Message: fmt.Sprintf("failed to fetch incident: %v", err)}, nil
 			}
-			return &types.CommandResult{Handled: true, Message: details}, nil
+			return &types.CommandResult{Handled: true, Message: formatIncidentDetail(details)}, nil
 		}
 
 		// Fallback: list all incidents for active team context
@@ -106,13 +107,13 @@ func (h *IncidentCommandHandler) Handle(ctx context.Context, prompt string) (*ty
 		rawArgs := fmt.Sprintf(`{"incident_id": "%s"}`, arg)
 		details, err := h.orchestrator.ExecuteGetIncidentRaw(ctx, rawArgs)
 		if err == nil {
-			return &types.CommandResult{Handled: true, Message: details}, nil
+			return &types.CommandResult{Handled: true, Message: formatIncidentDetail(details)}, nil
 		}
 	} else if _, err := uuid.Parse(arg); err == nil {
 		rawArgs := fmt.Sprintf(`{"incident_id": "%s"}`, arg)
 		details, err := h.orchestrator.ExecuteGetIncidentRaw(ctx, rawArgs)
 		if err == nil {
-			return &types.CommandResult{Handled: true, Message: details}, nil
+			return &types.CommandResult{Handled: true, Message: formatIncidentDetail(details)}, nil
 		}
 	}
 
@@ -193,7 +194,7 @@ func NewAlertCommandHandler(orchestrator interfaces.IOrchestratorService) interf
 }
 
 func (h *AlertCommandHandler) Command() string     { return "/alert" }
-func (h *AlertCommandHandler) Description() string { return "List recent alerts." }
+func (h *AlertCommandHandler) Description() string { return "List recent alerts. Usage: /alert [service|severity]" }
 
 func (h *AlertCommandHandler) Handle(ctx context.Context, prompt string) (*types.CommandResult, error) {
 	if h.orchestrator == nil {
@@ -202,6 +203,8 @@ func (h *AlertCommandHandler) Handle(ctx context.Context, prompt string) (*types
 			Message: "Orchestrator service is unavailable.",
 		}, nil
 	}
+
+	arg := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(prompt), "/alert"))
 
 	alertJSON, err := h.orchestrator.ExecuteListAlertsRaw(ctx)
 	if err != nil {
@@ -213,7 +216,7 @@ func (h *AlertCommandHandler) Handle(ctx context.Context, prompt string) (*types
 
 	return &types.CommandResult{
 		Handled: true,
-		Message: formatAlertList(alertJSON),
+		Message: formatAlertList(alertJSON, arg),
 	}, nil
 }
 
@@ -258,6 +261,81 @@ func (h *HelpCommandHandler) Handle(ctx context.Context, prompt string) (*types.
 	}, nil
 }
 
+// formatIncidentDetail formats a single incident context JSON (from get_incident / GetIncidentContext)
+// into a human-readable Markdown summary.
+func formatIncidentDetail(jsonStr string) string {
+	var ctx struct {
+		IncidentID string `json:"incident_id"`
+		Title      string `json:"title"`
+		Status     string `json:"status"`
+		Age        string `json:"age"`
+		Details    string `json:"details"`
+		Alerts     []struct {
+			Service  string `json:"service"`
+			Severity string `json:"severity"`
+			Received string `json:"received"`
+		} `json:"alerts"`
+		Timeline []struct {
+			At   string `json:"at"`
+			From string `json:"from"`
+			To   string `json:"to"`
+			Note string `json:"note"`
+		} `json:"timeline"`
+		ExistingRunbooks []struct {
+			ID     string `json:"id"`
+			Title  string `json:"title"`
+			Status string `json:"status"`
+		} `json:"existing_runbooks"`
+	}
+	if err := unmarshalJSON(jsonStr, &ctx); err != nil {
+		return jsonStr // safe fallback
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("### 🚨 Incident: %s\n\n", ctx.Title))
+	sb.WriteString(fmt.Sprintf("| Field | Value |\n|---|---|\n"))
+	sb.WriteString(fmt.Sprintf("| **Status** | `%s` |\n", ctx.Status))
+	sb.WriteString(fmt.Sprintf("| **Age** | %s |\n", ctx.Age))
+	if ctx.Details != "" {
+		sb.WriteString(fmt.Sprintf("| **Details** | %s |\n", ctx.Details))
+	}
+
+	if len(ctx.Alerts) > 0 {
+		sb.WriteString("\n**Linked Alerts:**\n")
+		for _, a := range ctx.Alerts {
+			sb.WriteString(fmt.Sprintf("- `%s` [%s] — received %s\n", a.Service, a.Severity, a.Received))
+		}
+	} else {
+		sb.WriteString("\n**Linked Alerts:** none\n")
+	}
+
+	if len(ctx.Timeline) > 0 {
+		sb.WriteString("\n**Timeline:**\n")
+		for _, t := range ctx.Timeline {
+			if t.At == "" {
+				sb.WriteString(fmt.Sprintf("- _%s_\n", t.Note))
+			} else {
+				sb.WriteString(fmt.Sprintf("- `%s` → `%s` (%s)", t.From, t.To, t.At))
+				if t.Note != "" {
+					sb.WriteString(fmt.Sprintf(" — %s", t.Note))
+				}
+				sb.WriteString("\n")
+			}
+		}
+	}
+
+	if len(ctx.ExistingRunbooks) > 0 {
+		sb.WriteString("\n**Runbooks:**\n")
+		for _, rb := range ctx.ExistingRunbooks {
+			sb.WriteString(fmt.Sprintf("- **%s** (`%s`) — status: %s\n", rb.Title, rb.ID, rb.Status))
+		}
+	} else {
+		sb.WriteString("\n**Runbooks:** none yet\n")
+	}
+
+	return sb.String()
+}
+
 func formatIncidentList(jsonStr string) string {
 	incidents, err := data.UnmarshalIncidents(jsonStr)
 	if err != nil {
@@ -298,7 +376,9 @@ func formatRunbookList(jsonStr string) string {
 	return sb.String()
 }
 
-func formatAlertList(jsonStr string) string {
+// formatAlertList formats the alert list into a readable grouped Markdown summary.
+// Shows up to 10 alerts by default, grouped by service; supports keyword filter.
+func formatAlertList(jsonStr string, filter string) string {
 	alerts, err := data.UnmarshalAlerts(jsonStr)
 	if err != nil {
 		return jsonStr
@@ -308,15 +388,68 @@ func formatAlertList(jsonStr string) string {
 		return "no alerts found"
 	}
 
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("found %d alert(s):\n\n", len(alerts)))
-	for _, a := range alerts {
-		link := "unlinked"
-		if a.IncidentID != "" {
-			link = fmt.Sprintf("linked to incident `%s`", a.IncidentID)
+	// apply keyword filter if provided
+	filterLower := strings.ToLower(strings.TrimSpace(filter))
+	if filterLower != "" {
+		var filtered []types.AlertRecord
+		for _, a := range alerts {
+			if strings.Contains(strings.ToLower(a.ServiceName), filterLower) ||
+				strings.Contains(strings.ToLower(a.Severity), filterLower) {
+				filtered = append(filtered, a)
+			}
 		}
-		sb.WriteString(fmt.Sprintf("- **%s** [%s] %s — `%s`\n", a.ServiceName, a.Severity, link, a.ID))
+		if len(filtered) == 0 {
+			return fmt.Sprintf("no alerts matched filter: `%s`", filter)
+		}
+		alerts = filtered
 	}
+
+	total := len(alerts)
+	const pageSize = 10
+	if total > pageSize {
+		alerts = alerts[:pageSize]
+	}
+
+	// group by service
+	grouped := make(map[string][]types.AlertRecord)
+	order := []string{}
+	for _, a := range alerts {
+		svc := a.ServiceName
+		if svc == "" {
+			svc = "unknown-service"
+		}
+		if _, exists := grouped[svc]; !exists {
+			order = append(order, svc)
+		}
+		grouped[svc] = append(grouped[svc], a)
+	}
+
+	var sb strings.Builder
+	shown := len(alerts)
+	if filter != "" {
+		sb.WriteString(fmt.Sprintf("**%d** alert(s) matching `%s`", total, filter))
+	} else {
+		sb.WriteString(fmt.Sprintf("**%d** recent alert(s) total", total))
+	}
+	if total > pageSize {
+		sb.WriteString(fmt.Sprintf(" — showing first %d. Use `/alert <service>` to filter.\n\n", shown))
+	} else {
+		sb.WriteString("\n\n")
+	}
+
+	for _, svc := range order {
+		group := grouped[svc]
+		sb.WriteString(fmt.Sprintf("**%s** (%d alert(s))\n", svc, len(group)))
+		for _, a := range group {
+			link := "🔗 unlinked"
+			if a.IncidentID != "" {
+				link = fmt.Sprintf("🔗 linked to incident")
+			}
+			sb.WriteString(fmt.Sprintf("  - [%s] %s — received %s\n", a.Severity, link, a.ReceivedAt))
+		}
+		sb.WriteString("\n")
+	}
+
 	return sb.String()
 }
 
@@ -390,4 +523,9 @@ func filterRunbooksByQuery(jsonStr string, query string) string {
 		sb.WriteString(fmt.Sprintf("- **%s** (status: %s)\n", rb.Title, rb.Status))
 	}
 	return sb.String()
+}
+
+// unmarshalJSON is a thin helper to avoid importing encoding/json directly in helpers
+func unmarshalJSON(s string, v any) error {
+	return json.Unmarshal([]byte(s), v)
 }

@@ -66,7 +66,7 @@ func (_m *ITeamService) AssignIncident(ctx context.Context, requesterID uuid.UUI
 }
 
 // CreateRunbook provides a mock function with given fields: ctx, creatorID, teamID, incidentID, title, content
-func (_m *ITeamService) CreateRunbook(ctx context.Context, creatorID uuid.UUID, teamID uuid.UUID, incidentID uuid.UUID, title string, content string) (*models.Runbook, error) {
+func (_m *ITeamService) CreateRunbook(ctx context.Context, creatorID uuid.UUID, teamID uuid.UUID, incidentID string, title string, content string) (*models.Runbook, error) {
 	ret := _m.Called(ctx, creatorID, teamID, incidentID, title, content)
 
 	if len(ret) == 0 {
@@ -75,10 +75,10 @@ func (_m *ITeamService) CreateRunbook(ctx context.Context, creatorID uuid.UUID, 
 
 	var r0 *models.Runbook
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string) (*models.Runbook, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string, string) (*models.Runbook, error)); ok {
 		return rf(ctx, creatorID, teamID, incidentID, title, content)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string) *models.Runbook); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string, string) *models.Runbook); ok {
 		r0 = rf(ctx, creatorID, teamID, incidentID, title, content)
 	} else {
 		if ret.Get(0) != nil {
@@ -86,7 +86,7 @@ func (_m *ITeamService) CreateRunbook(ctx context.Context, creatorID uuid.UUID, 
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, string, string, string) error); ok {
 		r1 = rf(ctx, creatorID, teamID, incidentID, title, content)
 	} else {
 		r1 = ret.Error(1)

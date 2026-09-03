@@ -504,6 +504,7 @@ func (t *teamRepository) SaveTeamInstruction(ctx context.Context, instruction *m
 
 		existing.InstructionDetails = instruction.InstructionDetails
 		existing.CreatedBy = instruction.CreatedBy
+		existing.UpdatedAt = time.Now()
 		return tx.Save(&existing).Error
 	})
 }

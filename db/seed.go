@@ -65,6 +65,10 @@ func InitDatabase(db *gorm.DB) {
 	}
 	log.Println("Database migration completed successfully!")
 
+	if db.Migrator().HasTable("instructions") {
+		db.Exec("UPDATE instructions SET updated_at = created_at WHERE updated_at IS NULL")
+	}
+
 	seedUsers(db)
 	seedTeamsAndMemberships(db)
 	seedTeamIncidents(db)
@@ -489,12 +493,14 @@ func seedIncidentStatusHistory(db *gorm.DB) {
 func seedInstructions(db *gorm.DB) {
 	mockDevOpsInstructionID := uuid.MustParse("d1111111-1111-1111-1111-111111111111")
 
+	now := time.Now()
 	instruction := models.Instruction{
 		ID:                 mockDevOpsInstructionID,
 		CreatedBy:          realUserID,
 		TeamID:             teamDevOpsID,
 		InstructionDetails: "Always prioritize high CPU and memory leak alerts for payment-gateway services. When responding, provide concise technical diagnosis steps and recommended kubectl / container remediation commands.",
-		CreatedAt:          time.Now().Add(-24 * time.Hour),
+		CreatedAt:          now.Add(-24 * time.Hour),
+		UpdatedAt:          now.Add(-24 * time.Hour),
 	}
 
 	err := db.Clauses(clause.OnConflict{

@@ -368,14 +368,15 @@ func (s *teamService) SaveTeamInstruction(ctx context.Context, requesterID, team
 		TeamID:             teamID,
 		InstructionDetails: strings.TrimSpace(details),
 		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
 	}
 
 	var logEntry *models.InstructionLog
 	if existingInst != nil {
 		nextVersion := len(existingLogs) + 1
-		prevTime := existingInst.CreatedAt
-		if prevTime.IsZero() && len(existingLogs) > 0 {
-			prevTime = existingLogs[0].UpdatedAt
+		prevTime := existingInst.UpdatedAt
+		if prevTime.IsZero() || len(existingLogs) == 0 {
+			prevTime = existingInst.CreatedAt
 		}
 		if prevTime.IsZero() {
 			prevTime = time.Now()

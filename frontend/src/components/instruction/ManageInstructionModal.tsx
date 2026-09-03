@@ -129,11 +129,11 @@ export const ManageInstructionModal: React.FC<ManageInstructionModalProps> = ({
                   <label className="text-sm font-semibold text-foreground">Custom LLM Guidelines & Prompt Rules</label>
                   {latestLog ? (
                     <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-emerald-500" /> Edited by: <strong className="text-foreground font-medium">{getUserDisplayName(latestLog.updated_by)}</strong> ({formatDate(latestLog.updated_at)})
+                      <Clock className="w-3 h-3 text-emerald-500" /> Edited by: <strong className="text-foreground font-medium">{getUserDisplayName(latestLog.updated_by)}</strong> ({formatDate(instruction?.updated_at || instruction?.created_at)})
                     </span>
                   ) : instruction ? (
                     <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-emerald-500" /> Updated: {formatDate(instruction.created_at)}
+                      <Clock className="w-3 h-3 text-emerald-500" /> Created by: <strong className="text-foreground font-medium">{getUserDisplayName(instruction.created_by)}</strong> ({formatDate(instruction.created_at)})
                     </span>
                   ) : null}
                 </div>

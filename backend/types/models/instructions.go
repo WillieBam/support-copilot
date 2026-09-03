@@ -12,6 +12,7 @@ type Instruction struct {
 	TeamID             uuid.UUID `gorm:"type:uuid;not null" json:"team_id"`
 	InstructionDetails string    `gorm:"type:text" json:"instruction_details"`
 	CreatedAt          time.Time `gorm:"type:timestamp(0);default:CURRENT_TIMESTAMP" json:"created_at"`
+	UpdatedAt          time.Time `gorm:"type:timestamp(0);default:CURRENT_TIMESTAMP;autoUpdateTime" json:"updated_at"`
 	Team    Team `gorm:"foreignKey:TeamID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 	Creator User `gorm:"foreignKey:CreatedBy;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 }

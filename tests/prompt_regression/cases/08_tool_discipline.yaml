@@ -69,12 +69,15 @@
         before calling update_runbook. It does not fabricate or
         assume a runbook_id.
 
-- description: "FR-TD-06: Must NOT invent INC surrogate keys"
+- description: "FR-TD-06: Must NOT invent INC surrogate keys or link incidents"
   vars:
     user_message: "Link this alert to an incident"
   assert:
+    - type: not-contains
+      value: "link_alert_to_incident"
     - type: llm-rubric
       value: >
-        The response asks the user for the specific incident ID
-        (e.g., INC-101) before calling link_alert_to_incident.
-        It does NOT invent or guess an incident surrogate key.
+        The response states that the Copilot cannot create or link incidents
+        and that alert-to-incident associations are managed directly in the
+        workspace UI. It does NOT invent or guess an incident surrogate key,
+        nor does it attempt to link the alert.

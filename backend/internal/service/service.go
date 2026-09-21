@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WillieBam/support_copilot/backend/app/config"
 	"github.com/WillieBam/support_copilot/backend/internal/classifier"
 	"github.com/WillieBam/support_copilot/backend/internal/command"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
@@ -373,11 +372,6 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		}
 	}
 
-	// apply sliding window to control the LLM context
-	windowedHistory := slidingWindow(history, config.Get().LLM.MaxHistoryTurns)
-	slog.Info("[App service] Applied sliding window to history", "originak count", len(history),
-		"windowed_count", len(windowedHistory), "max_turns", config.Get().LLM.MaxHistoryTurns)
-
 	// build the full multi-turn messages array:
 	//   [system] + [history turns...] + [current user message]
 	// this is to remain LLM full conversation context so it can remember context of a conversation
@@ -397,7 +391,7 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	// classify the user's intent to decide whether to expose tool
 	// For conversational prompts the tool list is withheld entirely so the LLM
 	// physically cannot make a tool call
-	intent := s.intentClassifier.ClassifyWithHistory(prompt, windowedHistory)
+	intent := s.intentClassifier.ClassifyWithHistory(prompt, history)
 	slog.Info("[APP SERVICE] Intent classified", "intent", intent, "prompt", prompt)
 
 	var availableTools []requests.LLMTool
@@ -629,12 +623,4 @@ func (s *AppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID,
 	slog.Info("[APP SERVICE] Generated title for conversation", "conv_id", convID, "title", title)
 	err = s.convRepo.UpdateConversationTitle(ctx, convID, title)
 	return title, err
-}
-
-func slidingWindow(history []types.HistoryMessage, maxTurns int) []types.HistoryMessage {
-	if maxTurns <= 0 || len(history) <= maxTurns {
-		return history
-	}
-	start := len(history) - maxTurns
-	return history[start:]
 }

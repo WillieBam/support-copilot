@@ -80,7 +80,7 @@ func InitDatabase(db *gorm.DB) {
 
 func seedUsers(db *gorm.DB) {
 	fbReal := "PrzOYbxjkQZU5pzmudAXXQrlf2G3"
-	fbAdmin := "fb_superadmin_111"
+	fbAdmin := "wAz4czm4q0NLmlysvrq3BuDr19S2"
 	fbLead := "fb_lead_engineer_222"
 	fbEng1 := "fb_an_engineer_1"
 

@@ -41,7 +41,7 @@ export function useFirebaseTotpAuth() {
   const [isAuthReady, setIsAuthReady] = useState(false)
   const [authStatus, setAuthStatus] = useState('Not signed in')
   const [authError, setAuthError] = useState('')
-  const [authProvider, setAuthProvider] = useState<'backend' | 'firebase'>('backend')
+  const [authProvider, setAuthProvider] = useState<'backend' | 'firebase'>('firebase')
   const [resendCooldown, setResendCooldown] = useState(0)
 
   // countdown timer for resend cooldown

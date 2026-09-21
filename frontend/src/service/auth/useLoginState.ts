@@ -4,7 +4,7 @@ import type { useFirebaseTotpAuth } from './useFirebaseTotpAuth'
 export const useLoginState = (auth: ReturnType<typeof useFirebaseTotpAuth>) => {
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
-  const [authMode, setAuthMode] = useState<'backend' | 'firebase'>('backend')
+  const [authMode, setAuthMode] = useState<'backend' | 'firebase'>('firebase')
   const [identifierError, setIdentifierError] = useState('')
   const [passwordError, setPasswordError] = useState('')
 
@@ -37,9 +37,9 @@ export const useLoginState = (auth: ReturnType<typeof useFirebaseTotpAuth>) => {
     const trimmedId = identifier.trim()
 
     if (!trimmedId) {
-      setIdentifierError(authMode === 'backend' ? 'Username or email is required' : 'Email is required')
+      setIdentifierError('Email is required')
       hasError = true
-    } else if (authMode === 'firebase' && !/\S+@\S+\.\S+/.test(trimmedId)) {
+    } else if (!/\S+@\S+\.\S+/.test(trimmedId)) {
       setIdentifierError('Invalid email format')
       hasError = true
     }
@@ -54,11 +54,7 @@ export const useLoginState = (auth: ReturnType<typeof useFirebaseTotpAuth>) => {
 
     if (hasError) return
 
-    if (authMode === 'backend') {
-      await auth.signInBackend(trimmedId, password)
-    } else {
-      await auth.signIn()
-    }
+    await auth.signIn()
   }
 
   return {

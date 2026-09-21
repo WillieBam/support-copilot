@@ -91,42 +91,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ auth }) => {
           <h1 className="login-title">Login</h1>
         </div>
 
-        {/* Auth Mode Switcher */}
-        <div className="flex bg-muted/40 p-1 rounded-xl border border-border/60 relative z-10">
-          <button
-            type="button"
-            onClick={() => state.handleModeChange('backend')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-              state.authMode === 'backend'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Direct Account
-          </button>
-          <button
-            type="button"
-            onClick={() => state.handleModeChange('firebase')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-              state.authMode === 'firebase'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Firebase Auth
-          </button>
-        </div>
-
         <form onSubmit={(e) => void state.handleSubmit(e)} className="login-form">
           <div className="login-form-group">
-            <label className="login-label">
-              {state.authMode === 'backend' ? 'Username or Email' : 'Email'}
-            </label>
+            <label className="login-label">Email</label>
             <input
-              type={state.authMode === 'backend' ? 'text' : 'email'}
+              type="email"
               value={state.identifier}
               onChange={(e) => state.handleIdentifierChange(e.target.value)}
-              placeholder={state.authMode === 'backend' ? 'johndoe or name@example.com' : 'name@example.com'}
+              placeholder="name@example.com"
               disabled={state.isBusy}
               className="login-input"
               required
@@ -158,7 +130,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ auth }) => {
               disabled={state.isBusy}
               className="login-btn-submit"
             >
-              {state.isBusy ? 'Signing In...' : state.authMode === 'backend' ? 'Sign In' : 'Sign In with Firebase'}
+              {state.isBusy ? 'Signing In...' : 'Sign In with Firebase'}
             </button>
           </div>
         </form>

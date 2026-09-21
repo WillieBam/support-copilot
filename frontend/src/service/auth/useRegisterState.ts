@@ -5,11 +5,11 @@ export const useRegisterState = (auth: ReturnType<typeof useFirebaseTotpAuth>) =
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [authMode, setAuthMode] = useState<'backend' | 'firebase'>('backend')
+  const [authMode, setAuthMode] = useState<'backend' | 'firebase'>('firebase')
   const [usernameError, setUsernameError] = useState('')
   const [emailError, setEmailError] = useState('')
   const [passwordError, setPasswordError] = useState('')
-  const [registrationSuccess, setRegistrationSuccess] = useState(false)
+  const registrationSuccess = false
 
   const handleUsernameChange = (val: string) => {
     setUsername(val)
@@ -45,16 +45,6 @@ export const useRegisterState = (auth: ReturnType<typeof useFirebaseTotpAuth>) =
 
     let hasError = false
 
-    if (authMode === 'backend') {
-      if (!username.trim()) {
-        setUsernameError('Username is required')
-        hasError = true
-      } else if (username.trim().length < 3) {
-        setUsernameError('Username must be at least 3 characters')
-        hasError = true
-      }
-    }
-
     if (!email.trim()) {
       setEmailError('Email is required')
       hasError = true
@@ -78,14 +68,7 @@ export const useRegisterState = (auth: ReturnType<typeof useFirebaseTotpAuth>) =
 
     if (hasError) return
 
-    if (authMode === 'backend') {
-      const ok = await auth.registerBackend(username, email, password)
-      if (ok) {
-        setRegistrationSuccess(true)
-      }
-    } else {
-      await auth.register()
-    }
+    await auth.register()
   }
 
   return {

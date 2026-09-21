@@ -23,70 +23,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ auth }) => {
           <h1 className="register-title">Create Account</h1>
         </div>
 
-        {/* Auth Mode Switcher */}
-        <div className="flex bg-muted/40 p-1 rounded-xl border border-border/60 relative z-10">
-          <button
-            type="button"
-            onClick={() => state.handleModeChange('backend')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-              state.authMode === 'backend'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Direct Account
-          </button>
-          <button
-            type="button"
-            onClick={() => state.handleModeChange('firebase')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-              state.authMode === 'firebase'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Firebase Auth
-          </button>
-        </div>
-
-        {state.registrationSuccess ? (
-          <div className="flex flex-col gap-4 text-center relative z-10 py-4">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 mx-auto text-xl font-bold">
-              ✓
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-foreground">Account Created!</h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Your account ({state.username || state.email}) has been registered successfully.
-              </p>
-            </div>
-            <Link
-              to="/login"
-              className="register-btn-emerald inline-block py-2.5 text-center text-sm font-semibold rounded-[20px] mt-2"
-            >
-              Proceed to Login
-            </Link>
-          </div>
-        ) : (
           <form onSubmit={(e) => void state.handleSubmit(e)} className="register-form">
-            {state.authMode === 'backend' && (
-              <div className="register-form-group">
-                <label className="register-label">Username</label>
-                <input
-                  type="text"
-                  value={state.username}
-                  onChange={(e) => state.handleUsernameChange(e.target.value)}
-                  placeholder="johndoe"
-                  disabled={state.isBusy}
-                  className="register-input"
-                  required
-                />
-                {state.usernameError && (
-                  <p className="register-input-error">{state.usernameError}</p>
-                )}
-              </div>
-            )}
-
             <div className="register-form-group">
               <label className="register-label">Email</label>
               <input
@@ -128,11 +65,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ auth }) => {
                 disabled={state.isBusy}
                 className="register-btn-submit"
               >
-                {state.isBusy ? 'Creating...' : state.authMode === 'backend' ? 'Register Account' : 'Register with Firebase'}
+                {state.isBusy ? 'Creating...' : 'Register with Firebase'}
               </button>
             </div>
           </form>
-        )}
 
         {state.submitError && (
           <p className="register-error">{state.submitError}</p>

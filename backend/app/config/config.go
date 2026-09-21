@@ -57,14 +57,15 @@ type Config struct {
 	}
 
 	LLM struct {
-		Provider      string        `mapstructure:"provider"`
-		Model         string        `mapstructure:"model"`
-		APIKey        string        `mapstructure:"api_key"`
-		BaseURL       string        `mapstructure:"base_url"`
-		KeepAlive     string        `mapstructure:"keep_alive"`
-		Timeout       time.Duration `mapstructure:"timeout"`
-		NumCtx        int           `mapstructure:"num_ctx"`
-		TLSSkipVerify bool          `mapstructure:"tls_skip_verify"`
+		Provider        string        `mapstructure:"provider"`
+		Model           string        `mapstructure:"model"`
+		APIKey          string        `mapstructure:"api_key"`
+		BaseURL         string        `mapstructure:"base_url"`
+		KeepAlive       string        `mapstructure:"keep_alive"`
+		Timeout         time.Duration `mapstructure:"timeout"`
+		NumCtx          int           `mapstructure:"num_ctx"`
+		TLSSkipVerify   bool          `mapstructure:"tls_skip_verify"`
+		MaxHistoryTurns int           `mapstructure:"max_history_turns"`
 	}
 
 	MCP1 struct {
@@ -120,6 +121,7 @@ func newConfig() IConfig {
 	cfg.SetDefault("llm.base_url", "https://generativelanguage.googleapis.com/v1beta/openai")
 	cfg.SetDefault("llm.keep_alive", "30m")
 	cfg.SetDefault("llm.timeout", 5*time.Minute)
+	cfg.SetDefault("llm.max_history_turns", 10)
 	cfg.SetDefault("llm.num_ctx", 2048)
 	cfg.SetDefault("mcp1.host", "localhost")
 	cfg.SetDefault("mcp1.port", 9000)
@@ -130,6 +132,7 @@ func newConfig() IConfig {
 	cfg.BindEnv("llm.base_url", "LLM_BASE_URL")
 	cfg.BindEnv("llm.api_key", "LLM_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY")
 	cfg.BindEnv("llm.tls_skip_verify", "LLM_TLS_SKIP_VERIFY")
+	cfg.BindEnv("llm.max_history_turns", "LLM_MAX_HISTORY_TURNS")
 	cfg.BindEnv("database.user", "DATABASE_USER", "DB_USER")
 	cfg.BindEnv("database.password", "DATABASE_PASSWORD", "DB_PASSWORD")
 	cfg.BindEnv("database.name", "DATABASE_NAME", "DB_NAME")

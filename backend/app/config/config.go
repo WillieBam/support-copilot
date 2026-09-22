@@ -57,14 +57,16 @@ type Config struct {
 	}
 
 	LLM struct {
-		Provider      string        `mapstructure:"provider"`
-		Model         string        `mapstructure:"model"`
-		APIKey        string        `mapstructure:"api_key"`
-		BaseURL       string        `mapstructure:"base_url"`
-		KeepAlive     string        `mapstructure:"keep_alive"`
-		Timeout       time.Duration `mapstructure:"timeout"`
-		NumCtx        int           `mapstructure:"num_ctx"`
-		TLSSkipVerify bool          `mapstructure:"tls_skip_verify"`
+		Provider         string        `mapstructure:"provider"`
+		Model            string        `mapstructure:"model"`
+		APIKey           string        `mapstructure:"api_key"`
+		BaseURL          string        `mapstructure:"base_url"`
+		KeepAlive        string        `mapstructure:"keep_alive"`
+		Timeout          time.Duration `mapstructure:"timeout"`
+		NumCtx           int           `mapstructure:"num_ctx"`
+		TLSSkipVerify    bool          `mapstructure:"tls_skip_verify"`
+		MaxHistoryTurns  int           `mapstructure:"max_history_turns"`
+		SummaryThreshold int           `mapstructure:"summary_threshold"`
 	}
 
 	MCP1 struct {
@@ -121,6 +123,8 @@ func newConfig() IConfig {
 	cfg.SetDefault("llm.keep_alive", "30m")
 	cfg.SetDefault("llm.timeout", 5*time.Minute)
 	cfg.SetDefault("llm.num_ctx", 2048)
+	cfg.SetDefault("llm.max_history_turns", 6)
+	cfg.SetDefault("llm.summary_threshold", 6)
 	cfg.SetDefault("mcp1.host", "localhost")
 	cfg.SetDefault("mcp1.port", 9000)
 	cfg.SetDefault("mcp2.host", "localhost")
@@ -130,6 +134,8 @@ func newConfig() IConfig {
 	cfg.BindEnv("llm.base_url", "LLM_BASE_URL")
 	cfg.BindEnv("llm.api_key", "LLM_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY")
 	cfg.BindEnv("llm.tls_skip_verify", "LLM_TLS_SKIP_VERIFY")
+	cfg.BindEnv("llm.max_history_turns", "MAX_HISTORY_TURNS")
+	cfg.BindEnv("llm.summary_threshold", "SUMMARY_THRESHOLD")
 	cfg.BindEnv("database.user", "DATABASE_USER", "DB_USER")
 	cfg.BindEnv("database.password", "DATABASE_PASSWORD", "DB_PASSWORD")
 	cfg.BindEnv("database.name", "DATABASE_NAME", "DB_NAME")

@@ -19,4 +19,6 @@ type IAppService interface {
 	GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID, userPrompt, assistantReply string) (string, error)
 	IngestAlert(ctx context.Context, req *requests.AlertIngestRequest) error
 	Intercept(ctx context.Context, prompt string) (*types.CommandResult, error)
+	UpdateRollingSummary(ctx context.Context, convID uuid.UUID, history []types.HistoryMessage) (string, error)
+	GetConversationSummary(ctx context.Context, convID uuid.UUID) (string, error)
 }

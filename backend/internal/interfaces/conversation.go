@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// iconversationrepository defines database operations for conversations and messages
+// IConversationRepository defines database operations for conversations and messages
 type IConversationRepository interface {
 	CreateConversation(ctx context.Context, conv *models.Conversation) error
 	GetConversationByID(ctx context.Context, id uuid.UUID) (*models.Conversation, error)
@@ -15,4 +15,5 @@ type IConversationRepository interface {
 	UpdateConversationTitle(ctx context.Context, id uuid.UUID, title string) error
 	CreateMessage(ctx context.Context, msg *models.Message) error
 	ListMessagesByConversation(ctx context.Context, convID uuid.UUID) ([]models.Message, error)
+	UpdateConversationSummary(ctx context.Context, id uuid.UUID, summary string) error
 }

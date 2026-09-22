@@ -111,6 +111,36 @@ func (_m *IAuthService) LoginWithPassword(ctx context.Context, usernameOrEmail s
 	return r0, r1, r2
 }
 
+// ParseAndValidateAuthToken provides a mock function with given fields: ctx, tokenString
+func (_m *IAuthService) ParseAndValidateAuthToken(ctx context.Context, tokenString string) (*types.Claims, error) {
+	ret := _m.Called(ctx, tokenString)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ParseAndValidateAuthToken")
+	}
+
+	var r0 *types.Claims
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*types.Claims, error)); ok {
+		return rf(ctx, tokenString)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *types.Claims); ok {
+		r0 = rf(ctx, tokenString)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*types.Claims)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, tokenString)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // RefreshToken provides a mock function with given fields: ctx, tokenString
 func (_m *IAuthService) RefreshToken(ctx context.Context, tokenString string) (string, *types.Claims, error) {
 	ret := _m.Called(ctx, tokenString)
@@ -146,36 +176,6 @@ func (_m *IAuthService) RefreshToken(ctx context.Context, tokenString string) (s
 	}
 
 	return r0, r1, r2
-}
-
-// ParseAndValidateAuthToken provides a mock function with given fields: ctx, tokenString
-func (_m *IAuthService) ParseAndValidateAuthToken(ctx context.Context, tokenString string) (*types.Claims, error) {
-	ret := _m.Called(ctx, tokenString)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ParseAndValidateAuthToken")
-	}
-
-	var r0 *types.Claims
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*types.Claims, error)); ok {
-		return rf(ctx, tokenString)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *types.Claims); ok {
-		r0 = rf(ctx, tokenString)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*types.Claims)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, tokenString)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
 }
 
 // Register provides a mock function with given fields: ctx, username, email, password

@@ -28,3 +28,14 @@ func GetActiveIncidentID(ctx context.Context) (uuid.UUID, bool) {
 	val, ok := ctx.Value(types.ActiveIncidentIDContextKey).(uuid.UUID)
 	return val, ok && val != uuid.Nil
 }
+
+// WithConversationID injects conversation id to context
+func WithConversationID(ctx context.Context, convID uuid.UUID) context.Context {
+	return context.WithValue(ctx, types.ConversationIDContextKey, convID)
+}
+
+// GetConversationID extracts conversation id from context
+func GetConversationID(ctx context.Context) (uuid.UUID, bool) {
+	val, ok := ctx.Value(types.ConversationIDContextKey).(uuid.UUID)
+	return val, ok && val != uuid.Nil
+}

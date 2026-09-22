@@ -10,6 +10,10 @@ import (
 	"strconv"
 	"strings"
 
+	"time"
+
+	"github.com/WillieBam/support_copilot/backend/app/config"
+	"github.com/WillieBam/support_copilot/backend/internal/command"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/types"
 	"github.com/WillieBam/support_copilot/backend/types/models"
@@ -210,8 +214,13 @@ func (h *Handler) Query(c *echo.Context) error {
 	}
 
 	go func() {
+		streamCtx := c.Request().Context()
+		if convID != uuid.Nil {
+			streamCtx = command.WithConversationID(streamCtx, convID)
+		}
+
 		// pass the channel into the service so it can push events
-		err := h.apps.QueryStreamWithTools(c.Request().Context(), req.Input, req.History, streamChan, opts...)
+		err := h.apps.QueryStreamWithTools(streamCtx, req.Input, req.History, streamChan, opts...)
 		if err != nil {
 			errorChan <- err
 		}
@@ -244,6 +253,25 @@ func (h *Handler) Query(c *echo.Context) error {
 							fmt.Fprintf(resp, "data: %s\n\n", eventJSON)
 							flusher.Flush()
 						}
+					}
+
+					// Trigger rolling summary only once after stream finishes and message is saved
+					cfg := config.Get()
+					threshold := cfg.LLM.SummaryThreshold
+					if threshold <= 0 {
+						threshold = 6
+					}
+					if len(req.History)+2 > threshold {
+						fullHist := make([]types.HistoryMessage, 0, len(req.History)+2)
+						fullHist = append(fullHist, req.History...)
+						fullHist = append(fullHist, types.HistoryMessage{Role: "user", Content: req.Input})
+						fullHist = append(fullHist, types.HistoryMessage{Role: "assistant", Content: asstText})
+
+						go func(cID uuid.UUID, hist []types.HistoryMessage) {
+							bgCtx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+							defer cancel()
+							_, _ = h.apps.UpdateRollingSummary(bgCtx, cID, hist)
+						}(convID, fullHist)
 					}
 				}
 				return nil

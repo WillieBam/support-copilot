@@ -10,6 +10,7 @@ type ContextKey string
 const (
 	TeamIDContextKey           ContextKey = "team_id"
 	ActiveIncidentIDContextKey ContextKey = "active_incident_id"
+	ConversationIDContextKey   ContextKey = "conversation_id"
 )
 
 type IncidentRecord struct {

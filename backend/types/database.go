@@ -85,18 +85,19 @@ type ConversationWithUserRow struct {
 
 // ConversationWithMessagesRow represents a row from conversations LEFT JOIN users LEFT JOIN messages
 type ConversationWithMessagesRow struct {
-	ConvID           uuid.UUID  `gorm:"column:conv_id"`
-	TeamID           uuid.UUID  `gorm:"column:team_id"`
-	TeamIncidentID   *uuid.UUID `gorm:"column:team_incident_id"`
-	UserID           uuid.UUID  `gorm:"column:user_id"`
-	Title            string     `gorm:"column:title"`
-	ConvCreatedAt    time.Time  `gorm:"column:conv_created_at"`
-	UserEmail        *string    `gorm:"column:user_email"`
-	UserDisplayName  *string    `gorm:"column:user_display_name"`
-	UserScope        *string    `gorm:"column:user_scope"`
-	MessageID        *uuid.UUID `gorm:"column:message_id"`
-	ParentMessageID  *uuid.UUID `gorm:"column:parent_message_id"`
-	MessageSender    *string    `gorm:"column:message_sender"`
-	MessageContent   *string    `gorm:"column:message_content"`
-	MessageCreatedAt *time.Time `gorm:"column:message_created_at"`
+	ConvID              uuid.UUID  `gorm:"column:conv_id"`
+	TeamID              uuid.UUID  `gorm:"column:team_id"`
+	TeamIncidentID      *uuid.UUID `gorm:"column:team_incident_id"`
+	UserID              uuid.UUID  `gorm:"column:user_id"`
+	Title               string     `gorm:"column:title"`
+	ConvCreatedAt       time.Time  `gorm:"column:conv_created_at"`
+	UserEmail           *string    `gorm:"column:user_email"`
+	UserDisplayName     *string    `gorm:"column:user_display_name"`
+	UserScope           *string    `gorm:"column:user_scope"`
+	MessageID           *uuid.UUID `gorm:"column:message_id"`
+	ParentMessageID     *uuid.UUID `gorm:"column:parent_message_id"`
+	MessageSender       *string    `gorm:"column:message_sender"`
+	MessageContent      *string    `gorm:"column:message_content"`
+	MessageCreatedAt    *time.Time `gorm:"column:message_created_at"`
+	ConversationSummary *string    `gorm:"column:conv_summary"`
 }

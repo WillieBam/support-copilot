@@ -27,8 +27,8 @@ func (r *conversationRepository) CreateConversation(ctx context.Context, conv *m
 func (r *conversationRepository) GetConversationByID(ctx context.Context, id uuid.UUID) (*models.Conversation, error) {
 	var rows []types.ConversationWithMessagesRow
 	rawSQL := `SELECT 
-		c.id AS conv_id, c.team_id, c.team_incident_id, c.user_id, c.title, c.created_at AS conv_created_at,
-		u.email AS user_email, u.display_name AS user_display_name, u.scope AS user_scope,
+		c.id AS conv_id, c.team_id, c.team_incident_id, c.user_id, c.title, c.created_at AS conv_created_at, c.summary as conv_summary,
+		u.email AS user_email, u.display_name AS user_display_name, u.scope AS user_scope,   
 		m.id AS message_id, m.parent_message_id, m.sender AS message_sender, m.content AS message_content, m.created_at AS message_created_at
 	FROM conversations c
 	LEFT JOIN users u ON u.id = c.user_id
@@ -62,6 +62,11 @@ func (r *conversationRepository) GetConversationByID(ctx context.Context, id uui
 		}
 	}
 
+	summary := ""
+	if first.ConversationSummary != nil {
+		summary = *first.ConversationSummary
+	}
+
 	conv := &models.Conversation{
 		ID:             first.ConvID,
 		TeamID:         first.TeamID,
@@ -71,6 +76,7 @@ func (r *conversationRepository) GetConversationByID(ctx context.Context, id uui
 		Title:          first.Title,
 		CreatedAt:      first.ConvCreatedAt,
 		Messages:       []models.Message{},
+		Summary:        summary,
 	}
 
 	for _, row := range rows {
@@ -176,4 +182,8 @@ func (r *conversationRepository) ListMessagesByConversation(ctx context.Context,
 	var msgs []models.Message
 	err := r.db.WithContext(ctx).Where("conversation_id = ?", convID).Order("created_at ASC").Find(&msgs).Error
 	return msgs, err
+}
+
+func (r *conversationRepository) UpdateConversationSummary(ctx context.Context, id uuid.UUID, summary string) error {
+	return r.db.WithContext(ctx).Model(&models.Conversation{}).Where("id = ?", id).Update("summary", summary).Error
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WillieBam/support_copilot/backend/app/config"
 	"github.com/WillieBam/support_copilot/backend/internal/classifier"
 	"github.com/WillieBam/support_copilot/backend/internal/command"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
@@ -32,6 +33,18 @@ type AppService struct {
 	convRepo           interfaces.IConversationRepository
 	teamRepo           interfaces.ITeamRepository
 }
+
+const InvestigationSummarizerPrompt = `You are an IT Incident Investigation Summarizer. Condense the prior conversation turns into a concise operational summary focusing strictly on:
+1. Target Service, Host, Environment, and Cluster.
+2. Telemetry Alerts evaluated (IDs, severity, MCP-1 anomaly score, Real Alert vs False Alarm).
+3. Incidents and Runbooks referenced or updated (INC-xxx, RB-xxx).
+4. Diagnosed root cause and telemetry symptoms (CPU/Memory/Latency).
+5. Remediation actions taken, verified results, and current operational state.
+Rules:
+- Keep the summary under 150 words.
+- Use structured bullet points.
+- Do NOT include conversational pleasantries, filler phrases, or hypothetical actions.
+- Output ONLY the summary text.`
 
 func NewAppService(alertRepo interfaces.IAlertRepository, llmClient interfaces.ILLMClient, mcpClient interfaces.IMCPClient, opts ...interface{}) interfaces.IAppService {
 	var registry interfaces.IToolRegistry
@@ -304,14 +317,26 @@ func (s *AppService) Intercept(ctx context.Context, prompt string) (*types.Comma
 func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, history []types.HistoryMessage, streamChan chan<- types.StreamEvent, opts ...interface{}) error {
 	slog.Info("[APP SERVICE] QueryStreamWithTools started", "prompt", prompt)
 
-	var teamID uuid.UUID
-	var activeIncidentID uuid.UUID
+	var (
+		teamID           uuid.UUID
+		activeIncidentID uuid.UUID
+		convID           uuid.UUID
+		existingSummary  string
+		availableTools   []requests.LLMTool
+	)
+
+	if cid, ok := command.GetConversationID(ctx); ok {
+		convID = cid
+	}
+
 	for _, opt := range opts {
 		if id, ok := opt.(uuid.UUID); ok && id != uuid.Nil {
 			if teamID == uuid.Nil {
 				teamID = id
-			} else {
+			} else if activeIncidentID == uuid.Nil {
 				activeIncidentID = id
+			} else if convID == uuid.Nil {
+				convID = id
 			}
 		}
 	}
@@ -372,13 +397,30 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 		}
 	}
 
+	if convID != uuid.Nil && s.convRepo != nil {
+		if conv, err := s.convRepo.GetConversationByID(ctx, convID); err == nil && conv != nil {
+			existingSummary = strings.TrimSpace(conv.Summary)
+		}
+	}
+
+	if existingSummary != "" {
+		systemPrompt += fmt.Sprintf("\n\n## Ongoing Incident Investigation Summary\nThe following is a condensed operational summary of earlier turns in this session:\n%s", existingSummary)
+	}
+
+	cfg := config.Get()
+	maxTurns := cfg.LLM.MaxHistoryTurns
+	if maxTurns <= 0 {
+		maxTurns = 6
+	}
+	windowedHistory := applySlidingWindow(history, maxTurns)
+
 	// build the full multi-turn messages array:
 	//   [system] + [history turns...] + [current user message]
 	// this is to remain LLM full conversation context so it can remember context of a conversation
 	messages := []requests.LLMMessage{
 		{Role: "system", Content: systemPrompt},
 	}
-	for _, h := range history {
+	for _, h := range windowedHistory {
 		if h.Role == "user" || h.Role == "assistant" {
 			messages = append(messages, requests.LLMMessage{
 				Role:    h.Role,
@@ -391,10 +433,9 @@ func (s *AppService) QueryStreamWithTools(ctx context.Context, prompt string, hi
 	// classify the user's intent to decide whether to expose tool
 	// For conversational prompts the tool list is withheld entirely so the LLM
 	// physically cannot make a tool call
-	intent := s.intentClassifier.ClassifyWithHistory(prompt, history)
+	intent := s.intentClassifier.ClassifyWithHistory(prompt, windowedHistory)
 	slog.Info("[APP SERVICE] Intent classified", "intent", intent, "prompt", prompt)
 
-	var availableTools []requests.LLMTool
 	if intent == classifier.IntentTask {
 		availableTools = s.toolRegistry.GetTools()
 	} else {
@@ -623,4 +664,109 @@ func (s *AppService) GenerateAndSaveTitle(ctx context.Context, convID uuid.UUID,
 	slog.Info("[APP SERVICE] Generated title for conversation", "conv_id", convID, "title", title)
 	err = s.convRepo.UpdateConversationTitle(ctx, convID, title)
 	return title, err
+}
+func applySlidingWindow(history []types.HistoryMessage, maxTurns int) []types.HistoryMessage {
+	if maxTurns <= 0 || len(history) <= maxTurns {
+		return history
+	}
+	return history[len(history)-maxTurns:]
+}
+func (s *AppService) UpdateRollingSummary(ctx context.Context, convID uuid.UUID, history []types.HistoryMessage) (string, error) {
+	if s.convRepo == nil || s.llmClient == nil {
+		return "", errors.New("repository or llm client unavailable")
+	}
+	conversation, err := s.convRepo.GetConversationByID(ctx, convID)
+	if err != nil {
+		return "", err
+	}
+
+	existingSummary := ""
+	if conversation != nil {
+		existingSummary = strings.TrimSpace(conversation.Summary)
+		if len(history) == 0 && len(conversation.Messages) > 0 {
+			for _, m := range conversation.Messages {
+				if m.Sender == "user" || m.Sender == "assistant" {
+					history = append(history, types.HistoryMessage{
+						Role:    m.Sender,
+						Content: m.Content,
+					})
+				}
+			}
+		}
+	}
+
+	cfg := config.Get()
+	threshold := cfg.LLM.SummaryThreshold
+	if threshold <= 0 {
+		threshold = 6
+	}
+
+	var toSummarize []types.HistoryMessage
+	if len(history) > threshold {
+		toSummarize = history[:len(history)-threshold]
+	} else {
+		return existingSummary, nil
+	}
+
+	var userPrompt strings.Builder
+	if existingSummary != "" {
+		userPrompt.WriteString("Existing Investigation Summary:\n")
+		userPrompt.WriteString(existingSummary)
+		userPrompt.WriteString("\n\nOlder Turns to Integrate into Summary:\n")
+	} else {
+		userPrompt.WriteString("Conversation Turns to Summarize:\n")
+	}
+
+	for _, msg := range toSummarize {
+		role := "User"
+		if strings.ToLower(msg.Role) == "assistant" {
+			role = "Assistant"
+		}
+		userPrompt.WriteString(fmt.Sprintf("%s: %s\n", role, msg.Content))
+	}
+
+	summaryChan := make(chan types.StreamEvent, 64)
+	go func() {
+		for range summaryChan {
+		}
+	}()
+
+	req := requests.LLMChatRequest{
+		Messages: []requests.LLMMessage{
+			{Role: "system", Content: InvestigationSummarizerPrompt},
+			{Role: "user", Content: userPrompt.String()},
+		},
+	}
+
+	asstMsg, err := s.llmClient.QueryStreamWithTools(ctx, req, summaryChan)
+	close(summaryChan)
+	if err != nil {
+		slog.Error("[APP SERVICE] Failed to generate rolling summary", "err", err, "conv_id", convID)
+		return "", err
+	}
+
+	newSummary := strings.TrimSpace(asstMsg.Content)
+	if newSummary == "" {
+		return existingSummary, nil
+	}
+	if err := s.convRepo.UpdateConversationSummary(ctx, convID, newSummary); err != nil {
+		slog.Error("[APP SERVICE] Failed to persist conversation summary", "err", err, "conv_id", convID)
+		return newSummary, err
+	}
+	slog.Info("[APP SERVICE] Successfully updated rolling summary", "conv_id", convID)
+	return newSummary, nil
+}
+
+func (s *AppService) GetConversationSummary(ctx context.Context, convID uuid.UUID) (string, error) {
+	if s.convRepo == nil || convID == uuid.Nil {
+		return "", nil
+	}
+	conv, err := s.convRepo.GetConversationByID(ctx, convID)
+	if err != nil {
+		return "", err
+	}
+	if conv == nil {
+		return "", nil
+	}
+	return conv.Summary, nil
 }

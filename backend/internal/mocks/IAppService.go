@@ -109,6 +109,34 @@ func (_m *IAppService) GetConversationByID(ctx context.Context, id uuid.UUID) (*
 	return r0, r1
 }
 
+// GetConversationSummary provides a mock function with given fields: ctx, convID
+func (_m *IAppService) GetConversationSummary(ctx context.Context, convID uuid.UUID) (string, error) {
+	ret := _m.Called(ctx, convID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetConversationSummary")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (string, error)); ok {
+		return rf(ctx, convID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) string); ok {
+		r0 = rf(ctx, convID)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, convID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // IngestAlert provides a mock function with given fields: ctx, req
 func (_m *IAppService) IngestAlert(ctx context.Context, req *requests.AlertIngestRequest) error {
 	ret := _m.Called(ctx, req)
@@ -261,6 +289,34 @@ func (_m *IAppService) SaveMessage(ctx context.Context, convID uuid.UUID, sender
 
 	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, string, string) error); ok {
 		r1 = rf(ctx, convID, sender, content, reasoning)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// UpdateRollingSummary provides a mock function with given fields: ctx, convID, history
+func (_m *IAppService) UpdateRollingSummary(ctx context.Context, convID uuid.UUID, history []types.HistoryMessage) (string, error) {
+	ret := _m.Called(ctx, convID, history)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateRollingSummary")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, []types.HistoryMessage) (string, error)); ok {
+		return rf(ctx, convID, history)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, []types.HistoryMessage) string); ok {
+		r0 = rf(ctx, convID, history)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, []types.HistoryMessage) error); ok {
+		r1 = rf(ctx, convID, history)
 	} else {
 		r1 = ret.Error(1)
 	}

@@ -65,9 +65,9 @@ func (_m *ITeamService) AssignIncident(ctx context.Context, requesterID uuid.UUI
 	return r0, r1
 }
 
-// CreateRunbook provides a mock function with given fields: ctx, creatorID, teamID, incidentID, title, content
-func (_m *ITeamService) CreateRunbook(ctx context.Context, creatorID uuid.UUID, teamID uuid.UUID, incidentID string, title string, content string) (*models.Runbook, error) {
-	ret := _m.Called(ctx, creatorID, teamID, incidentID, title, content)
+// CreateRunbook provides a mock function with given fields: ctx, creatorID, teamID, incidentIDOrNumber, title, content
+func (_m *ITeamService) CreateRunbook(ctx context.Context, creatorID uuid.UUID, teamID uuid.UUID, incidentIDOrNumber string, title string, content string) (*models.Runbook, error) {
+	ret := _m.Called(ctx, creatorID, teamID, incidentIDOrNumber, title, content)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateRunbook")
@@ -76,10 +76,10 @@ func (_m *ITeamService) CreateRunbook(ctx context.Context, creatorID uuid.UUID, 
 	var r0 *models.Runbook
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string, string) (*models.Runbook, error)); ok {
-		return rf(ctx, creatorID, teamID, incidentID, title, content)
+		return rf(ctx, creatorID, teamID, incidentIDOrNumber, title, content)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, string, string, string) *models.Runbook); ok {
-		r0 = rf(ctx, creatorID, teamID, incidentID, title, content)
+		r0 = rf(ctx, creatorID, teamID, incidentIDOrNumber, title, content)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Runbook)
@@ -87,7 +87,7 @@ func (_m *ITeamService) CreateRunbook(ctx context.Context, creatorID uuid.UUID, 
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, string, string, string) error); ok {
-		r1 = rf(ctx, creatorID, teamID, incidentID, title, content)
+		r1 = rf(ctx, creatorID, teamID, incidentIDOrNumber, title, content)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -281,6 +281,34 @@ func (_m *ITeamService) GetIncidentContextByIDOrNumber(ctx context.Context, idOr
 	return r0, r1, r2
 }
 
+// GetMemberRole provides a mock function with given fields: ctx, teamID, userID
+func (_m *ITeamService) GetMemberRole(ctx context.Context, teamID uuid.UUID, userID uuid.UUID) (string, error) {
+	ret := _m.Called(ctx, teamID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetMemberRole")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (string, error)); ok {
+		return rf(ctx, teamID, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) string); ok {
+		r0 = rf(ctx, teamID, userID)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, teamID, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetRunbook provides a mock function with given fields: ctx, runbookID
 func (_m *ITeamService) GetRunbook(ctx context.Context, runbookID uuid.UUID) (*models.Runbook, error) {
 	ret := _m.Called(ctx, runbookID)
@@ -451,24 +479,6 @@ func (_m *ITeamService) LinkAlertsToIncident(ctx context.Context, alertIDStrings
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, []string, uuid.UUID) error); ok {
 		r0 = rf(ctx, alertIDStrings, incidentID)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// UnlinkAlertFromIncident provides a mock function with given fields: ctx, alertID, incidentID
-func (_m *ITeamService) UnlinkAlertFromIncident(ctx context.Context, alertID uuid.UUID, incidentID uuid.UUID) error {
-	ret := _m.Called(ctx, alertID, incidentID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UnlinkAlertFromIncident")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
-		r0 = rf(ctx, alertID, incidentID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -734,6 +744,24 @@ func (_m *ITeamService) SaveTeamInstruction(ctx context.Context, requesterID uui
 	return r0, r1
 }
 
+// UnlinkAlertFromIncident provides a mock function with given fields: ctx, alertID, incidentID
+func (_m *ITeamService) UnlinkAlertFromIncident(ctx context.Context, alertID uuid.UUID, incidentID uuid.UUID) error {
+	ret := _m.Called(ctx, alertID, incidentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UnlinkAlertFromIncident")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, alertID, incidentID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // UpdateIncidentStatus provides a mock function with given fields: ctx, requesterID, incidentID, newStatus, title, details
 func (_m *ITeamService) UpdateIncidentStatus(ctx context.Context, requesterID uuid.UUID, incidentID uuid.UUID, newStatus string, title string, details string) (*models.TeamIncident, error) {
 	ret := _m.Called(ctx, requesterID, incidentID, newStatus, title, details)
@@ -787,34 +815,6 @@ func (_m *ITeamService) UpdateRunbook(ctx context.Context, updaterID uuid.UUID, 
 
 	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, string, string) error); ok {
 		r1 = rf(ctx, updaterID, runbookID, title, content)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetMemberRole provides a mock function with given fields: ctx, teamID, userID
-func (_m *ITeamService) GetMemberRole(ctx context.Context, teamID uuid.UUID, userID uuid.UUID) (string, error) {
-	ret := _m.Called(ctx, teamID, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetMemberRole")
-	}
-
-	var r0 string
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (string, error)); ok {
-		return rf(ctx, teamID, userID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) string); ok {
-		r0 = rf(ctx, teamID, userID)
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
-		r1 = rf(ctx, teamID, userID)
 	} else {
 		r1 = ret.Error(1)
 	}

@@ -57,11 +57,27 @@ var _ = Describe("ConversationRepository", func() {
 
 			mock.ExpectBegin()
 			mock.ExpectQuery(`INSERT INTO "conversations"`).
-				WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+				WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(conv.ID))
 			mock.ExpectCommit()
 
 			err := convRepo.CreateConversation(ctx, conv)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("UpdateConversationSummary", func() {
+		It("should update summary successfully", func() {
+			convID := uuid.New()
+			summary := "updated summary"
+
+			mock.ExpectBegin()
+			mock.ExpectExec(`UPDATE "conversations" SET "summary"=\$1 WHERE id = \$2`).
+				WithArgs(summary, convID).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+
+			err := convRepo.UpdateConversationSummary(ctx, convID, summary)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})

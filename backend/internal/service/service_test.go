@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/WillieBam/support_copilot/backend/types/models"
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/WillieBam/support_copilot/backend/internal/classifier"
+	"github.com/WillieBam/support_copilot/backend/internal/command"
 	"github.com/WillieBam/support_copilot/backend/internal/interfaces"
 	"github.com/WillieBam/support_copilot/backend/internal/mocks"
 	"github.com/WillieBam/support_copilot/backend/internal/service"
@@ -363,7 +365,7 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 				},
 			}
 			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(firstPassMsgRb, nil).Once()
-			mockToolReg.On("Execute", mock.Anything, "create_runbook", mock.Anything).Return(`{"id":"RB-101","incident_id":"INC-1","title":"Guide","status":"active","content":"rollout"}` , nil)
+			mockToolReg.On("Execute", mock.Anything, "create_runbook", mock.Anything).Return(`{"id":"RB-101","incident_id":"INC-1","title":"Guide","status":"active","content":"rollout"}`, nil)
 			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.Anything, mock.Anything).Return(&requests.OllamaMessage{Role: "assistant", Content: ""}, nil).Once()
 
 			streamChanRb := make(chan types.StreamEvent, 10)
@@ -517,6 +519,82 @@ var _ = Describe("AppService (Streaming & Alerts)", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("db error"))
 			mockAlertRepo.AssertExpectations(GinkgoT())
+		})
+	})
+
+	Context("Sliding Window & Rolling Summary", func() {
+		It("ApplySlidingWindow should slice history at boundary", func() {
+			history := []types.HistoryMessage{
+				{Role: "user", Content: "Turn 1"},
+				{Role: "assistant", Content: "Reply 1"},
+				{Role: "user", Content: "Turn 2"},
+				{Role: "assistant", Content: "Reply 2"},
+				{Role: "user", Content: "Turn 3"},
+				{Role: "assistant", Content: "Reply 3"},
+				{Role: "user", Content: "Turn 4"},
+				{Role: "assistant", Content: "Reply 4"},
+			}
+
+			windowed := service.ApplySlidingWindow(history, 6)
+			Expect(len(windowed)).To(Equal(6))
+			Expect(windowed[0].Content).To(Equal("Turn 2"))
+			Expect(windowed[5].Content).To(Equal("Reply 4"))
+
+			under := service.ApplySlidingWindow(history[:4], 6)
+			Expect(len(under)).To(Equal(4))
+		})
+
+		It("UpdateRollingSummary should summarize evicted turns and save to repository", func() {
+			mockConvRepo := &mocks.IConversationRepository{}
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockConvRepo)
+			convID := uuid.New()
+
+			history := []types.HistoryMessage{
+				{Role: "user", Content: "Check alert A-022"},
+				{Role: "assistant", Content: "Alert A-022 is critical"},
+				{Role: "user", Content: "T3"}, {Role: "assistant", Content: "R3"},
+				{Role: "user", Content: "T4"}, {Role: "assistant", Content: "R4"},
+				{Role: "user", Content: "T5"}, {Role: "assistant", Content: "R5"},
+			}
+
+			mockConvRepo.On("GetConversationByID", mock.Anything, convID).Return(&models.Conversation{
+				ID:      convID,
+				Summary: "",
+			}, nil)
+
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.MatchedBy(func(req requests.LLMChatRequest) bool {
+				return strings.Contains(req.Messages[1].Content, "Check alert A-022")
+			}), mock.Anything).Return(&requests.OllamaMessage{
+				Role:    "assistant",
+				Content: "- Target: payment-gateway\n- Alerts: A-022 evaluated",
+			}, nil).Once()
+
+			mockConvRepo.On("UpdateConversationSummary", mock.Anything, convID, "- Target: payment-gateway\n- Alerts: A-022 evaluated").Return(nil).Once()
+
+			summary, err := customAppSvc.UpdateRollingSummary(ctx, convID, history)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(summary).To(ContainSubstring("A-022"))
+		})
+
+		It("QueryStreamWithTools should inject ongoing summary into system prompt", func() {
+			mockConvRepo := &mocks.IConversationRepository{}
+			customAppSvc := service.NewAppService(mockAlertRepo, mockLLM, mockMcpOne, mockConvRepo)
+			convID := uuid.New()
+
+			mockConvRepo.On("GetConversationByID", mock.Anything, convID).Return(&models.Conversation{
+				ID:      convID,
+				Summary: "- Alert A-022 validated on payment-gateway",
+			}, nil)
+
+			mockLLM.On("QueryStreamWithTools", mock.Anything, mock.MatchedBy(func(req requests.LLMChatRequest) bool {
+				return strings.Contains(req.Messages[0].Content, "Ongoing Incident Investigation Summary") &&
+					strings.Contains(req.Messages[0].Content, "- Alert A-022 validated on payment-gateway")
+			}), mock.Anything).Return(&requests.OllamaMessage{Role: "assistant", Content: "Acknowledged"}, nil).Once()
+
+			streamChan := make(chan types.StreamEvent, 10)
+			convCtx := command.WithConversationID(ctx, convID)
+			err := customAppSvc.QueryStreamWithTools(convCtx, "what is next?", nil, streamChan)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 

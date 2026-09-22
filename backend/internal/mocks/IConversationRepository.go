@@ -143,6 +143,24 @@ func (_m *IConversationRepository) ListTeamConversations(ctx context.Context, te
 	return r0, r1
 }
 
+// UpdateConversationSummary provides a mock function with given fields: ctx, id, summary
+func (_m *IConversationRepository) UpdateConversationSummary(ctx context.Context, id uuid.UUID, summary string) error {
+	ret := _m.Called(ctx, id, summary)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateConversationSummary")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) error); ok {
+		r0 = rf(ctx, id, summary)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // UpdateConversationTitle provides a mock function with given fields: ctx, id, title
 func (_m *IConversationRepository) UpdateConversationTitle(ctx context.Context, id uuid.UUID, title string) error {
 	ret := _m.Called(ctx, id, title)

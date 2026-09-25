@@ -47,7 +47,7 @@ packaging==26.0
 pathable==0.5.0
 platformdirs==4.9.4
 py-key-value-aio==0.4.4
-pyasn1==0.6.2
+pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycparser==3.0
 pydantic==2.12.5

@@ -57,7 +57,7 @@ Pygments==2.19.2
 PyJWT==2.13.0
 pyperclip==1.11.0
 python-dotenv==1.2.2
-python-multipart==0.0.22
+python-multipart==0.0.31
 PyYAML==6.0.3
 referencing==0.37.0
 requests==2.32.5

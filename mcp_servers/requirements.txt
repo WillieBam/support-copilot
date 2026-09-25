@@ -38,7 +38,7 @@ jsonschema-path==0.4.5
 jsonschema-specifications==2025.9.1
 keyring==25.7.0
 markdown-it-py==4.0.0
-mcp==1.26.0
+mcp==1.28.1
 mdurl==0.1.2
 more-itertools==10.8.0
 openapi-pydantic==0.5.1

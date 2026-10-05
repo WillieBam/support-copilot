@@ -60,7 +60,7 @@ pydantic==2.12.5
 pydantic-settings==2.13.1
 pydantic_core==2.41.5
 Pygments==2.19.2
-PyJWT==2.12.1
+PyJWT==2.15.0
 pyperclip==1.11.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2

@@ -7,7 +7,7 @@ backports.tarfile==1.2.0
 beartype==0.22.9
 cachetools==7.0.5
 caio==0.9.25
-certifi==2026.2.25
+certifi==2026.10.19
 cffi==2.0.0
 charset-normalizer==3.4.5
 click==8.3.1

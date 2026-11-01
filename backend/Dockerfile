@@ -9,7 +9,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- build stage ----
-FROM docker.io/library/golang:1.26.1-alpine AS backend-builder
+FROM docker.io/library/golang:1.26.10-alpine AS backend-builder
 
 WORKDIR /app
 

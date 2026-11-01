@@ -2,7 +2,7 @@ aiofile==3.9.0
 annotated-types==0.7.0
 anyio==4.14.2
 attrs==25.4.0
-Authlib==1.6.9
+Authlib==1.9.1
 backports.tarfile==1.2.0
 beartype==0.22.9
 cachetools==7.0.5
